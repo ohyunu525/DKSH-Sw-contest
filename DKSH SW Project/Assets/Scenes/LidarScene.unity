@@ -371,7 +371,7 @@ GameObject:
   - component: {fileID: 406260628}
   - component: {fileID: 406260627}
   m_Layer: 0
-  m_Name: Plane
+  m_Name: RealSpaceFloor
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -578,6 +578,119 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: -3.85, y: 0.5, z: 3.15}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &783155737
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 783155741}
+  - component: {fileID: 783155740}
+  - component: {fileID: 783155739}
+  - component: {fileID: 783155738}
+  m_Layer: 0
+  m_Name: VirtualSpaceFloor
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!64 &783155738
+MeshCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 783155737}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 5
+  m_Convex: 0
+  m_CookingOptions: 30
+  m_Mesh: {fileID: 10209, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!23 &783155739
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 783155737}
+  m_Enabled: 1
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_MaskInteraction: 0
+  m_AdditionalVertexStreams: {fileID: 0}
+--- !u!33 &783155740
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 783155737}
+  m_Mesh: {fileID: 10209, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!4 &783155741
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 783155737}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 20}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -821,6 +934,7 @@ GameObject:
   - component: {fileID: 1663009286}
   - component: {fileID: 1663009290}
   - component: {fileID: 1663009291}
+  - component: {fileID: 1663009292}
   m_Layer: 0
   m_Name: LiDAR Sensor
   m_TagString: Untagged
@@ -851,60 +965,6 @@ CapsuleCollider:
   m_Height: 2
   m_Direction: 1
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &1663009290
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1663009285}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 11b74e31ce3e4bf2a5006085766028dc, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  profile: {fileID: 0}
-  settings:
-    horizontalResolution: 180
-    verticalResolution: 8
-    horizontalFovDegrees: 360
-    verticalFovDegrees: 30
-    maxDistance: 12
-    scanFrequencyHz: 10
-    detectionMask:
-      serializedVersion: 2
-      m_Bits: 4294967295
-    triggerInteraction: 1
-    rotateWithSensor: 1
-    includeMisses: 1
-  scanAutomatically: 1
-  scanInFixedUpdate: 1
-  scanOnEnable: 1
-  drawDebugRays: 1
-  hitRayColor: {r: 0.05, g: 0.85, b: 1, a: 0.85}
-  missRayColor: {r: 0.35, g: 0.35, b: 0.35, a: 0.25}
-  hitPointRadius: 0.035
-  maxDebugRays: 256
---- !u!114 &1663009291
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1663009285}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5e03496e60c343b49ccafa0fb3acb0d6, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  lidarSensor: {fileID: 1663009290}
-  maxPoints: 12000
-  clearOnEachFrame: 0
-  accumulateMisses: 0
-  drawGizmos: 1
-  pointColor: {r: 0.1, g: 1, b: 0.55, a: 0.9}
-  pointRadius: 0.035
-  maxGizmoPoints: 2000
 --- !u!23 &1663009287
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -977,6 +1037,89 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1663009290
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1663009285}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 11b74e31ce3e4bf2a5006085766028dc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  profile: {fileID: 0}
+  settings:
+    horizontalResolution: 180
+    verticalResolution: 8
+    horizontalFovDegrees: 360
+    verticalFovDegrees: 30
+    maxDistance: 12
+    scanFrequencyHz: 10
+    detectionMask:
+      serializedVersion: 2
+      m_Bits: 4294967295
+    triggerInteraction: 1
+    rotateWithSensor: 1
+    includeMisses: 1
+  scanAutomatically: 1
+  scanInFixedUpdate: 1
+  scanOnEnable: 1
+  drawDebugRays: 0
+  hitRayColor: {r: 0.05, g: 0.85, b: 1, a: 0.85}
+  missRayColor: {r: 0.35, g: 0.35, b: 0.35, a: 0.25}
+  hitPointRadius: 0.035
+  maxDebugRays: 256
+--- !u!114 &1663009291
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1663009285}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5e03496e60c343b49ccafa0fb3acb0d6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lidarSensor: {fileID: 1663009290}
+  realSpaceFloor: {fileID: 406260630}
+  realSpaceFloorName: RealSpaceFloor
+  storePointsInRealSpaceFloor: 1
+  maxPoints: 250000
+  rejectDuplicateCells: 1
+  cellSize: 0.05
+  clearOnEachFrame: 0
+  accumulateMisses: 0
+  drawGizmos: 0
+  pointColor: {r: 0.1, g: 1, b: 0.55, a: 0.9}
+  pointRadius: 0.035
+  maxGizmoPoints: 2000
+--- !u!114 &1663009292
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1663009285}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fae0c69943a54f14a5cb8f6c7616e234, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  pointCloudMap: {fileID: 1663009291}
+  virtualSpaceFloor: {fileID: 783155741}
+  virtualSpaceFloorName: VirtualSpaceFloor
+  rendererObjectName: LiDAR Point Cloud
+  maxVisiblePoints: 12000
+  pointSize: 0.07
+  pointColor: {r: 0.1, g: 1, b: 0.55, a: 1}
+  outputScale: 1
+  outputOffset: {x: 0, y: 0, z: 0}
+  particleMaterial: {fileID: 0}
+  pointRenderer: {fileID: 0}
+  updateEveryFrame: 0
 --- !u!1 &2111383419
 GameObject:
   m_ObjectHideFlags: 0
@@ -1076,6 +1219,7 @@ SceneRoots:
   - {fileID: 2111383422}
   - {fileID: 394560930}
   - {fileID: 406260630}
+  - {fileID: 783155741}
   - {fileID: 1663009289}
   - {fileID: 1632884876}
   - {fileID: 948448451}
