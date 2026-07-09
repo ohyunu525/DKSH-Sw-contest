@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using DKSH.Spiderbot.Sensors;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace DKSH.Spiderbot.Mapping
 {
@@ -23,8 +24,8 @@ namespace DKSH.Spiderbot.Mapping
         [SerializeField, Min(1)]
         private int maxPoints = 250000;
 
-        [SerializeField]
-        private bool rejectDuplicateCells = true;
+        [SerializeField, FormerlySerializedAs("rejectDuplicateCells")]
+        private bool keepLatestPointPerCell = true;
 
         [SerializeField, Min(0.001f)]
         private float cellSize = 0.05f;
@@ -49,8 +50,9 @@ namespace DKSH.Spiderbot.Mapping
         private int maxGizmoPoints = 2000;
 
         private readonly List<Vector3> points = new List<Vector3>();
-        private readonly HashSet<Vector3Int> occupiedCells = new HashSet<Vector3Int>();
+        private readonly Dictionary<Vector3Int, int> cellPointIndices = new Dictionary<Vector3Int, int>();
         private const float ScaleEpsilon = 0.0001f;
+        private const float TraversalEpsilon = 0.000001f;
 
         public event Action<LidarPointCloudMap> PointsChanged;
 
@@ -118,15 +120,22 @@ namespace DKSH.Spiderbot.Mapping
             return Mathf.Abs(virtualScale) / realScale;
         }
 
-        private void Clear(bool notify)
+        private bool Clear(bool notify)
         {
+            if (points.Count == 0 && cellPointIndices.Count == 0)
+            {
+                return false;
+            }
+
             points.Clear();
-            occupiedCells.Clear();
+            cellPointIndices.Clear();
 
             if (notify)
             {
                 NotifyPointsChanged();
             }
+
+            return true;
         }
 
         private void Reset()
@@ -192,11 +201,15 @@ namespace DKSH.Spiderbot.Mapping
 
             if (clearOnEachFrame)
             {
-                Clear(false);
-                changed = true;
+                changed |= Clear(false);
             }
 
             var samples = frame.Samples;
+            for (var i = 0; i < samples.Count; i++)
+            {
+                changed |= ClearFreeSpace(samples[i]);
+            }
+
             for (var i = 0; i < samples.Count; i++)
             {
                 var sample = samples[i];
@@ -215,25 +228,204 @@ namespace DKSH.Spiderbot.Mapping
         private bool AddPoint(Vector3 point)
         {
             var storedPoint = ToStoredPoint(point);
+            var cell = ToCell(storedPoint);
 
+            if (keepLatestPointPerCell)
+            {
+                return AddOrUpdateCellPoint(storedPoint, cell);
+            }
+
+            return AddNewPoint(storedPoint, cell);
+        }
+
+        private bool AddOrUpdateCellPoint(Vector3 storedPoint, Vector3Int cell)
+        {
+            int pointIndex;
+            if (cellPointIndices.TryGetValue(cell, out pointIndex))
+            {
+                if (IsValidPointIndex(pointIndex))
+                {
+                    if (points[pointIndex] == storedPoint)
+                    {
+                        return false;
+                    }
+
+                    points[pointIndex] = storedPoint;
+                    return true;
+                }
+
+                cellPointIndices.Remove(cell);
+            }
+
+            return AddNewPoint(storedPoint, cell);
+        }
+
+        private bool ClearFreeSpace(LidarSample sample)
+        {
+            if (sample.distance <= 0f)
+            {
+                return false;
+            }
+
+            var storedOrigin = ToStoredPoint(sample.origin);
+            var storedEndPoint = ToStoredPoint(sample.point);
+
+            return ClearCellsAlongSegment(storedOrigin, storedEndPoint, sample.hit);
+        }
+
+        private bool ClearCellsAlongSegment(Vector3 start, Vector3 end, bool excludeEndCell)
+        {
+            var delta = end - start;
+            if (delta.sqrMagnitude <= TraversalEpsilon * TraversalEpsilon)
+            {
+                return false;
+            }
+
+            var currentCell = ToCell(start);
+            var endCell = ToCell(end);
+            var stepX = GetStep(delta.x);
+            var stepY = GetStep(delta.y);
+            var stepZ = GetStep(delta.z);
+            var tMaxX = GetInitialBoundaryT(start.x, currentCell.x, delta.x, stepX);
+            var tMaxY = GetInitialBoundaryT(start.y, currentCell.y, delta.y, stepY);
+            var tMaxZ = GetInitialBoundaryT(start.z, currentCell.z, delta.z, stepZ);
+            var tDeltaX = GetDeltaT(delta.x);
+            var tDeltaY = GetDeltaT(delta.y);
+            var tDeltaZ = GetDeltaT(delta.z);
+            var maxSteps =
+                Mathf.Abs(endCell.x - currentCell.x) +
+                Mathf.Abs(endCell.y - currentCell.y) +
+                Mathf.Abs(endCell.z - currentCell.z) +
+                1;
+            var changed = false;
+
+            for (var step = 0; step <= maxSteps; step++)
+            {
+                if (excludeEndCell && currentCell == endCell)
+                {
+                    break;
+                }
+
+                changed |= RemoveCell(currentCell);
+
+                if (currentCell == endCell)
+                {
+                    break;
+                }
+
+                var nextT = Mathf.Min(tMaxX, Mathf.Min(tMaxY, tMaxZ));
+                if (float.IsPositiveInfinity(nextT) || nextT > 1f + TraversalEpsilon)
+                {
+                    break;
+                }
+
+                if (stepX != 0 && tMaxX <= nextT + TraversalEpsilon)
+                {
+                    currentCell.x += stepX;
+                    tMaxX += tDeltaX;
+                }
+
+                if (stepY != 0 && tMaxY <= nextT + TraversalEpsilon)
+                {
+                    currentCell.y += stepY;
+                    tMaxY += tDeltaY;
+                }
+
+                if (stepZ != 0 && tMaxZ <= nextT + TraversalEpsilon)
+                {
+                    currentCell.z += stepZ;
+                    tMaxZ += tDeltaZ;
+                }
+            }
+
+            return changed;
+        }
+
+        private bool RemoveCell(Vector3Int cell)
+        {
+            int pointIndex;
+            if (!cellPointIndices.TryGetValue(cell, out pointIndex))
+            {
+                return false;
+            }
+
+            if (!IsValidPointIndex(pointIndex))
+            {
+                cellPointIndices.Remove(cell);
+                return false;
+            }
+
+            RemovePointAt(pointIndex, cell);
+            return true;
+        }
+
+        private void RemovePointAt(int pointIndex, Vector3Int cell)
+        {
+            var lastIndex = points.Count - 1;
+            var lastPoint = points[lastIndex];
+
+            cellPointIndices.Remove(cell);
+
+            if (pointIndex != lastIndex)
+            {
+                points[pointIndex] = lastPoint;
+                cellPointIndices[ToCell(lastPoint)] = pointIndex;
+            }
+
+            points.RemoveAt(lastIndex);
+        }
+
+        private bool AddNewPoint(Vector3 storedPoint, Vector3Int cell)
+        {
             if (points.Count >= maxPoints)
             {
                 return false;
             }
 
-            if (rejectDuplicateCells)
-            {
-                var cell = ToCell(storedPoint);
-                if (occupiedCells.Contains(cell))
-                {
-                    return false;
-                }
-
-                occupiedCells.Add(cell);
-            }
-
+            cellPointIndices[cell] = points.Count;
             points.Add(storedPoint);
             return true;
+        }
+
+        private bool IsValidPointIndex(int pointIndex)
+        {
+            return pointIndex >= 0 && pointIndex < points.Count;
+        }
+
+        private int GetStep(float delta)
+        {
+            if (delta > 0f)
+            {
+                return 1;
+            }
+
+            if (delta < 0f)
+            {
+                return -1;
+            }
+
+            return 0;
+        }
+
+        private float GetInitialBoundaryT(float start, int cell, float delta, int step)
+        {
+            if (step == 0)
+            {
+                return float.PositiveInfinity;
+            }
+
+            var nextBoundary = step > 0 ? (cell + 1) * cellSize : cell * cellSize;
+            return Mathf.Max(0f, (nextBoundary - start) / delta);
+        }
+
+        private float GetDeltaT(float delta)
+        {
+            if (Mathf.Approximately(delta, 0f))
+            {
+                return float.PositiveInfinity;
+            }
+
+            return Mathf.Abs(cellSize / delta);
         }
 
         private Vector3 ToStoredPoint(Vector3 worldPoint)
