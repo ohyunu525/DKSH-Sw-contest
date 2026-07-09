@@ -9,6 +9,9 @@ namespace DKSH.Spiderbot.Training
     {
         private const string GeneratedEnvironmentPrefix = "Environment_";
         private const int RetrySeedOffset = 1000003;
+        private const float StairStepRise = 0.22f;
+        private const float BuildingFloorHeight = 3.2f;
+        private const float HillMaxNeighborHeightDelta = 0.45f;
 
         [Header("Generation")]
         [SerializeField]
@@ -240,6 +243,12 @@ namespace DKSH.Spiderbot.Training
                 Random = new System.Random(seed),
                 MapSize = mapSize,
                 CellSize = cellSize,
+                FloorCount = 1,
+                FloorHeight = BuildingFloorHeight,
+                StartNode = Vector3Int.zero,
+                TargetNode = Vector3Int.zero,
+                WalkableNodes = new Vector3Int[0],
+                StairNodes = new Vector3Int[0],
                 RootObject = rootObject,
                 Root = rootObject.transform,
                 Environment = rootObject.AddComponent<GeneratedTrainingEnvironment>(),
@@ -272,7 +281,7 @@ namespace DKSH.Spiderbot.Training
                 case RLMapLevel.BuildingSpreadingFire:
                     return GenerateBuildingMap(context) && AddSpreadingFire(context);
                 case RLMapLevel.BuildingSpreadingFireRandomCollapse:
-                    return GenerateBuildingMap(context) && AddRandomCollapse(context) && AddSpreadingFire(context);
+                    return GenerateBuildingMap(context) && AddSpreadingFire(context) && AddRandomCollapse(context);
                 default:
                     Debug.LogWarning(string.Format("Unsupported RL map level {0}. Falling back to flat map.", context.Level), this);
                     return GenerateFlatMap(context);
@@ -291,59 +300,80 @@ namespace DKSH.Spiderbot.Training
 
         private bool GenerateStairMap(MapBuildContext context)
         {
-            GenerateFlatMap(context);
+            CreateFloor(context);
 
-            var horizontal = context.Random.Next(0, 2) == 0;
-            var stepCount = context.Random.Next(4, Mathf.Max(5, Mathf.Min(context.MapSize.x, context.MapSize.y) - 2));
-            var laneOffset = context.Random.Next(-1, 2);
+            var horizontal = context.MapSize.x >= context.MapSize.y;
+            if (context.MapSize.x == context.MapSize.y)
+            {
+                horizontal = context.Random.Next(0, 2) == 0;
+            }
+
+            var usableLength = horizontal ? context.MapSize.x : context.MapSize.y;
+            var stepCount = Mathf.Clamp(usableLength - 6, 4, 8);
             var centerX = context.MapSize.x / 2;
             var centerY = context.MapSize.y / 2;
+            var width = context.CellSize * 3f;
+            var topHeight = stepCount * StairStepRise;
+            var bottomCell = horizontal
+                ? new Vector2Int(1, centerY)
+                : new Vector2Int(centerX, 1);
+            var topCell = horizontal
+                ? new Vector2Int(stepCount + 3, centerY)
+                : new Vector2Int(centerX, stepCount + 3);
+
+            topCell.x = Mathf.Clamp(topCell.x, 1, context.MapSize.x - 2);
+            topCell.y = Mathf.Clamp(topCell.y, 1, context.MapSize.y - 2);
+            SetStartAndTarget(context, bottomCell, topCell);
+            context.StartLocalPosition = RLTrainingGenerationUtility.CellToLocalPosition(bottomCell, context.MapSize, context.CellSize, 0.25f);
+            context.TargetLocalPosition = RLTrainingGenerationUtility.CellToLocalPosition(topCell, context.MapSize, context.CellSize, topHeight + 0.08f);
+            context.HasCustomStartPosition = true;
+            context.HasCustomTargetPosition = true;
+
+            var bottomPlatformScale = horizontal
+                ? new Vector3(context.CellSize * 2f, 0.1f, width)
+                : new Vector3(width, 0.1f, context.CellSize * 2f);
+            CreatePrimitiveBlock(
+                "StairBottomPlatform",
+                context.GeometryRoot,
+                RLTrainingGenerationUtility.CellToLocalPosition(bottomCell, context.MapSize, context.CellSize, 0.02f),
+                bottomPlatformScale);
 
             for (var i = 0; i < stepCount; i++)
             {
                 var cell = horizontal
-                    ? new Vector2Int(Mathf.Clamp(2 + i, 1, context.MapSize.x - 2), Mathf.Clamp(centerY + laneOffset, 1, context.MapSize.y - 2))
-                    : new Vector2Int(Mathf.Clamp(centerX + laneOffset, 1, context.MapSize.x - 2), Mathf.Clamp(2 + i, 1, context.MapSize.y - 2));
+                    ? new Vector2Int(Mathf.Clamp(2 + i, 1, context.MapSize.x - 2), centerY)
+                    : new Vector2Int(centerX, Mathf.Clamp(2 + i, 1, context.MapSize.y - 2));
 
-                var height = 0.18f * (i + 1);
+                var height = StairStepRise * (i + 1);
                 var localPosition = RLTrainingGenerationUtility.CellToLocalPosition(cell, context.MapSize, context.CellSize, height * 0.5f);
                 var localScale = horizontal
-                    ? new Vector3(context.CellSize, height, context.CellSize * 2.5f)
-                    : new Vector3(context.CellSize * 2.5f, height, context.CellSize);
+                    ? new Vector3(context.CellSize, height, width)
+                    : new Vector3(width, height, context.CellSize);
                 CreatePrimitiveBlock("StairStep_" + i, context.GeometryRoot, localPosition, localScale);
             }
+
+            var topPlatformScale = horizontal
+                ? new Vector3(context.CellSize * 2.5f, topHeight, width)
+                : new Vector3(width, topHeight, context.CellSize * 2.5f);
+            CreatePrimitiveBlock(
+                "StairUpperPlatform",
+                context.GeometryRoot,
+                RLTrainingGenerationUtility.CellToLocalPosition(topCell, context.MapSize, context.CellSize, topHeight * 0.5f),
+                topPlatformScale);
 
             return true;
         }
 
         private bool GenerateHillMap(MapBuildContext context)
         {
-            GenerateFlatMap(context);
+            var heights = GeneratePerlinHeights(context);
+            context.CellHeights = CalculateCellHeights(context, heights);
+            CreateHillTerrainMesh(context, heights);
 
-            var usedCells = new List<Vector2Int>();
-            var hillCount = context.Random.Next(4, 7);
-            var attempts = hillCount * 8;
-
-            while (usedCells.Count < hillCount && attempts > 0)
+            if (!TryChooseHillStartAndTarget(context))
             {
-                attempts--;
-                var cell = new Vector2Int(
-                    context.Random.Next(2, context.MapSize.x - 2),
-                    context.Random.Next(2, context.MapSize.y - 2));
-
-                if (context.IsStartOrTarget(cell) || RLTrainingGenerationUtility.ContainsCell(usedCells, cell))
-                {
-                    continue;
-                }
-
-                usedCells.Add(cell);
-                var radius = context.CellSize * UnityRandomRange(context.Random, 1.25f, 2.2f);
-                var height = UnityRandomRange(context.Random, 0.35f, 0.85f);
-                var hill = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                hill.name = string.Format("Hill_{0}_{1}", cell.x, cell.y);
-                hill.transform.SetParent(context.GeometryRoot, false);
-                hill.transform.localPosition = RLTrainingGenerationUtility.CellToLocalPosition(cell, context.MapSize, context.CellSize, height * 0.35f);
-                hill.transform.localScale = new Vector3(radius, height, radius);
+                Debug.LogWarning("RLMapGenerator could not place valid hill start/target cells.", this);
+                return false;
             }
 
             return true;
@@ -351,22 +381,50 @@ namespace DKSH.Spiderbot.Training
 
         private bool GenerateBuildingMap(MapBuildContext context)
         {
-            CreateFloor(context);
-
-            if (!TryChooseStartAndTarget(context))
+            var building = CreateBuildingGrid(context);
+            if (building == null)
             {
                 return false;
             }
 
-            var pathCells = CreateProtectedPath(context);
-            for (var i = 0; i < pathCells.Count; i++)
+            var layeredPath = FindLayeredPath(building, building.StartNode, building.TargetNode);
+            if (layeredPath.Count == 0)
             {
-                context.ProtectedCells.Add(pathCells[i]);
+                Debug.LogWarning("RLMapGenerator could not validate a layered building path before obstacle placement.", this);
+                return false;
             }
 
-            AddPerimeterWalls(context);
-            AddRandomBuildingObstacles(context);
-            CreateObstacleObjects(context);
+            for (var i = 0; i < layeredPath.Count; i++)
+            {
+                building.ProtectedNodes.Add(layeredPath[i]);
+                context.ProtectedCells.Add(new Vector2Int(layeredPath[i].x, layeredPath[i].y));
+            }
+
+            AddSparseBuildingObstacles(context, building);
+            layeredPath = FindLayeredPath(building, building.StartNode, building.TargetNode);
+            if (layeredPath.Count == 0)
+            {
+                Debug.LogWarning("RLMapGenerator sparse building obstacles blocked the only layered path.", this);
+                return false;
+            }
+
+            context.HasLayeredNavigation = true;
+            context.FloorCount = building.FloorCount;
+            context.FloorHeight = BuildingFloorHeight;
+            context.WalkableNodes = GetWalkableNodes(building);
+            context.StairNodes = GetStairNodes(building);
+            SetStartAndTarget(
+                context,
+                new Vector2Int(building.StartNode.x, building.StartNode.y),
+                new Vector2Int(building.TargetNode.x, building.TargetNode.y));
+            context.StartNode = building.StartNode;
+            context.TargetNode = building.TargetNode;
+            context.StartLocalPosition = GetBuildingNodeLocalPosition(context, building.StartNode, 0.25f);
+            context.TargetLocalPosition = GetBuildingNodeLocalPosition(context, building.TargetNode, 0.08f);
+            context.HasCustomStartPosition = true;
+            context.HasCustomTargetPosition = true;
+
+            CreateBuildingGeometry(context, building);
             return true;
         }
 
@@ -440,12 +498,8 @@ namespace DKSH.Spiderbot.Training
                 context.CellSize,
                 collapseRoot,
                 collapseCount,
-                candidateCells);
-
-            for (var i = 0; i < controller.ActiveCollapseCells.Count; i++)
-            {
-                MarkCollapse(context, controller.ActiveCollapseCells[i]);
-            }
+                candidateCells,
+                GetCollapseDropHeight(context));
 
             return true;
         }
@@ -468,6 +522,17 @@ namespace DKSH.Spiderbot.Training
             {
                 Debug.LogWarning("RLMapGenerator validation failed because start/target overlaps blocked or hazard cells.", this);
                 return false;
+            }
+
+            if (context.HasLayeredNavigation)
+            {
+                if (!HasLayeredPath(context, context.StartNode, context.TargetNode))
+                {
+                    Debug.LogWarning("RLMapGenerator validation failed because no layered building path exists from start to target.", this);
+                    return false;
+                }
+
+                return true;
             }
 
             if (!HasPath(context, context.StartCell, context.TargetCell))
@@ -500,11 +565,17 @@ namespace DKSH.Spiderbot.Training
                 targetPoint,
                 context.MapSize,
                 context.CellSize,
+                context.FloorCount,
+                context.FloorHeight,
                 context.StartCell,
                 context.TargetCell,
+                context.StartNode,
+                context.TargetNode,
                 obstacleCells,
                 hazardCells,
-                collapseCells);
+                collapseCells,
+                context.WalkableNodes,
+                context.StairNodes);
 
             return context.Environment;
         }
@@ -556,6 +627,8 @@ namespace DKSH.Spiderbot.Training
         {
             context.StartCell = start;
             context.TargetCell = target;
+            context.StartNode = new Vector3Int(start.x, start.y, 0);
+            context.TargetNode = new Vector3Int(target.x, target.y, 0);
             context.HasStartAndTarget = true;
             context.ProtectedCells.Add(start);
             context.ProtectedCells.Add(target);
@@ -590,61 +663,634 @@ namespace DKSH.Spiderbot.Training
             return pathCells;
         }
 
-        private void AddPerimeterWalls(MapBuildContext context)
+        private float[,] GeneratePerlinHeights(MapBuildContext context)
         {
-            for (var x = 0; x < context.MapSize.x; x++)
+            var vertexWidth = context.MapSize.x + 1;
+            var vertexDepth = context.MapSize.y + 1;
+            var heights = new float[vertexWidth, vertexDepth];
+            var offsetX = Mathf.Abs(context.Seed % 10007) * 0.037f;
+            var offsetZ = Mathf.Abs((context.Seed / 17) % 10007) * 0.041f;
+
+            for (var z = 0; z < vertexDepth; z++)
             {
-                MarkObstacle(context, new Vector2Int(x, 0));
-                MarkObstacle(context, new Vector2Int(x, context.MapSize.y - 1));
+                for (var x = 0; x < vertexWidth; x++)
+                {
+                    var broad = Mathf.PerlinNoise((x + offsetX) * 0.12f, (z + offsetZ) * 0.12f);
+                    var detail = Mathf.PerlinNoise((x + offsetX + 31f) * 0.28f, (z + offsetZ + 19f) * 0.28f);
+                    heights[x, z] = Mathf.Lerp(0.05f, 1.15f, broad * 0.78f + detail * 0.22f);
+                }
             }
 
-            for (var y = 0; y < context.MapSize.y; y++)
+            ConstrainHillSlopes(context, heights);
+            return heights;
+        }
+
+        private void ConstrainHillSlopes(MapBuildContext context, float[,] heights)
+        {
+            var maxDelta = Mathf.Max(HillMaxNeighborHeightDelta, context.CellSize * 0.42f);
+            var width = heights.GetLength(0);
+            var depth = heights.GetLength(1);
+
+            var maxPasses = Mathf.Max(width, depth) * 2;
+            for (var pass = 0; pass < maxPasses; pass++)
             {
-                MarkObstacle(context, new Vector2Int(0, y));
-                MarkObstacle(context, new Vector2Int(context.MapSize.x - 1, y));
+                var changed = false;
+                for (var z = 0; z < depth; z++)
+                {
+                    for (var x = 0; x < width; x++)
+                    {
+                        changed |= ConstrainHillHeightToNeighbor(heights, x, z, x - 1, z, maxDelta);
+                        changed |= ConstrainHillHeightToNeighbor(heights, x, z, x, z - 1, maxDelta);
+                    }
+                }
+
+                for (var z = depth - 1; z >= 0; z--)
+                {
+                    for (var x = width - 1; x >= 0; x--)
+                    {
+                        changed |= ConstrainHillHeightToNeighbor(heights, x, z, x + 1, z, maxDelta);
+                        changed |= ConstrainHillHeightToNeighbor(heights, x, z, x, z + 1, maxDelta);
+                    }
+                }
+
+                if (!changed)
+                {
+                    return;
+                }
             }
         }
 
-        private void AddRandomBuildingObstacles(MapBuildContext context)
+        private static bool ConstrainHillHeightToNeighbor(float[,] heights, int x, int z, int neighborX, int neighborZ, float maxDelta)
         {
-            var obstacleTarget = Mathf.RoundToInt(context.MapSize.x * context.MapSize.y * 0.22f);
-            var placed = 0;
-            var attempts = obstacleTarget * 8;
-
-            while (placed < obstacleTarget && attempts > 0)
+            if (neighborX < 0 || neighborZ < 0 || neighborX >= heights.GetLength(0) || neighborZ >= heights.GetLength(1))
             {
-                attempts--;
-                var cell = new Vector2Int(
-                    context.Random.Next(1, context.MapSize.x - 1),
-                    context.Random.Next(1, context.MapSize.y - 1));
+                return false;
+            }
 
-                if (!CanPlaceBlockingCell(context, cell, true))
+            var original = heights[x, z];
+            var neighbor = heights[neighborX, neighborZ];
+            heights[x, z] = Mathf.Clamp(original, neighbor - maxDelta, neighbor + maxDelta);
+            return !Mathf.Approximately(original, heights[x, z]);
+        }
+
+        private float[,] CalculateCellHeights(MapBuildContext context, float[,] vertexHeights)
+        {
+            var cellHeights = new float[context.MapSize.x, context.MapSize.y];
+            for (var z = 0; z < context.MapSize.y; z++)
+            {
+                for (var x = 0; x < context.MapSize.x; x++)
+                {
+                    cellHeights[x, z] =
+                        (vertexHeights[x, z] +
+                        vertexHeights[x + 1, z] +
+                        vertexHeights[x, z + 1] +
+                        vertexHeights[x + 1, z + 1]) * 0.25f;
+                }
+            }
+
+            return cellHeights;
+        }
+
+        private void CreateHillTerrainMesh(MapBuildContext context, float[,] heights)
+        {
+            var terrainObject = new GameObject("PerlinHillTerrain");
+            terrainObject.transform.SetParent(context.GeometryRoot, false);
+
+            var vertexWidth = context.MapSize.x + 1;
+            var vertexDepth = context.MapSize.y + 1;
+            var vertices = new Vector3[vertexWidth * vertexDepth];
+            var triangles = new int[context.MapSize.x * context.MapSize.y * 6];
+            var halfWidth = context.MapSize.x * context.CellSize * 0.5f;
+            var halfDepth = context.MapSize.y * context.CellSize * 0.5f;
+
+            for (var z = 0; z < vertexDepth; z++)
+            {
+                for (var x = 0; x < vertexWidth; x++)
+                {
+                    var index = z * vertexWidth + x;
+                    vertices[index] = new Vector3(
+                        x * context.CellSize - halfWidth,
+                        heights[x, z],
+                        z * context.CellSize - halfDepth);
+                }
+            }
+
+            var triangleIndex = 0;
+            for (var z = 0; z < context.MapSize.y; z++)
+            {
+                for (var x = 0; x < context.MapSize.x; x++)
+                {
+                    var lowerLeft = z * vertexWidth + x;
+                    var lowerRight = lowerLeft + 1;
+                    var upperLeft = lowerLeft + vertexWidth;
+                    var upperRight = upperLeft + 1;
+
+                    triangles[triangleIndex++] = lowerLeft;
+                    triangles[triangleIndex++] = upperLeft;
+                    triangles[triangleIndex++] = lowerRight;
+                    triangles[triangleIndex++] = lowerRight;
+                    triangles[triangleIndex++] = upperLeft;
+                    triangles[triangleIndex++] = upperRight;
+                }
+            }
+
+            var mesh = new Mesh
+            {
+                name = "Generated Perlin Hill Terrain",
+                vertices = vertices,
+                triangles = triangles
+            };
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+
+            var meshFilter = terrainObject.AddComponent<MeshFilter>();
+            meshFilter.sharedMesh = mesh;
+            var meshRenderer = terrainObject.AddComponent<MeshRenderer>();
+            meshRenderer.sharedMaterial = CreateRuntimeMaterial("Runtime Hill Terrain", new Color(0.35f, 0.58f, 0.28f, 1f));
+            var meshCollider = terrainObject.AddComponent<MeshCollider>();
+            meshCollider.sharedMesh = mesh;
+        }
+
+        private bool TryChooseHillStartAndTarget(MapBuildContext context)
+        {
+            var candidates = new List<Vector2Int>();
+            for (var z = 1; z < context.MapSize.y - 1; z++)
+            {
+                for (var x = 1; x < context.MapSize.x - 1; x++)
+                {
+                    var cell = new Vector2Int(x, z);
+                    if (IsTraversableHillCell(context, cell))
+                    {
+                        candidates.Add(cell);
+                    }
+                }
+            }
+
+            if (candidates.Count < 2)
+            {
+                return false;
+            }
+
+            var minDistance = Mathf.Max(4, (context.MapSize.x + context.MapSize.y) / 3);
+            for (var attempt = 0; attempt < 128; attempt++)
+            {
+                var start = candidates[context.Random.Next(candidates.Count)];
+                var target = candidates[context.Random.Next(candidates.Count)];
+                if (start == target)
                 {
                     continue;
                 }
 
-                MarkObstacle(context, cell);
-                placed++;
+                var distance = Mathf.Abs(start.x - target.x) + Mathf.Abs(start.y - target.y);
+                if (distance < minDistance)
+                {
+                    continue;
+                }
+
+                SetStartAndTarget(context, start, target);
+                context.StartLocalPosition = RLTrainingGenerationUtility.CellToLocalPosition(
+                    start,
+                    context.MapSize,
+                    context.CellSize,
+                    context.CellHeights[start.x, start.y] + 0.25f);
+                context.TargetLocalPosition = RLTrainingGenerationUtility.CellToLocalPosition(
+                    target,
+                    context.MapSize,
+                    context.CellSize,
+                    context.CellHeights[target.x, target.y] + 0.08f);
+                context.HasCustomStartPosition = true;
+                context.HasCustomTargetPosition = true;
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool IsTraversableHillCell(MapBuildContext context, Vector2Int cell)
+        {
+            var height = context.CellHeights[cell.x, cell.y];
+            var maxDelta = Mathf.Max(HillMaxNeighborHeightDelta, context.CellSize * 0.42f);
+            for (var i = 0; i < PathDirections.Length; i++)
+            {
+                var neighbor = cell + PathDirections[i];
+                if (!context.IsInside(neighbor))
+                {
+                    continue;
+                }
+
+                if (Mathf.Abs(height - context.CellHeights[neighbor.x, neighbor.y]) > maxDelta)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private BuildingGrid CreateBuildingGrid(MapBuildContext context)
+        {
+            var floorCount = 2 + context.Random.Next(0, 2);
+            var building = new BuildingGrid(context.MapSize.x, context.MapSize.y, floorCount);
+            var corridorX = context.MapSize.x / 2;
+            var corridorZ = context.MapSize.y / 2;
+            var stairCell = new Vector2Int(corridorX, corridorZ);
+
+            for (var floor = 0; floor < floorCount; floor++)
+            {
+                MarkCorridor(building, floor, corridorX, corridorZ);
+                MarkRoom(building, floor, 1, 1, corridorX - 2, corridorZ - 2);
+                MarkRoom(building, floor, corridorX + 2, 1, context.MapSize.x - 2, corridorZ - 2);
+                MarkRoom(building, floor, 1, corridorZ + 2, corridorX - 2, context.MapSize.y - 2);
+                MarkRoom(building, floor, corridorX + 2, corridorZ + 2, context.MapSize.x - 2, context.MapSize.y - 2);
+                MarkRoomDoorways(building, floor, corridorX, corridorZ);
+
+                building.Walkable[floor, stairCell.x, stairCell.y] = true;
+                building.Stairs[floor, stairCell.x, stairCell.y] = true;
+            }
+
+            building.StartNode = FindNearestWalkableNode(building, new Vector3Int(1, 1, 0));
+            building.TargetNode = FindNearestWalkableNode(building, new Vector3Int(context.MapSize.x - 2, context.MapSize.y - 2, floorCount - 1));
+            return building;
+        }
+
+        private void MarkCorridor(BuildingGrid building, int floor, int corridorX, int corridorZ)
+        {
+            for (var z = 1; z < building.Depth - 1; z++)
+            {
+                building.Walkable[floor, corridorX, z] = true;
+                if (corridorX - 1 > 0)
+                {
+                    building.Walkable[floor, corridorX - 1, z] = true;
+                }
+            }
+
+            for (var x = 1; x < building.Width - 1; x++)
+            {
+                building.Walkable[floor, x, corridorZ] = true;
+                if (corridorZ - 1 > 0)
+                {
+                    building.Walkable[floor, x, corridorZ - 1] = true;
+                }
             }
         }
 
-        private void CreateObstacleObjects(MapBuildContext context)
+        private void MarkRoom(BuildingGrid building, int floor, int minX, int minZ, int maxX, int maxZ)
         {
-            for (var y = 0; y < context.MapSize.y; y++)
+            minX = Mathf.Clamp(minX, 1, building.Width - 2);
+            minZ = Mathf.Clamp(minZ, 1, building.Depth - 2);
+            maxX = Mathf.Clamp(maxX, 1, building.Width - 2);
+            maxZ = Mathf.Clamp(maxZ, 1, building.Depth - 2);
+            if (minX > maxX || minZ > maxZ)
             {
-                for (var x = 0; x < context.MapSize.x; x++)
+                return;
+            }
+
+            for (var z = minZ; z <= maxZ; z++)
+            {
+                for (var x = minX; x <= maxX; x++)
                 {
-                    if (!context.ObstacleCells[x, y])
+                    building.Walkable[floor, x, z] = true;
+                }
+            }
+        }
+
+        private void MarkRoomDoorways(BuildingGrid building, int floor, int corridorX, int corridorZ)
+        {
+            MarkWalkableIfInside(building, floor, corridorX - 2, corridorZ - 1);
+            MarkWalkableIfInside(building, floor, corridorX - 1, corridorZ - 2);
+            MarkWalkableIfInside(building, floor, corridorX + 1, corridorZ - 2);
+            MarkWalkableIfInside(building, floor, corridorX + 2, corridorZ - 1);
+            MarkWalkableIfInside(building, floor, corridorX - 2, corridorZ + 1);
+            MarkWalkableIfInside(building, floor, corridorX - 1, corridorZ + 2);
+            MarkWalkableIfInside(building, floor, corridorX + 1, corridorZ + 2);
+            MarkWalkableIfInside(building, floor, corridorX + 2, corridorZ + 1);
+        }
+
+        private void MarkWalkableIfInside(BuildingGrid building, int floor, int x, int z)
+        {
+            if (floor < 0 || floor >= building.FloorCount || x < 1 || z < 1 || x >= building.Width - 1 || z >= building.Depth - 1)
+            {
+                return;
+            }
+
+            building.Walkable[floor, x, z] = true;
+        }
+
+        private void AddSparseBuildingObstacles(MapBuildContext context, BuildingGrid building)
+        {
+            var candidates = new List<Vector3Int>();
+            for (var floor = 0; floor < building.FloorCount; floor++)
+            {
+                for (var z = 1; z < building.Depth - 1; z++)
+                {
+                    for (var x = 1; x < building.Width - 1; x++)
+                    {
+                        var node = new Vector3Int(x, z, floor);
+                        var cell = new Vector2Int(x, z);
+                        if (IsBuildingWalkable(building, node) &&
+                            !building.Stairs[floor, x, z] &&
+                            !building.ProtectedNodes.Contains(node) &&
+                            !context.ProtectedCells.Contains(cell))
+                        {
+                            candidates.Add(node);
+                        }
+                    }
+                }
+            }
+
+            var obstacleTarget = Mathf.Max(1, Mathf.RoundToInt(candidates.Count * 0.04f));
+            for (var i = 0; i < obstacleTarget && candidates.Count > 0; i++)
+            {
+                var chosenIndex = context.Random.Next(candidates.Count);
+                var node = candidates[chosenIndex];
+                candidates.RemoveAt(chosenIndex);
+                building.Blocked[node.z, node.x, node.y] = true;
+                MarkObstacle(context, new Vector2Int(node.x, node.y));
+            }
+        }
+
+        private void CreateBuildingGeometry(MapBuildContext context, BuildingGrid building)
+        {
+            for (var floor = 0; floor < building.FloorCount; floor++)
+            {
+                var floorY = floor * BuildingFloorHeight;
+                CreatePrimitiveBlock(
+                    "BuildingFloor_" + floor,
+                    context.GeometryRoot,
+                    new Vector3(0f, floorY - 0.05f, 0f),
+                    new Vector3(building.Width * context.CellSize, 0.1f, building.Depth * context.CellSize));
+
+                for (var z = 0; z < building.Depth; z++)
+                {
+                    for (var x = 0; x < building.Width; x++)
+                    {
+                        var cell = new Vector2Int(x, z);
+                        if (!building.Walkable[floor, x, z])
+                        {
+                            MarkObstacle(context, cell);
+                            CreatePrimitiveBlock(
+                                string.Format("Wall_F{0}_{1}_{2}", floor, x, z),
+                                context.GeometryRoot,
+                                RLTrainingGenerationUtility.CellToLocalPosition(cell, context.MapSize, context.CellSize, floorY + 1.25f),
+                                new Vector3(context.CellSize * 0.95f, 2.5f, context.CellSize * 0.95f));
+                            continue;
+                        }
+
+                        if (building.Blocked[floor, x, z])
+                        {
+                            CreatePrimitiveBlock(
+                                string.Format("IndoorObstacle_F{0}_{1}_{2}", floor, x, z),
+                                context.ObstaclesRoot,
+                                RLTrainingGenerationUtility.CellToLocalPosition(cell, context.MapSize, context.CellSize, floorY + 0.45f),
+                                new Vector3(context.CellSize * 0.45f, 0.9f, context.CellSize * 0.45f));
+                        }
+                    }
+                }
+            }
+
+            CreateBuildingStairVisuals(context, building);
+        }
+
+        private void CreateBuildingStairVisuals(MapBuildContext context, BuildingGrid building)
+        {
+            var stairCell = new Vector2Int(building.Width / 2, building.Depth / 2);
+            var stepCount = 7;
+            for (var floor = 0; floor < building.FloorCount - 1; floor++)
+            {
+                var floorY = floor * BuildingFloorHeight;
+                for (var step = 0; step < stepCount; step++)
+                {
+                    var t = (step + 1f) / stepCount;
+                    var local = RLTrainingGenerationUtility.CellToLocalPosition(
+                        stairCell,
+                        context.MapSize,
+                        context.CellSize,
+                        floorY + BuildingFloorHeight * t * 0.5f);
+                    local.z += Mathf.Lerp(-context.CellSize * 0.45f, context.CellSize * 0.45f, t);
+
+                    CreatePrimitiveBlock(
+                        string.Format("StairConnector_F{0}_{1}", floor, step),
+                        context.GeometryRoot,
+                        local,
+                        new Vector3(context.CellSize * 0.8f, BuildingFloorHeight * t, context.CellSize * 0.28f));
+                }
+            }
+        }
+
+        private Vector3Int FindNearestWalkableNode(BuildingGrid building, Vector3Int preferred)
+        {
+            preferred.x = Mathf.Clamp(preferred.x, 0, building.Width - 1);
+            preferred.y = Mathf.Clamp(preferred.y, 0, building.Depth - 1);
+            preferred.z = Mathf.Clamp(preferred.z, 0, building.FloorCount - 1);
+            if (IsBuildingWalkable(building, preferred))
+            {
+                return preferred;
+            }
+
+            for (var radius = 1; radius < Mathf.Max(building.Width, building.Depth); radius++)
+            {
+                for (var z = preferred.y - radius; z <= preferred.y + radius; z++)
+                {
+                    for (var x = preferred.x - radius; x <= preferred.x + radius; x++)
+                    {
+                        var node = new Vector3Int(x, z, preferred.z);
+                        if (IsBuildingWalkable(building, node))
+                        {
+                            return node;
+                        }
+                    }
+                }
+            }
+
+            return new Vector3Int(building.Width / 2, building.Depth / 2, preferred.z);
+        }
+
+        private List<Vector3Int> FindLayeredPath(BuildingGrid building, Vector3Int start, Vector3Int target)
+        {
+            var cameFrom = new Dictionary<Vector3Int, Vector3Int>();
+            var visited = new HashSet<Vector3Int>();
+            var queue = new Queue<Vector3Int>();
+            visited.Add(start);
+            queue.Enqueue(start);
+
+            while (queue.Count > 0)
+            {
+                var current = queue.Dequeue();
+                if (current == target)
+                {
+                    return ReconstructLayeredPath(cameFrom, start, target);
+                }
+
+                var neighbors = GetLayeredNeighbors(building, current);
+                for (var i = 0; i < neighbors.Count; i++)
+                {
+                    var next = neighbors[i];
+                    if (visited.Contains(next))
                     {
                         continue;
                     }
 
-                    var cell = new Vector2Int(x, y);
-                    var localPosition = RLTrainingGenerationUtility.CellToLocalPosition(cell, context.MapSize, context.CellSize, 1.1f);
-                    var localScale = new Vector3(context.CellSize * 0.95f, 2.2f, context.CellSize * 0.95f);
-                    CreatePrimitiveBlock(string.Format("Obstacle_{0}_{1}", x, y), context.ObstaclesRoot, localPosition, localScale);
+                    visited.Add(next);
+                    cameFrom[next] = current;
+                    queue.Enqueue(next);
                 }
             }
+
+            return new List<Vector3Int>();
+        }
+
+        private List<Vector3Int> ReconstructLayeredPath(Dictionary<Vector3Int, Vector3Int> cameFrom, Vector3Int start, Vector3Int target)
+        {
+            var path = new List<Vector3Int>();
+            var current = target;
+            path.Add(current);
+
+            while (current != start)
+            {
+                Vector3Int previous;
+                if (!cameFrom.TryGetValue(current, out previous))
+                {
+                    return new List<Vector3Int>();
+                }
+
+                current = previous;
+                path.Add(current);
+            }
+
+            path.Reverse();
+            return path;
+        }
+
+        private List<Vector3Int> GetLayeredNeighbors(BuildingGrid building, Vector3Int current)
+        {
+            var neighbors = new List<Vector3Int>();
+            AddLayeredNeighbor(building, current + new Vector3Int(1, 0, 0), neighbors);
+            AddLayeredNeighbor(building, current + new Vector3Int(-1, 0, 0), neighbors);
+            AddLayeredNeighbor(building, current + new Vector3Int(0, 1, 0), neighbors);
+            AddLayeredNeighbor(building, current + new Vector3Int(0, -1, 0), neighbors);
+
+            if (IsBuildingStair(building, current))
+            {
+                var up = current + new Vector3Int(0, 0, 1);
+                var down = current + new Vector3Int(0, 0, -1);
+                if (IsBuildingStair(building, up))
+                {
+                    AddLayeredNeighbor(building, up, neighbors);
+                }
+
+                if (IsBuildingStair(building, down))
+                {
+                    AddLayeredNeighbor(building, down, neighbors);
+                }
+            }
+
+            return neighbors;
+        }
+
+        private void AddLayeredNeighbor(BuildingGrid building, Vector3Int node, List<Vector3Int> neighbors)
+        {
+            if (IsBuildingWalkable(building, node))
+            {
+                neighbors.Add(node);
+            }
+        }
+
+        private bool HasLayeredPath(MapBuildContext context, Vector3Int start, Vector3Int target)
+        {
+            var building = new BuildingGrid(context.MapSize.x, context.MapSize.y, context.FloorCount);
+            for (var i = 0; i < context.WalkableNodes.Length; i++)
+            {
+                var node = context.WalkableNodes[i];
+                building.Walkable[node.z, node.x, node.y] = true;
+            }
+
+            for (var i = 0; i < context.StairNodes.Length; i++)
+            {
+                var node = context.StairNodes[i];
+                building.Stairs[node.z, node.x, node.y] = true;
+            }
+
+            return FindLayeredPath(building, start, target).Count > 0;
+        }
+
+        private bool IsBuildingWalkable(BuildingGrid building, Vector3Int node)
+        {
+            return node.x >= 0 &&
+                node.y >= 0 &&
+                node.z >= 0 &&
+                node.x < building.Width &&
+                node.y < building.Depth &&
+                node.z < building.FloorCount &&
+                building.Walkable[node.z, node.x, node.y] &&
+                !building.Blocked[node.z, node.x, node.y];
+        }
+
+        private bool IsBuildingStair(BuildingGrid building, Vector3Int node)
+        {
+            return node.x >= 0 &&
+                node.y >= 0 &&
+                node.z >= 0 &&
+                node.x < building.Width &&
+                node.y < building.Depth &&
+                node.z < building.FloorCount &&
+                building.Stairs[node.z, node.x, node.y];
+        }
+
+        private Vector3Int[] GetWalkableNodes(BuildingGrid building)
+        {
+            var nodes = new List<Vector3Int>();
+            for (var floor = 0; floor < building.FloorCount; floor++)
+            {
+                for (var z = 0; z < building.Depth; z++)
+                {
+                    for (var x = 0; x < building.Width; x++)
+                    {
+                        var node = new Vector3Int(x, z, floor);
+                        if (IsBuildingWalkable(building, node))
+                        {
+                            nodes.Add(node);
+                        }
+                    }
+                }
+            }
+
+            return nodes.ToArray();
+        }
+
+        private Vector3Int[] GetStairNodes(BuildingGrid building)
+        {
+            var nodes = new List<Vector3Int>();
+            for (var floor = 0; floor < building.FloorCount; floor++)
+            {
+                for (var z = 0; z < building.Depth; z++)
+                {
+                    for (var x = 0; x < building.Width; x++)
+                    {
+                        if (building.Stairs[floor, x, z] && !building.Blocked[floor, x, z])
+                        {
+                            nodes.Add(new Vector3Int(x, z, floor));
+                        }
+                    }
+                }
+            }
+
+            return nodes.ToArray();
+        }
+
+        private Vector3 GetBuildingNodeLocalPosition(MapBuildContext context, Vector3Int node, float yOffset)
+        {
+            return RLTrainingGenerationUtility.CellToLocalPosition(
+                new Vector2Int(node.x, node.y),
+                context.MapSize,
+                context.CellSize,
+                node.z * BuildingFloorHeight + yOffset);
+        }
+
+        private float GetCollapseDropHeight(MapBuildContext context)
+        {
+            return context.HasLayeredNavigation
+                ? context.FloorCount * BuildingFloorHeight + 4f
+                : 9f;
         }
 
         private bool CanPlaceBlockingCell(MapBuildContext context, Vector2Int cell, bool avoidProtectedPath)
@@ -711,6 +1357,7 @@ namespace DKSH.Spiderbot.Training
 
             var hazard = fireObject.AddComponent<RLHazardZone>();
             hazard.Initialize(RLHazardKind.Fire, cell, context.CellSize * 0.45f, true);
+            RLFireVisuals.Apply(fireObject, context.CellSize, context.Seed + cell.x * 43 + cell.y * 101);
             MarkHazard(context, cell);
         }
 
@@ -719,7 +1366,9 @@ namespace DKSH.Spiderbot.Training
             var marker = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             marker.name = "StartPosition";
             marker.transform.SetParent(context.MarkersRoot, false);
-            marker.transform.localPosition = RLTrainingGenerationUtility.CellToLocalPosition(context.StartCell, context.MapSize, context.CellSize, 0.25f);
+            marker.transform.localPosition = context.HasCustomStartPosition
+                ? context.StartLocalPosition
+                : RLTrainingGenerationUtility.CellToLocalPosition(context.StartCell, context.MapSize, context.CellSize, 0.25f);
             marker.transform.localScale = Vector3.one * Mathf.Max(0.25f, context.CellSize * 0.35f);
 
             var collider = marker.GetComponent<Collider>();
@@ -736,7 +1385,9 @@ namespace DKSH.Spiderbot.Training
             var marker = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             marker.name = "TargetPosition";
             marker.transform.SetParent(context.MarkersRoot, false);
-            marker.transform.localPosition = RLTrainingGenerationUtility.CellToLocalPosition(context.TargetCell, context.MapSize, context.CellSize, 0.06f);
+            marker.transform.localPosition = context.HasCustomTargetPosition
+                ? context.TargetLocalPosition
+                : RLTrainingGenerationUtility.CellToLocalPosition(context.TargetCell, context.MapSize, context.CellSize, 0.06f);
             marker.transform.localScale = new Vector3(context.CellSize * 0.55f, 0.06f, context.CellSize * 0.55f);
 
             var collider = marker.GetComponent<Collider>();
@@ -792,14 +1443,6 @@ namespace DKSH.Spiderbot.Training
             if (context.IsInside(cell))
             {
                 context.HazardCells[cell.x, cell.y] = true;
-            }
-        }
-
-        private void MarkCollapse(MapBuildContext context, Vector2Int cell)
-        {
-            if (context.IsInside(cell))
-            {
-                context.CollapseCells[cell.x, cell.y] = true;
             }
         }
 
@@ -897,6 +1540,37 @@ namespace DKSH.Spiderbot.Training
             return block;
         }
 
+        private static Material CreateRuntimeMaterial(string materialName, Color baseColor)
+        {
+            var shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null)
+            {
+                shader = Shader.Find("Standard");
+            }
+
+            if (shader == null)
+            {
+                return null;
+            }
+
+            var material = new Material(shader)
+            {
+                name = materialName
+            };
+
+            if (material.HasProperty("_BaseColor"))
+            {
+                material.SetColor("_BaseColor", baseColor);
+            }
+
+            if (material.HasProperty("_Color"))
+            {
+                material.SetColor("_Color", baseColor);
+            }
+
+            return material;
+        }
+
         private static float UnityRandomRange(System.Random random, float minInclusive, float maxInclusive)
         {
             return Mathf.Lerp(minInclusive, maxInclusive, (float)random.NextDouble());
@@ -936,6 +1610,8 @@ namespace DKSH.Spiderbot.Training
             public System.Random Random;
             public Vector2Int MapSize;
             public float CellSize;
+            public int FloorCount;
+            public float FloorHeight;
             public GameObject RootObject;
             public Transform Root;
             public Transform GeometryRoot;
@@ -946,9 +1622,19 @@ namespace DKSH.Spiderbot.Training
             public bool[,] ObstacleCells;
             public bool[,] HazardCells;
             public bool[,] CollapseCells;
+            public float[,] CellHeights;
             public Vector2Int StartCell;
             public Vector2Int TargetCell;
+            public Vector3Int StartNode;
+            public Vector3Int TargetNode;
             public bool HasStartAndTarget;
+            public bool HasCustomStartPosition;
+            public bool HasCustomTargetPosition;
+            public Vector3 StartLocalPosition;
+            public Vector3 TargetLocalPosition;
+            public bool HasLayeredNavigation;
+            public Vector3Int[] WalkableNodes;
+            public Vector3Int[] StairNodes;
             public HashSet<Vector2Int> ProtectedCells = new HashSet<Vector2Int>();
 
             public bool IsInside(Vector2Int cell)
@@ -966,6 +1652,29 @@ namespace DKSH.Spiderbot.Training
                 return IsInside(cell) &&
                     (ObstacleCells[cell.x, cell.y] || HazardCells[cell.x, cell.y] || CollapseCells[cell.x, cell.y]);
             }
+        }
+
+        private sealed class BuildingGrid
+        {
+            public BuildingGrid(int width, int depth, int floorCount)
+            {
+                Width = width;
+                Depth = depth;
+                FloorCount = floorCount;
+                Walkable = new bool[floorCount, width, depth];
+                Blocked = new bool[floorCount, width, depth];
+                Stairs = new bool[floorCount, width, depth];
+            }
+
+            public int Width;
+            public int Depth;
+            public int FloorCount;
+            public bool[,,] Walkable;
+            public bool[,,] Blocked;
+            public bool[,,] Stairs;
+            public Vector3Int StartNode;
+            public Vector3Int TargetNode;
+            public HashSet<Vector3Int> ProtectedNodes = new HashSet<Vector3Int>();
         }
     }
 }

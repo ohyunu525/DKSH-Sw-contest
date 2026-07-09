@@ -172,6 +172,7 @@ namespace DKSH.Spiderbot.Training
 
             var hazardZone = zoneObject.AddComponent<RLHazardZone>();
             hazardZone.Initialize(RLHazardKind.Fire, cell, cellSize * 0.45f, true);
+            RLFireVisuals.Apply(zoneObject, cellSize, seed + cell.x * 31 + cell.y * 97);
             activeFireZones.Add(hazardZone);
             RLTrainingGenerationUtility.AddIfMissing(activeFireCells, cell);
         }

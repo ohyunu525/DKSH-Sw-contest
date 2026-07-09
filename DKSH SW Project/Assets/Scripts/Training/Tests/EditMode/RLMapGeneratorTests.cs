@@ -65,6 +65,7 @@ namespace DKSH.Spiderbot.Training.Tests
                 for (var i = 0; i < generator.Environments.Count; i++)
                 {
                     var environment = generator.Environments[i];
+                    Assert.That(environment.Level, Is.EqualTo(level), level.ToString());
                     Assert.NotNull(environment.StartPoint, level.ToString());
                     Assert.NotNull(environment.TargetPoint, level.ToString());
                     Assert.False(environment.IsCellUnsafe(environment.StartCell), level.ToString());
@@ -92,6 +93,71 @@ namespace DKSH.Spiderbot.Training.Tests
             Assert.That(secondSnapshot, Is.EqualTo(firstSnapshot));
         }
 
+        [Test]
+        public void Generate_StairMap_PlacesTargetAboveStart()
+        {
+            var generator = CreateGenerator();
+            generator.SelectedLevel = RLMapLevel.SeededStair;
+            generator.MapCount = 1;
+            generator.BaseSeed = 3100;
+
+            generator.Generate();
+
+            var environment = generator.Environments[0];
+            Assert.That(environment.TargetPoint.localPosition.y, Is.GreaterThan(environment.StartPoint.localPosition.y + 0.5f));
+        }
+
+        [Test]
+        public void Generate_HillMap_UsesPerlinTerrainAndValidSurfaceMarkers()
+        {
+            var generator = CreateGenerator();
+            generator.SelectedLevel = RLMapLevel.SeededHill;
+            generator.MapCount = 1;
+            generator.BaseSeed = 4100;
+
+            generator.Generate();
+
+            var environment = generator.Environments[0];
+            Assert.NotNull(environment.GeometryRoot.Find("PerlinHillTerrain"));
+            Assert.That(environment.StartPoint.localPosition.y, Is.GreaterThan(0.05f));
+            Assert.That(environment.TargetPoint.localPosition.y, Is.GreaterThan(0.05f));
+        }
+
+        [Test]
+        public void Generate_BuildingMap_CreatesLayeredPathAcrossFloors()
+        {
+            var generator = CreateGenerator();
+            generator.SelectedLevel = RLMapLevel.SeededBuilding;
+            generator.MapCount = 1;
+            generator.BaseSeed = 5100;
+
+            generator.Generate();
+
+            var environment = generator.Environments[0];
+            Assert.True(environment.UsesLayeredNavigation);
+            Assert.That(environment.FloorCount, Is.GreaterThanOrEqualTo(2));
+            Assert.That(environment.StartNode.z, Is.Not.EqualTo(environment.TargetNode.z));
+            Assert.True(environment.HasPathFromStartToTarget());
+        }
+
+        [Test]
+        public void Generate_CollapseLevel_CreatesDeterministicFallingDebrisSchedule()
+        {
+            var generator = CreateGenerator();
+            generator.SelectedLevel = RLMapLevel.BuildingSpreadingFireRandomCollapse;
+            generator.MapCount = 1;
+            generator.BaseSeed = 6100;
+
+            generator.Generate();
+            var firstSchedule = CollapseSchedule(generator.Environments[0]);
+
+            generator.Generate();
+            var secondSchedule = CollapseSchedule(generator.Environments[0]);
+
+            Assert.That(firstSchedule, Is.Not.Empty);
+            Assert.That(secondSchedule, Is.EqualTo(firstSchedule));
+        }
+
         private RLMapGenerator CreateGenerator()
         {
             var generatorObject = new GameObject("RLMapGeneratorTest");
@@ -104,12 +170,29 @@ namespace DKSH.Spiderbot.Training.Tests
         private static string Snapshot(GeneratedTrainingEnvironment environment)
         {
             return string.Format(
-                "{0}->{1}|O:{2}|H:{3}|C:{4}",
+                "{0}->{1}|N:{2}->{3}|O:{4}|H:{5}|C:{6}",
                 CellToString(environment.StartCell),
                 CellToString(environment.TargetCell),
+                NodeToString(environment.StartNode),
+                NodeToString(environment.TargetNode),
                 CellsToString(environment.ObstacleCells),
                 CellsToString(environment.HazardCells),
                 CellsToString(environment.CollapseCells));
+        }
+
+        private static string CollapseSchedule(GeneratedTrainingEnvironment environment)
+        {
+            var controller = environment.HazardsRoot.GetComponentInChildren<RLRandomCollapseController>();
+            Assert.NotNull(controller);
+
+            var parts = new string[controller.ScheduledDebris.Count];
+            for (var i = 0; i < controller.ScheduledDebris.Count; i++)
+            {
+                var debris = controller.ScheduledDebris[i];
+                parts[i] = string.Format("{0}@{1:0.000}", CellToString(debris.Cell), debris.ReleaseTime);
+            }
+
+            return string.Join(",", parts);
         }
 
         private static string CellsToString(IReadOnlyList<Vector2Int> cells)
@@ -126,6 +209,11 @@ namespace DKSH.Spiderbot.Training.Tests
         private static string CellToString(Vector2Int cell)
         {
             return string.Format("{0}:{1}", cell.x, cell.y);
+        }
+
+        private static string NodeToString(Vector3Int node)
+        {
+            return string.Format("{0}:{1}:{2}", node.x, node.y, node.z);
         }
     }
 }
