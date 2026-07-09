@@ -50,10 +50,12 @@ namespace DKSH.Spiderbot.Mapping
 
         private readonly List<Vector3> points = new List<Vector3>();
         private readonly HashSet<Vector3Int> occupiedCells = new HashSet<Vector3Int>();
+        private const float ScaleEpsilon = 0.0001f;
 
         public event Action<LidarPointCloudMap> PointsChanged;
 
         public IReadOnlyList<Vector3> Points { get { return points; } }
+        public IReadOnlyList<Vector3> StoredPoints { get { return points; } }
         public int Count { get { return points.Count; } }
         public int Version { get; private set; }
         public Transform RealSpaceFloor { get { return realSpaceFloor; } }
@@ -73,6 +75,47 @@ namespace DKSH.Spiderbot.Mapping
 
             target.Clear();
             target.AddRange(points);
+        }
+
+        public Vector3 StoredPointToVirtualFloorPoint(Vector3 storedPoint, Transform virtualSpaceFloor)
+        {
+            if (virtualSpaceFloor == null)
+            {
+                return storedPoint;
+            }
+
+            if (StoresPointsInRealSpaceFloor)
+            {
+                // Stored points are real-floor local. Scale them by the floor
+                // size ratio without using virtual inverse transforms.
+                return Vector3.Scale(storedPoint, GetRealToVirtualFloorSizeRatio(virtualSpaceFloor));
+            }
+
+            return virtualSpaceFloor.InverseTransformPoint(storedPoint);
+        }
+
+        private Vector3 GetRealToVirtualFloorSizeRatio(Transform virtualSpaceFloor)
+        {
+            var realScale = realSpaceFloor.lossyScale;
+            var virtualScale = virtualSpaceFloor.lossyScale;
+
+            var xRatio = GetScaleRatio(virtualScale.x, realScale.x);
+            var zRatio = GetScaleRatio(virtualScale.z, realScale.z);
+            var yRatio = (xRatio + zRatio) * 0.5f;
+
+            return new Vector3(xRatio, yRatio, zRatio);
+        }
+
+        private static float GetScaleRatio(float virtualScale, float realScale)
+        {
+            realScale = Mathf.Abs(realScale);
+
+            if (realScale <= ScaleEpsilon)
+            {
+                return 1f;
+            }
+
+            return Mathf.Abs(virtualScale) / realScale;
         }
 
         private void Clear(bool notify)
@@ -145,9 +188,12 @@ namespace DKSH.Spiderbot.Mapping
                 return;
             }
 
+            var changed = false;
+
             if (clearOnEachFrame)
             {
                 Clear(false);
+                changed = true;
             }
 
             var samples = frame.Samples;
@@ -156,20 +202,23 @@ namespace DKSH.Spiderbot.Mapping
                 var sample = samples[i];
                 if (sample.hit || accumulateMisses)
                 {
-                    AddPoint(sample.point);
+                    changed |= AddPoint(sample.point);
                 }
             }
 
-            NotifyPointsChanged();
+            if (changed)
+            {
+                NotifyPointsChanged();
+            }
         }
 
-        private void AddPoint(Vector3 point)
+        private bool AddPoint(Vector3 point)
         {
             var storedPoint = ToStoredPoint(point);
 
             if (points.Count >= maxPoints)
             {
-                return;
+                return false;
             }
 
             if (rejectDuplicateCells)
@@ -177,13 +226,14 @@ namespace DKSH.Spiderbot.Mapping
                 var cell = ToCell(storedPoint);
                 if (occupiedCells.Contains(cell))
                 {
-                    return;
+                    return false;
                 }
 
                 occupiedCells.Add(cell);
             }
 
             points.Add(storedPoint);
+            return true;
         }
 
         private Vector3 ToStoredPoint(Vector3 worldPoint)

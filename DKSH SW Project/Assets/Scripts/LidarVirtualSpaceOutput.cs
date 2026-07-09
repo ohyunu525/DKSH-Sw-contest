@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using UnityEngine;
 
 namespace DKSH.Spiderbot.Mapping
@@ -42,10 +41,14 @@ namespace DKSH.Spiderbot.Mapping
         [SerializeField]
         private bool updateEveryFrame = false;
 
-        private readonly List<Vector3> pointScratch = new List<Vector3>();
         private ParticleSystem.Particle[] particles;
         private Material runtimeMaterial;
         private int lastRenderedVersion = -1;
+        private bool renderDirty = true;
+        private LidarPointCloudMap subscribedMap;
+        private Vector3 lastRealFloorScale;
+        private Vector3 lastVirtualFloorScale;
+        private bool hasLastFloorScales;
 
         public Transform VirtualSpaceFloor { get { return virtualSpaceFloor; } }
         public ParticleSystem PointRenderer { get { return pointRenderer; } }
@@ -60,14 +63,15 @@ namespace DKSH.Spiderbot.Mapping
             }
 
             ConfigureParticleSystem();
-            pointCloudMap.CopyPointsTo(pointScratch);
             EnsureParticleBuffer();
 
-            var pointCount = pointScratch.Count;
+            var points = pointCloudMap.StoredPoints;
+            var pointCount = points.Count;
             if (pointCount == 0)
             {
                 pointRenderer.SetParticles(particles, 0);
                 lastRenderedVersion = pointCloudMap.Version;
+                renderDirty = false;
                 return;
             }
 
@@ -76,7 +80,7 @@ namespace DKSH.Spiderbot.Mapping
 
             for (var i = 0; i < pointCount && particleCount < maxVisiblePoints; i += stride)
             {
-                var virtualPoint = ToVirtualSpaceFloorPoint(pointScratch[i]);
+                var virtualPoint = ToVirtualSpaceFloorPoint(points[i]);
                 virtualPoint = virtualPoint * outputScale + outputOffset;
 
                 particles[particleCount] = new ParticleSystem.Particle
@@ -92,6 +96,7 @@ namespace DKSH.Spiderbot.Mapping
 
             pointRenderer.SetParticles(particles, particleCount);
             lastRenderedVersion = pointCloudMap.Version;
+            renderDirty = false;
         }
 
         private void Reset()
@@ -109,25 +114,19 @@ namespace DKSH.Spiderbot.Mapping
         {
             ResolveReferences();
             ConfigureParticleSystem();
-
-            if (pointCloudMap != null)
-            {
-                pointCloudMap.PointsChanged += HandlePointsChanged;
-            }
-
-            RenderNow();
+            SubscribeToMap();
+            renderDirty = true;
         }
 
         private void OnDisable()
         {
-            if (pointCloudMap != null)
-            {
-                pointCloudMap.PointsChanged -= HandlePointsChanged;
-            }
+            UnsubscribeFromMap();
         }
 
         private void OnDestroy()
         {
+            UnsubscribeFromMap();
+
             if (runtimeMaterial == null)
             {
                 return;
@@ -145,12 +144,15 @@ namespace DKSH.Spiderbot.Mapping
 
         private void LateUpdate()
         {
-            if (pointCloudMap == null)
+            ResolveReferences();
+            SubscribeToMap();
+
+            if (HaveFloorScalesChanged())
             {
-                ResolveReferences();
+                renderDirty = true;
             }
 
-            if (updateEveryFrame || (pointCloudMap != null && pointCloudMap.Version != lastRenderedVersion))
+            if (updateEveryFrame || renderDirty || (pointCloudMap != null && pointCloudMap.Version != lastRenderedVersion))
             {
                 RenderNow();
             }
@@ -165,7 +167,77 @@ namespace DKSH.Spiderbot.Mapping
 
         private void HandlePointsChanged(LidarPointCloudMap map)
         {
-            RenderNow();
+            renderDirty = true;
+        }
+
+        private void SubscribeToMap()
+        {
+            if (subscribedMap == pointCloudMap)
+            {
+                return;
+            }
+
+            UnsubscribeFromMap();
+            subscribedMap = pointCloudMap;
+
+            if (subscribedMap != null)
+            {
+                subscribedMap.PointsChanged += HandlePointsChanged;
+                renderDirty = true;
+            }
+        }
+
+        private void UnsubscribeFromMap()
+        {
+            if (subscribedMap == null)
+            {
+                return;
+            }
+
+            subscribedMap.PointsChanged -= HandlePointsChanged;
+            subscribedMap = null;
+        }
+
+        private bool HaveFloorScalesChanged()
+        {
+            if (pointCloudMap == null || virtualSpaceFloor == null)
+            {
+                hasLastFloorScales = false;
+                return false;
+            }
+
+            var realFloor = pointCloudMap.RealSpaceFloor;
+            var realFloorScale = realFloor != null ? realFloor.lossyScale : Vector3.one;
+            var virtualFloorScale = virtualSpaceFloor.lossyScale;
+
+            if (!hasLastFloorScales)
+            {
+                StoreFloorScales(realFloorScale, virtualFloorScale);
+                return false;
+            }
+
+            if (Approximately(lastRealFloorScale, realFloorScale) &&
+                Approximately(lastVirtualFloorScale, virtualFloorScale))
+            {
+                return false;
+            }
+
+            StoreFloorScales(realFloorScale, virtualFloorScale);
+            return true;
+        }
+
+        private void StoreFloorScales(Vector3 realFloorScale, Vector3 virtualFloorScale)
+        {
+            lastRealFloorScale = realFloorScale;
+            lastVirtualFloorScale = virtualFloorScale;
+            hasLastFloorScales = true;
+        }
+
+        private static bool Approximately(Vector3 a, Vector3 b)
+        {
+            return Mathf.Approximately(a.x, b.x) &&
+                Mathf.Approximately(a.y, b.y) &&
+                Mathf.Approximately(a.z, b.z);
         }
 
         private void ResolveReferences()
@@ -268,9 +340,9 @@ namespace DKSH.Spiderbot.Mapping
 
         private Vector3 ToVirtualSpaceFloorPoint(Vector3 storedPoint)
         {
-            if (pointCloudMap == null || pointCloudMap.StoresPointsInRealSpaceFloor)
+            if (pointCloudMap != null)
             {
-                return storedPoint;
+                return pointCloudMap.StoredPointToVirtualFloorPoint(storedPoint, virtualSpaceFloor);
             }
 
             return virtualSpaceFloor.InverseTransformPoint(storedPoint);

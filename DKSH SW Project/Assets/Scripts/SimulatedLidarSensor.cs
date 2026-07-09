@@ -38,6 +38,7 @@ namespace DKSH.Spiderbot.Sensors
         private int maxDebugRays = 256;
 
         private float scanTimer;
+        private bool initialScanPending;
         private LidarScanFrame latestFrame;
 
         public event Action<LidarScanFrame> ScanCompleted;
@@ -69,84 +70,15 @@ namespace DKSH.Spiderbot.Sensors
             var sensorRotation = transform.rotation;
             var scanRotation = activeSettings.rotateWithSensor ? sensorRotation : Quaternion.identity;
 
-            var index = 0;
-            var hitCount = 0;
+            var sampleCount = PopulateSamples(activeSettings, origin, scanRotation, samples, out var hitCount);
 
-            for (var vertical = 0; vertical < activeSettings.verticalResolution; vertical++)
+            if (sampleCount < samples.Length)
             {
-                var verticalT = activeSettings.verticalResolution <= 1
-                    ? 0.5f
-                    : vertical / (activeSettings.verticalResolution - 1f);
-                var verticalAngle = Mathf.Lerp(
-                    -activeSettings.verticalFovDegrees * 0.5f,
-                    activeSettings.verticalFovDegrees * 0.5f,
-                    verticalT);
-
-                for (var horizontal = 0; horizontal < activeSettings.horizontalResolution; horizontal++)
-                {
-                    var horizontalAngle = GetHorizontalAngle(activeSettings, horizontal);
-
-                    var localRotation =
-                        Quaternion.AngleAxis(horizontalAngle, Vector3.up) *
-                        Quaternion.AngleAxis(-verticalAngle, Vector3.right);
-                    var direction = scanRotation * (localRotation * Vector3.forward);
-
-                    RaycastHit hitInfo;
-                    var didHit = Physics.Raycast(
-                        origin,
-                        direction,
-                        out hitInfo,
-                        activeSettings.maxDistance,
-                        activeSettings.detectionMask.value,
-                        activeSettings.triggerInteraction);
-
-                    if (didHit)
-                    {
-                        hitCount++;
-                    }
-
-                    var point = didHit ? hitInfo.point : origin + direction * activeSettings.maxDistance;
-                    var normal = didHit ? hitInfo.normal : Vector3.zero;
-                    var distance = didHit ? hitInfo.distance : activeSettings.maxDistance;
-                    var colliderInstanceId = didHit && hitInfo.collider != null ? hitInfo.collider.GetInstanceID() : 0;
-
-                    if (!didHit && !activeSettings.includeMisses)
-                    {
-                        continue;
-                    }
-
-                    samples[index] = new LidarSample(
-                        horizontal,
-                        vertical,
-                        origin,
-                        direction,
-                        point,
-                        normal,
-                        distance,
-                        didHit,
-                        colliderInstanceId);
-                    index++;
-                }
+                Array.Resize(ref samples, sampleCount);
             }
 
-            if (index < samples.Length)
-            {
-                Array.Resize(ref samples, index);
-            }
-
-            latestFrame = new LidarScanFrame(
-                Time.timeAsDouble,
-                origin,
-                sensorRotation,
-                activeSettings.horizontalResolution,
-                activeSettings.verticalResolution,
-                hitCount,
-                samples);
-
-            if (ScanCompleted != null)
-            {
-                ScanCompleted(latestFrame);
-            }
+            latestFrame = CreateFrame(activeSettings, origin, sensorRotation, hitCount, samples);
+            PublishScanCompleted(latestFrame);
 
             return latestFrame;
         }
@@ -159,17 +91,19 @@ namespace DKSH.Spiderbot.Sensors
         private void OnEnable()
         {
             scanTimer = 0f;
+            initialScanPending = scanOnEnable;
+        }
 
-            if (scanOnEnable)
-            {
-                ScanNow();
-            }
+        private void OnDisable()
+        {
+            initialScanPending = false;
         }
 
         private void Update()
         {
             if (!scanInFixedUpdate)
             {
+                ScanPendingInitialFrame();
                 Tick(Time.deltaTime);
             }
         }
@@ -178,6 +112,7 @@ namespace DKSH.Spiderbot.Sensors
         {
             if (scanInFixedUpdate)
             {
+                ScanPendingInitialFrame();
                 Tick(Time.fixedDeltaTime);
             }
         }
@@ -200,6 +135,153 @@ namespace DKSH.Spiderbot.Sensors
                 ScanNow();
                 scansThisTick++;
             }
+        }
+
+        private int PopulateSamples(
+            LidarScanSettings activeSettings,
+            Vector3 origin,
+            Quaternion scanRotation,
+            LidarSample[] samples,
+            out int hitCount)
+        {
+            var sampleCount = 0;
+            hitCount = 0;
+
+            for (var vertical = 0; vertical < activeSettings.verticalResolution; vertical++)
+            {
+                var verticalAngle = GetVerticalAngle(activeSettings, vertical);
+
+                for (var horizontal = 0; horizontal < activeSettings.horizontalResolution; horizontal++)
+                {
+                    var direction = GetRayDirection(activeSettings, scanRotation, horizontal, verticalAngle);
+                    var didHit = CastRay(activeSettings, origin, direction, out var hitInfo);
+
+                    if (didHit)
+                    {
+                        hitCount++;
+                    }
+
+                    if (!didHit && !activeSettings.includeMisses)
+                    {
+                        continue;
+                    }
+
+                    samples[sampleCount] = CreateSample(
+                        horizontal,
+                        vertical,
+                        origin,
+                        direction,
+                        activeSettings.maxDistance,
+                        didHit,
+                        hitInfo);
+                    sampleCount++;
+                }
+            }
+
+            return sampleCount;
+        }
+
+        private static bool CastRay(
+            LidarScanSettings activeSettings,
+            Vector3 origin,
+            Vector3 direction,
+            out RaycastHit hitInfo)
+        {
+            return Physics.Raycast(
+                origin,
+                direction,
+                out hitInfo,
+                activeSettings.maxDistance,
+                activeSettings.detectionMask.value,
+                activeSettings.triggerInteraction);
+        }
+
+        private static LidarSample CreateSample(
+            int horizontal,
+            int vertical,
+            Vector3 origin,
+            Vector3 direction,
+            float maxDistance,
+            bool didHit,
+            RaycastHit hitInfo)
+        {
+            var point = didHit ? hitInfo.point : origin + direction * maxDistance;
+            var normal = didHit ? hitInfo.normal : Vector3.zero;
+            var distance = didHit ? hitInfo.distance : maxDistance;
+            var colliderInstanceId = didHit && hitInfo.collider != null ? hitInfo.collider.GetInstanceID() : 0;
+
+            return new LidarSample(
+                horizontal,
+                vertical,
+                origin,
+                direction,
+                point,
+                normal,
+                distance,
+                didHit,
+                colliderInstanceId);
+        }
+
+        private static LidarScanFrame CreateFrame(
+            LidarScanSettings activeSettings,
+            Vector3 origin,
+            Quaternion sensorRotation,
+            int hitCount,
+            LidarSample[] samples)
+        {
+            return new LidarScanFrame(
+                Time.timeAsDouble,
+                origin,
+                sensorRotation,
+                activeSettings.horizontalResolution,
+                activeSettings.verticalResolution,
+                hitCount,
+                samples);
+        }
+
+        private void PublishScanCompleted(LidarScanFrame frame)
+        {
+            if (ScanCompleted != null)
+            {
+                ScanCompleted(frame);
+            }
+        }
+
+        private void ScanPendingInitialFrame()
+        {
+            if (!initialScanPending)
+            {
+                return;
+            }
+
+            initialScanPending = false;
+            ScanNow();
+        }
+
+        private static Vector3 GetRayDirection(
+            LidarScanSettings activeSettings,
+            Quaternion scanRotation,
+            int horizontalIndex,
+            float verticalAngle)
+        {
+            var horizontalAngle = GetHorizontalAngle(activeSettings, horizontalIndex);
+            var localRotation =
+                Quaternion.AngleAxis(horizontalAngle, Vector3.up) *
+                Quaternion.AngleAxis(-verticalAngle, Vector3.right);
+
+            return scanRotation * (localRotation * Vector3.forward);
+        }
+
+        private static float GetVerticalAngle(LidarScanSettings activeSettings, int verticalIndex)
+        {
+            var verticalT = activeSettings.verticalResolution <= 1
+                ? 0.5f
+                : verticalIndex / (activeSettings.verticalResolution - 1f);
+
+            return Mathf.Lerp(
+                -activeSettings.verticalFovDegrees * 0.5f,
+                activeSettings.verticalFovDegrees * 0.5f,
+                verticalT);
         }
 
         private static float GetHorizontalAngle(LidarScanSettings activeSettings, int horizontalIndex)
