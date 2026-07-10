@@ -94,17 +94,22 @@ namespace DKSH.Spiderbot.Training.Tests
         }
 
         [Test]
-        public void Generate_StairMap_PlacesTargetAboveStart()
+        public void Generate_StairMap_ChoosesReachableStartAndKeepsTargetOnUpperPlatform()
         {
             var generator = CreateGenerator();
             generator.SelectedLevel = RLMapLevel.SeededStair;
             generator.MapCount = 1;
-            generator.BaseSeed = 3100;
+            generator.BaseSeed = 3101;
 
             generator.Generate();
 
             var environment = generator.Environments[0];
-            Assert.That(environment.TargetPoint.localPosition.y, Is.GreaterThan(environment.StartPoint.localPosition.y + 0.5f));
+            Assert.That(environment.Level, Is.EqualTo(RLMapLevel.SeededStair));
+            Assert.That(environment.TargetPoint.localPosition.y, Is.GreaterThan(0.8f));
+            Assert.That(environment.StartCell, Is.Not.EqualTo(environment.TargetCell));
+            Assert.False(environment.IsCellUnsafe(environment.StartCell));
+            Assert.True(environment.HasPathFromStartToTarget());
+            Assert.That(environment.StartPoint.localPosition.y, Is.EqualTo(0.25f).Within(0.001f));
         }
 
         [Test]

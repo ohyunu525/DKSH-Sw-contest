@@ -323,11 +323,7 @@ namespace DKSH.Spiderbot.Training
 
             topCell.x = Mathf.Clamp(topCell.x, 1, context.MapSize.x - 2);
             topCell.y = Mathf.Clamp(topCell.y, 1, context.MapSize.y - 2);
-            SetStartAndTarget(context, bottomCell, topCell);
-            context.StartLocalPosition = RLTrainingGenerationUtility.CellToLocalPosition(bottomCell, context.MapSize, context.CellSize, 0.25f);
-            context.TargetLocalPosition = RLTrainingGenerationUtility.CellToLocalPosition(topCell, context.MapSize, context.CellSize, topHeight + 0.08f);
-            context.HasCustomStartPosition = true;
-            context.HasCustomTargetPosition = true;
+            var surfaceHeights = new Dictionary<Vector2Int, float>();
 
             var bottomPlatformScale = horizontal
                 ? new Vector3(context.CellSize * 2f, 0.1f, width)
@@ -337,6 +333,7 @@ namespace DKSH.Spiderbot.Training
                 context.GeometryRoot,
                 RLTrainingGenerationUtility.CellToLocalPosition(bottomCell, context.MapSize, context.CellSize, 0.02f),
                 bottomPlatformScale);
+            MarkStairSurfaceCells(context, surfaceHeights, bottomCell, horizontal, 0, 1, 1, 0.07f);
 
             for (var i = 0; i < stepCount; i++)
             {
@@ -350,6 +347,7 @@ namespace DKSH.Spiderbot.Training
                     ? new Vector3(context.CellSize, height, width)
                     : new Vector3(width, height, context.CellSize);
                 CreatePrimitiveBlock("StairStep_" + i, context.GeometryRoot, localPosition, localScale);
+                MarkStairSurfaceCells(context, surfaceHeights, cell, horizontal, 0, 0, 1, height);
             }
 
             var topPlatformScale = horizontal
@@ -360,8 +358,96 @@ namespace DKSH.Spiderbot.Training
                 context.GeometryRoot,
                 RLTrainingGenerationUtility.CellToLocalPosition(topCell, context.MapSize, context.CellSize, topHeight * 0.5f),
                 topPlatformScale);
+            MarkStairSurfaceCells(context, surfaceHeights, topCell, horizontal, 1, 1, 1, topHeight);
+
+            Vector2Int startCell;
+            float startSurfaceHeight;
+            if (!TryChooseStairStartCell(context, topCell, surfaceHeights, out startCell, out startSurfaceHeight))
+            {
+                Debug.LogWarning("RLMapGenerator could not place a valid stair start cell.", this);
+                return false;
+            }
+
+            SetStartAndTarget(context, startCell, topCell);
+            context.StartLocalPosition = RLTrainingGenerationUtility.CellToLocalPosition(startCell, context.MapSize, context.CellSize, startSurfaceHeight + 0.25f);
+            context.TargetLocalPosition = RLTrainingGenerationUtility.CellToLocalPosition(topCell, context.MapSize, context.CellSize, topHeight + 0.08f);
+            context.HasCustomStartPosition = true;
+            context.HasCustomTargetPosition = true;
 
             return true;
+        }
+
+        private bool TryChooseStairStartCell(
+            MapBuildContext context,
+            Vector2Int targetCell,
+            Dictionary<Vector2Int, float> surfaceHeights,
+            out Vector2Int startCell,
+            out float startSurfaceHeight)
+        {
+            var candidates = new List<Vector2Int>();
+            for (var y = 1; y < context.MapSize.y - 1; y++)
+            {
+                for (var x = 1; x < context.MapSize.x - 1; x++)
+                {
+                    var cell = new Vector2Int(x, y);
+                    if (cell == targetCell || context.IsUnsafe(cell) || !HasPath(context, cell, targetCell))
+                    {
+                        continue;
+                    }
+
+                    candidates.Add(cell);
+                }
+            }
+
+            if (candidates.Count == 0)
+            {
+                startCell = Vector2Int.zero;
+                startSurfaceHeight = 0f;
+                return false;
+            }
+
+            startCell = candidates[context.Random.Next(candidates.Count)];
+            startSurfaceHeight = GetStairSurfaceHeight(surfaceHeights, startCell);
+            return true;
+        }
+
+        private static float GetStairSurfaceHeight(Dictionary<Vector2Int, float> surfaceHeights, Vector2Int cell)
+        {
+            float surfaceHeight;
+            return surfaceHeights != null && surfaceHeights.TryGetValue(cell, out surfaceHeight)
+                ? surfaceHeight
+                : 0f;
+        }
+
+        private void MarkStairSurfaceCells(
+            MapBuildContext context,
+            Dictionary<Vector2Int, float> surfaceHeights,
+            Vector2Int centerCell,
+            bool horizontal,
+            int backwardCells,
+            int forwardCells,
+            int halfWidthCells,
+            float surfaceHeight)
+        {
+            for (var along = -backwardCells; along <= forwardCells; along++)
+            {
+                for (var across = -halfWidthCells; across <= halfWidthCells; across++)
+                {
+                    var cell = horizontal
+                        ? new Vector2Int(centerCell.x + along, centerCell.y + across)
+                        : new Vector2Int(centerCell.x + across, centerCell.y + along);
+                    if (!context.IsInside(cell))
+                    {
+                        continue;
+                    }
+
+                    float existingHeight;
+                    if (!surfaceHeights.TryGetValue(cell, out existingHeight) || surfaceHeight > existingHeight)
+                    {
+                        surfaceHeights[cell] = surfaceHeight;
+                    }
+                }
+            }
         }
 
         private bool GenerateHillMap(MapBuildContext context)
