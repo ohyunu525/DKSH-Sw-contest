@@ -12,8 +12,8 @@ namespace DKSH.Spiderbot.Training
     {
         private const string GeneratedEnvironmentPrefix = "Environment_";
         private const int RetrySeedOffset = 1000003;
-        private const float StairStepRise = 0.22f;
-        private const float BuildingFloorHeight = 3.2f;
+        private const float DefaultBuildingFloorHeight = 3f;
+        private const float BuildingWallTileHeight = 1f;
         private const float HillMaxNeighborHeightDelta = 0.45f;
         private const string StairPrefabAssetPath = "Assets/Prefabs/StairPrefab.prefab";
         private const string WallPrefabAssetPath = "Assets/Prefabs/WallPrefab.prefab";
@@ -289,7 +289,7 @@ namespace DKSH.Spiderbot.Training
                 MapSize = mapSize,
                 CellSize = cellSize,
                 FloorCount = 1,
-                FloorHeight = BuildingFloorHeight,
+                FloorHeight = DefaultBuildingFloorHeight,
                 StartNode = Vector3Int.zero,
                 TargetNode = Vector3Int.zero,
                 WalkableNodes = new Vector3Int[0],
@@ -336,11 +336,7 @@ namespace DKSH.Spiderbot.Training
         private bool GenerateFlatMap(MapBuildContext context)
         {
             CreateFloor(context);
-            SetStartAndTarget(
-                context,
-                new Vector2Int(1, 1),
-                new Vector2Int(context.MapSize.x - 2, context.MapSize.y - 2));
-            return true;
+            return TryChooseStartAndTarget(context);
         }
 
         private bool GenerateStairMap(MapBuildContext context)
@@ -355,10 +351,11 @@ namespace DKSH.Spiderbot.Training
 
             var usableLength = horizontal ? context.MapSize.x : context.MapSize.y;
             var stepCount = Mathf.Clamp(usableLength - 6, 4, 8);
+            var stepRise = GetSeededStairStepRise(context);
             var centerX = context.MapSize.x / 2;
             var centerY = context.MapSize.y / 2;
             var width = context.CellSize * 3f;
-            var topHeight = stepCount * StairStepRise;
+            var topHeight = stepCount * stepRise;
             var bottomCell = horizontal
                 ? new Vector2Int(1, centerY)
                 : new Vector2Int(centerX, 1);
@@ -381,24 +378,34 @@ namespace DKSH.Spiderbot.Training
                 bottomPlatformScale);
             MarkStairSurfaceCells(context, surfaceHeights, bottomCell, horizontal, 0, 1, 1, 0.07f);
 
-            CreateStairRun(context, stairPrefabAsset, horizontal, stepCount, centerX, centerY, width, topHeight);
+            CreateStairRun(context, stairPrefabAsset, horizontal, stepCount, centerX, centerY, width, stepRise, topHeight);
+            var lastStairCell = horizontal
+                ? new Vector2Int(Mathf.Clamp(2 + stepCount - 1, 1, context.MapSize.x - 2), centerY)
+                : new Vector2Int(centerX, Mathf.Clamp(2 + stepCount - 1, 1, context.MapSize.y - 2));
             for (var i = 0; i < stepCount; i++)
             {
                 var cell = horizontal
                     ? new Vector2Int(Mathf.Clamp(2 + i, 1, context.MapSize.x - 2), centerY)
                     : new Vector2Int(centerX, Mathf.Clamp(2 + i, 1, context.MapSize.y - 2));
 
-                var height = StairStepRise * (i + 1);
+                var height = stepRise * (i + 1);
                 MarkStairSurfaceCells(context, surfaceHeights, cell, horizontal, 0, 0, 1, height);
             }
 
             var topPlatformScale = horizontal
                 ? new Vector3(context.CellSize * 2.5f, topHeight, width)
                 : new Vector3(width, topHeight, context.CellSize * 2.5f);
+            var topPlatformPosition = GetAttachedUpperPlatformPosition(
+                context,
+                horizontal,
+                lastStairCell,
+                topCell,
+                topPlatformScale,
+                topHeight);
             CreatePrimitiveBlock(
                 "StairUpperPlatform",
                 context.GeometryRoot,
-                RLTrainingGenerationUtility.CellToLocalPosition(topCell, context.MapSize, context.CellSize, topHeight * 0.5f),
+                topPlatformPosition,
                 topPlatformScale);
             MarkStairSurfaceCells(context, surfaceHeights, topCell, horizontal, 1, 1, 1, topHeight);
 
@@ -417,6 +424,28 @@ namespace DKSH.Spiderbot.Training
             context.HasCustomTargetPosition = true;
 
             return true;
+        }
+
+        private static Vector3 GetAttachedUpperPlatformPosition(
+            MapBuildContext context,
+            bool horizontal,
+            Vector2Int lastStairCell,
+            Vector2Int topCell,
+            Vector3 topPlatformScale,
+            float topHeight)
+        {
+            var lastStepPosition = RLTrainingGenerationUtility.CellToLocalPosition(lastStairCell, context.MapSize, context.CellSize, 0f);
+            var topPlatformPosition = RLTrainingGenerationUtility.CellToLocalPosition(topCell, context.MapSize, context.CellSize, topHeight * 0.5f);
+            if (horizontal)
+            {
+                topPlatformPosition.x = lastStepPosition.x + context.CellSize * 0.5f + topPlatformScale.x * 0.5f;
+            }
+            else
+            {
+                topPlatformPosition.z = lastStepPosition.z + context.CellSize * 0.5f + topPlatformScale.z * 0.5f;
+            }
+
+            return topPlatformPosition;
         }
 
         private bool TryChooseStairStartCell(
@@ -500,6 +529,7 @@ namespace DKSH.Spiderbot.Training
             int centerX,
             int centerY,
             float width,
+            float stepRise,
             float topHeight)
         {
             if (stairPrefabAsset != null)
@@ -515,7 +545,7 @@ namespace DKSH.Spiderbot.Training
                 var stairCenter = (firstPosition + lastPosition) * 0.5f;
                 stairCenter.y = topHeight * 0.5f;
 
-                CreatePrefabBlock(
+                CreateScaledPrefabBlock(
                     "StairPrefabRun",
                     context.GeometryRoot,
                     stairPrefabAsset,
@@ -531,7 +561,7 @@ namespace DKSH.Spiderbot.Training
                     ? new Vector2Int(Mathf.Clamp(2 + i, 1, context.MapSize.x - 2), centerY)
                     : new Vector2Int(centerX, Mathf.Clamp(2 + i, 1, context.MapSize.y - 2));
 
-                var height = StairStepRise * (i + 1);
+                var height = stepRise * (i + 1);
                 var localPosition = RLTrainingGenerationUtility.CellToLocalPosition(cell, context.MapSize, context.CellSize, height * 0.5f);
                 var localScale = horizontal
                     ? new Vector3(context.CellSize, height, width)
@@ -592,7 +622,7 @@ namespace DKSH.Spiderbot.Training
 
             context.HasLayeredNavigation = true;
             context.FloorCount = building.FloorCount;
-            context.FloorHeight = BuildingFloorHeight;
+            context.FloorHeight = GetSeededBuildingFloorHeight(context);
             context.WalkableNodes = GetWalkableNodes(building);
             context.StairNodes = GetStairNodes(building);
             SetStartAndTarget(
@@ -1090,9 +1120,58 @@ namespace DKSH.Spiderbot.Training
                 building.Stairs[floor, stairCell.x, stairCell.y] = true;
             }
 
-            building.StartNode = FindNearestWalkableNode(building, new Vector3Int(1, 1, 0));
-            building.TargetNode = FindNearestWalkableNode(building, new Vector3Int(context.MapSize.x - 2, context.MapSize.y - 2, floorCount - 1));
+            ChooseBuildingStartAndTarget(context, building);
             return building;
+        }
+
+        private void ChooseBuildingStartAndTarget(MapBuildContext context, BuildingGrid building)
+        {
+            var startCandidates = GetBuildingWalkableCandidates(building, 0);
+            var targetCandidates = GetBuildingWalkableCandidates(building, building.FloorCount - 1);
+            var minDistance = Mathf.Max(4, (building.Width + building.Depth) / 3);
+
+            for (var attempt = 0; attempt < 128 && startCandidates.Count > 0 && targetCandidates.Count > 0; attempt++)
+            {
+                var start = startCandidates[context.Random.Next(startCandidates.Count)];
+                var target = targetCandidates[context.Random.Next(targetCandidates.Count)];
+                if (start == target)
+                {
+                    continue;
+                }
+
+                var distance = Mathf.Abs(start.x - target.x) + Mathf.Abs(start.y - target.y) + Mathf.Abs(start.z - target.z) * minDistance;
+                if (distance < minDistance)
+                {
+                    continue;
+                }
+
+                building.StartNode = start;
+                building.TargetNode = target;
+                if (FindLayeredPath(building, building.StartNode, building.TargetNode).Count > 0)
+                {
+                    return;
+                }
+            }
+
+            building.StartNode = FindNearestWalkableNode(building, new Vector3Int(1, 1, 0));
+            building.TargetNode = FindNearestWalkableNode(building, new Vector3Int(context.MapSize.x - 2, context.MapSize.y - 2, building.FloorCount - 1));
+        }
+
+        private static List<Vector3Int> GetBuildingWalkableCandidates(BuildingGrid building, int floor)
+        {
+            var candidates = new List<Vector3Int>();
+            for (var z = 1; z < building.Depth - 1; z++)
+            {
+                for (var x = 1; x < building.Width - 1; x++)
+                {
+                    if (building.Walkable[floor, x, z] && !building.Stairs[floor, x, z] && !building.Blocked[floor, x, z])
+                    {
+                        candidates.Add(new Vector3Int(x, z, floor));
+                    }
+                }
+            }
+
+            return candidates;
         }
 
         private void MarkCorridor(BuildingGrid building, int floor, int corridorX, int corridorZ)
@@ -1202,7 +1281,7 @@ namespace DKSH.Spiderbot.Training
 
             for (var floor = 0; floor < building.FloorCount; floor++)
             {
-                var floorY = floor * BuildingFloorHeight;
+                var floorY = floor * context.FloorHeight;
                 var floorParent = CreateChild(string.Format("Floor {0}", floor + 1), floorGroup);
                 var wallParent = CreateChild(string.Format("Floor {0} Walls", floor + 1), wallGroup);
 
@@ -1227,9 +1306,10 @@ namespace DKSH.Spiderbot.Training
                         if (!building.Walkable[floor, x, z])
                         {
                             MarkObstacle(context, cell);
-                            CreateBuildingWall(context, wallParent, wallPrefabAsset, floor, x, z);
                             continue;
                         }
+
+                        CreateBuildingBoundaryWalls(context, building, wallParent, wallPrefabAsset, floor, x, z);
 
                         if (building.Blocked[floor, x, z])
                         {
@@ -1243,7 +1323,7 @@ namespace DKSH.Spiderbot.Training
                 }
             }
 
-            var roofY = building.FloorCount * BuildingFloorHeight;
+            var roofY = building.FloorCount * context.FloorHeight;
             var ceilingPrefab = ResolveCeilingPrefab();
             var roofParent = CreateChild("Roof", floorGroup);
             for (var z = 0; z < building.Depth; z++)
@@ -1272,20 +1352,21 @@ namespace DKSH.Spiderbot.Training
             {
                 for (var floor = 0; floor < building.FloorCount - 1; floor++)
                 {
-                    var floorY = floor * BuildingFloorHeight;
+                    var floorY = floor * context.FloorHeight;
                     var stairParent = CreateChild(string.Format("Floor {0} Stairs", floor + 1), stairGroup);
+                    var stairCenter = RLTrainingGenerationUtility.CellToLocalPosition(
+                        stairCell,
+                        context.MapSize,
+                        context.CellSize,
+                        floorY + context.FloorHeight * 0.5f);
                     var stair = CreatePrefabInstance(
                         string.Format("StairPrefabConnector_F{0}", floor),
                         stairParent,
                         stairPrefabAsset,
-                        RLTrainingGenerationUtility.CellToLocalPosition(
-                            stairCell,
-                            context.MapSize,
-                            context.CellSize,
-                            floorY + BuildingFloorHeight * 0.5f),
+                        stairCenter,
                         Quaternion.identity,
                         true);
-                    MovePrefabTopToLocalY(stair, floorY + BuildingFloorHeight - 0.15f);
+                    FitBuildingStairPrefab(stair, context, floorY, stairCenter);
                 }
 
                 return;
@@ -1293,7 +1374,7 @@ namespace DKSH.Spiderbot.Training
 
             for (var floor = 0; floor < building.FloorCount - 1; floor++)
             {
-                var floorY = floor * BuildingFloorHeight;
+                var floorY = floor * context.FloorHeight;
                 var stairParent = CreateChild(string.Format("Floor {0} Stairs", floor + 1), stairGroup);
                 for (var step = 0; step < stepCount; step++)
                 {
@@ -1302,14 +1383,14 @@ namespace DKSH.Spiderbot.Training
                         stairCell,
                         context.MapSize,
                         context.CellSize,
-                        floorY + BuildingFloorHeight * t * 0.5f);
+                        floorY + context.FloorHeight * t * 0.5f);
                     local.z += Mathf.Lerp(-context.CellSize * 0.45f, context.CellSize * 0.45f, t);
 
                     CreatePrimitiveBlock(
                         string.Format("StairConnector_F{0}_{1}", floor, step),
                         stairParent,
                         local,
-                        new Vector3(context.CellSize * 0.8f, BuildingFloorHeight * t, context.CellSize * 0.28f));
+                        new Vector3(context.CellSize * 0.8f, context.FloorHeight * t, context.CellSize * 0.28f));
                 }
             }
         }
@@ -1360,44 +1441,133 @@ namespace DKSH.Spiderbot.Training
                 new Vector3(context.CellSize, 0.1f, context.CellSize));
         }
 
-        private void CreateBuildingWall(
+        private void CreateBuildingBoundaryWalls(
             MapBuildContext context,
+            BuildingGrid building,
             Transform parent,
             GameObject wallPrefabAsset,
             int floor,
             int x,
             int z)
         {
-            var wallPosition = GetBuildingWallLocalPosition(context, floor, x, z);
-            var wallName = string.Format("WallPrefab_F{0}_{1}_{2}", floor, x, z);
-            if (wallPrefabAsset != null)
+            CreateBuildingBoundaryWallIfNeeded(context, building, parent, wallPrefabAsset, floor, x, z, BuildingWallEdge.West);
+            CreateBuildingBoundaryWallIfNeeded(context, building, parent, wallPrefabAsset, floor, x, z, BuildingWallEdge.East);
+            CreateBuildingBoundaryWallIfNeeded(context, building, parent, wallPrefabAsset, floor, x, z, BuildingWallEdge.South);
+            CreateBuildingBoundaryWallIfNeeded(context, building, parent, wallPrefabAsset, floor, x, z, BuildingWallEdge.North);
+        }
+
+        private void CreateBuildingBoundaryWallIfNeeded(
+            MapBuildContext context,
+            BuildingGrid building,
+            Transform parent,
+            GameObject wallPrefabAsset,
+            int floor,
+            int x,
+            int z,
+            BuildingWallEdge edge)
+        {
+            if (IsBuildingWalkableNeighbor(building, floor, x, z, edge))
             {
-                CreatePrefabInstance(
-                    wallName,
-                    parent,
-                    wallPrefabAsset,
-                    wallPosition,
-                    BuildingWallRotation,
-                    false);
+                return;
             }
-            else
+
+            var alignAlongX = edge == BuildingWallEdge.South || edge == BuildingWallEdge.North;
+            var wallBasePosition = GetBuildingWallLocalPosition(context, floor, x, z, edge);
+            var wallRotation = GetBuildingWallRotation(alignAlongX);
+            var wallTileCount = Mathf.CeilToInt(context.FloorHeight / BuildingWallTileHeight);
+
+            for (var yIndex = 0; yIndex < wallTileCount; yIndex++)
             {
-                CreatePrimitiveBlock(
-                    wallName,
-                    parent,
-                    wallPosition,
-                    new Vector3(context.CellSize, 2.5f, context.CellSize));
+                var wallPosition = wallBasePosition;
+                wallPosition.y = floor * context.FloorHeight + BuildingWallTileHeight * (yIndex + 0.5f);
+                var wallName = string.Format("WallPrefab_F{0}_{1}_{2}_{3}_{4}", floor, x, z, edge, yIndex);
+
+                if (wallPrefabAsset != null)
+                {
+                    CreatePrefabInstance(
+                        wallName,
+                        parent,
+                        wallPrefabAsset,
+                        wallPosition,
+                        wallRotation,
+                        false);
+                }
+                else
+                {
+                    CreatePrimitiveBlock(
+                        wallName,
+                        parent,
+                        wallPosition,
+                        GetBuildingWallFallbackScale(context, alignAlongX));
+                }
             }
         }
 
-        private static Vector3 GetBuildingWallLocalPosition(MapBuildContext context, int floor, int x, int z)
+        private static Vector3 GetBuildingWallLocalPosition(
+            MapBuildContext context,
+            int floor,
+            int x,
+            int z,
+            BuildingWallEdge edge)
         {
-            var baseX = -context.MapSize.x * 0.5f * context.CellSize;
-            var baseZ = -(context.MapSize.y - 1) * 0.5f * context.CellSize;
-            return new Vector3(
-                baseX + x * context.CellSize,
-                floor * BuildingFloorHeight + 0.5f,
-                baseZ + z * context.CellSize);
+            var center = RLTrainingGenerationUtility.CellToLocalPosition(
+                new Vector2Int(x, z),
+                context.MapSize,
+                context.CellSize,
+                floor * context.FloorHeight + 0.5f);
+
+            switch (edge)
+            {
+                case BuildingWallEdge.West:
+                    center.x -= context.CellSize * 0.5f;
+                    break;
+                case BuildingWallEdge.East:
+                    center.x += context.CellSize * 0.5f;
+                    break;
+                case BuildingWallEdge.South:
+                    center.z -= context.CellSize * 0.5f;
+                    break;
+                case BuildingWallEdge.North:
+                    center.z += context.CellSize * 0.5f;
+                    break;
+            }
+
+            return center;
+        }
+
+        private static bool IsBuildingWalkableNeighbor(BuildingGrid building, int floor, int x, int z, BuildingWallEdge edge)
+        {
+            switch (edge)
+            {
+                case BuildingWallEdge.West:
+                    x--;
+                    break;
+                case BuildingWallEdge.East:
+                    x++;
+                    break;
+                case BuildingWallEdge.South:
+                    z--;
+                    break;
+                case BuildingWallEdge.North:
+                    z++;
+                    break;
+            }
+
+            return x >= 0 && z >= 0 && x < building.Width && z < building.Depth && building.Walkable[floor, x, z];
+        }
+
+        private static Quaternion GetBuildingWallRotation(bool alignAlongX)
+        {
+            return alignAlongX
+                ? Quaternion.Euler(0f, 90f, 0f) * BuildingWallRotation
+                : BuildingWallRotation;
+        }
+
+        private static Vector3 GetBuildingWallFallbackScale(MapBuildContext context, bool alignAlongX)
+        {
+            return alignAlongX
+                ? new Vector3(context.CellSize, 2.5f, 0.08f)
+                : new Vector3(0.08f, 2.5f, context.CellSize);
         }
 
         private static bool IsBuildingStairOpening(BuildingGrid building, int floor, int x, int z)
@@ -1639,13 +1809,13 @@ namespace DKSH.Spiderbot.Training
                 new Vector2Int(node.x, node.y),
                 context.MapSize,
                 context.CellSize,
-                node.z * BuildingFloorHeight + yOffset);
+                node.z * context.FloorHeight + yOffset);
         }
 
         private float GetCollapseDropHeight(MapBuildContext context)
         {
             return context.HasLayeredNavigation
-                ? context.FloorCount * BuildingFloorHeight + 4f
+                ? context.FloorCount * context.FloorHeight + 4f
                 : 9f;
         }
 
@@ -1879,6 +2049,18 @@ namespace DKSH.Spiderbot.Training
             }
         }
 
+        private static float GetSeededBuildingFloorHeight(MapBuildContext context)
+        {
+            var random = new System.Random(GetDerivedSeed(context.Seed, 7091));
+            return 3f + random.Next(0, 3);
+        }
+
+        private static float GetSeededStairStepRise(MapBuildContext context)
+        {
+            var random = new System.Random(GetDerivedSeed(context.Seed, 4219));
+            return 0.16f + random.Next(0, 7) * 0.02f;
+        }
+
         private static Transform CreateChild(string name, Transform parent)
         {
             var child = new GameObject(name);
@@ -1938,6 +2120,44 @@ namespace DKSH.Spiderbot.Training
             return instance;
         }
 
+        private static GameObject CreateScaledPrefabBlock(
+            string name,
+            Transform parent,
+            GameObject prefab,
+            Vector3 localPosition,
+            Vector3 targetSize,
+            Quaternion localRotation)
+        {
+            if (prefab == null)
+            {
+                return CreatePrimitiveBlock(name, parent, localPosition, targetSize);
+            }
+
+            var instance = Instantiate(prefab);
+            instance.name = name;
+            instance.transform.SetParent(parent, false);
+            instance.transform.localPosition = Vector3.zero;
+            instance.transform.localRotation = localRotation;
+            instance.transform.localScale = Vector3.one;
+
+            Bounds localBounds;
+            if (!TryGetLocalBounds(instance, out localBounds))
+            {
+                instance.transform.localPosition = localPosition;
+                return instance;
+            }
+
+            var scale = new Vector3(
+                GetPrefabFitScale(targetSize.x, localBounds.size.x),
+                GetPrefabFitScale(targetSize.y, localBounds.size.y),
+                GetPrefabFitScale(targetSize.z, localBounds.size.z));
+            instance.transform.localScale = scale;
+
+            var centerOffset = localRotation * Vector3.Scale(localBounds.center, scale);
+            instance.transform.localPosition = localPosition - centerOffset;
+            return instance;
+        }
+
         private static void MovePrefabTopToLocalY(GameObject instance, float targetTopY)
         {
             if (instance == null)
@@ -1954,6 +2174,38 @@ namespace DKSH.Spiderbot.Training
             var localPosition = instance.transform.localPosition;
             localPosition.y = targetTopY - localBounds.max.y * instance.transform.localScale.y;
             instance.transform.localPosition = localPosition;
+        }
+
+        private static void FitBuildingStairPrefab(GameObject instance, MapBuildContext context, float floorY, Vector3 targetCenter)
+        {
+            if (instance == null)
+            {
+                return;
+            }
+
+            Bounds localBounds;
+            if (!TryGetLocalBounds(instance, out localBounds))
+            {
+                var localPosition = instance.transform.localPosition;
+                localPosition.y = floorY;
+                instance.transform.localPosition = localPosition;
+                return;
+            }
+
+            var scale = instance.transform.localScale;
+            scale.x = GetPrefabFitScale(context.CellSize * 0.9f, localBounds.size.x);
+            scale.y = GetPrefabFitScale(context.FloorHeight, localBounds.size.y);
+            scale.z = GetPrefabFitScale(context.CellSize * 1.8f, localBounds.size.z);
+            instance.transform.localScale = scale;
+
+            var position = targetCenter - Vector3.Scale(localBounds.center, scale);
+            position.y = floorY - localBounds.min.y * scale.y;
+            instance.transform.localPosition = position;
+        }
+
+        private static float GetPrefabFitScale(float targetSize, float sourceSize)
+        {
+            return targetSize > 0.0001f && sourceSize > 0.0001f ? targetSize / sourceSize : 1f;
         }
 
         private static GameObject CreatePrefabInstance(
@@ -2224,6 +2476,14 @@ namespace DKSH.Spiderbot.Training
                 return IsInside(cell) &&
                     (ObstacleCells[cell.x, cell.y] || HazardCells[cell.x, cell.y] || CollapseCells[cell.x, cell.y]);
             }
+        }
+
+        private enum BuildingWallEdge
+        {
+            West,
+            East,
+            South,
+            North
         }
 
         private sealed class BuildingGrid

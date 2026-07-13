@@ -94,6 +94,24 @@ namespace DKSH.Spiderbot.Training.Tests
         }
 
         [Test]
+        public void Generate_FlatMap_UsesSeededStartAndTarget()
+        {
+            var placements = new HashSet<string>();
+            for (var seed = 1000; seed < 1006; seed++)
+            {
+                var generator = CreateGenerator();
+                generator.SelectedLevel = RLMapLevel.Flat;
+                generator.BaseSeed = seed;
+                generator.Generate();
+
+                var environment = generator.Environments[0];
+                placements.Add(CellToString(environment.StartCell) + "->" + CellToString(environment.TargetCell));
+            }
+
+            Assert.That(placements.Count, Is.GreaterThan(1));
+        }
+
+        [Test]
         public void Generate_StairMap_ChoosesReachableStartAndKeepsTargetOnUpperPlatform()
         {
             var generator = CreateGenerator();
@@ -111,6 +129,23 @@ namespace DKSH.Spiderbot.Training.Tests
             Assert.True(environment.HasPathFromStartToTarget());
             Assert.That(environment.StartPoint.localPosition.y, Is.EqualTo(0.25f).Within(0.001f));
             Assert.NotNull(FindDescendantContaining(environment.GeometryRoot, "StairPrefabRun"));
+        }
+
+        [Test]
+        public void Generate_StairMap_UsesSeededStepHeight()
+        {
+            var heights = new HashSet<string>();
+            for (var seed = 3101; seed < 3108; seed++)
+            {
+                var generator = CreateGenerator();
+                generator.SelectedLevel = RLMapLevel.SeededStair;
+                generator.BaseSeed = seed;
+                generator.Generate();
+
+                heights.Add(generator.Environments[0].TargetPoint.localPosition.y.ToString("0.000"));
+            }
+
+            Assert.That(heights.Count, Is.GreaterThan(1));
         }
 
         [Test]
@@ -150,17 +185,23 @@ namespace DKSH.Spiderbot.Training.Tests
             Assert.NotNull(environment.GeometryRoot.Find("Stairs/Floor 1 Stairs"));
             var stair = FindDescendantContaining(environment.GeometryRoot, "StairPrefabConnector");
             Assert.NotNull(stair);
-            AssertPrefabScale(stair, Vector3.one);
+            Assert.That(environment.FloorHeight, Is.InRange(3f, 5f));
+            Assert.That(stair.localScale.y, Is.GreaterThan(0f));
             var wall = FindDescendantContaining(environment.GeometryRoot, "WallPrefab");
             Assert.NotNull(wall);
             AssertPrefabScale(wall, Vector3.one);
-            var originWall = FindDescendantContaining(environment.GeometryRoot, "WallPrefab_F0_0_0");
-            Assert.NotNull(originWall);
-            Assert.That(Vector3.Distance(originWall.localPosition, new Vector3(-6f, 0.5f, -5.5f)), Is.LessThan(0.001f));
-            AssertQuaternion(originWall.localRotation, new Quaternion(0.5f, 0.5f, -0.5f, 0.5f));
-            var nextWall = FindDescendantContaining(environment.GeometryRoot, "WallPrefab_F0_0_1");
-            Assert.NotNull(nextWall);
-            Assert.That(Vector3.Distance(nextWall.localPosition, new Vector3(-6f, 0.5f, -4.5f)), Is.LessThan(0.001f));
+            var westWall = FindDescendantContaining(environment.GeometryRoot, "WallPrefab_F0_1_1_West_0");
+            Assert.NotNull(westWall);
+            Assert.That(Vector3.Distance(westWall.localPosition, new Vector3(-5f, 0.5f, -4.5f)), Is.LessThan(0.001f));
+            AssertQuaternion(westWall.localRotation, new Quaternion(0.5f, 0.5f, -0.5f, 0.5f));
+            var upperWallIndex = Mathf.RoundToInt(environment.FloorHeight) - 1;
+            var upperWestWall = FindDescendantContaining(environment.GeometryRoot, string.Format("WallPrefab_F0_1_1_West_{0}", upperWallIndex));
+            Assert.NotNull(upperWestWall);
+            Assert.That(Vector3.Distance(upperWestWall.localPosition, new Vector3(-5f, upperWallIndex + 0.5f, -4.5f)), Is.LessThan(0.001f));
+            var southWall = FindDescendantContaining(environment.GeometryRoot, "WallPrefab_F0_1_1_South_0");
+            Assert.NotNull(southWall);
+            Assert.That(Vector3.Distance(southWall.localPosition, new Vector3(-4.5f, 0.5f, -5f)), Is.LessThan(0.001f));
+            AssertQuaternion(southWall.localRotation, Quaternion.Euler(0f, 90f, 0f) * new Quaternion(0.5f, 0.5f, -0.5f, 0.5f));
             var ceiling = FindDescendantContaining(environment.GeometryRoot, "CeilingPrefabFloor");
             Assert.NotNull(ceiling);
             AssertPrefabTransform(ceiling, Vector3.one, 0f);
@@ -168,6 +209,24 @@ namespace DKSH.Spiderbot.Training.Tests
             Assert.NotNull(hollowCeiling);
             AssertPrefabTransform(hollowCeiling, Vector3.one, 0f);
             Assert.That(CountDescendantsContaining(environment.GeometryRoot, "HollowCeilingPrefabFloor"), Is.EqualTo(environment.FloorCount - 1));
+        }
+
+        [Test]
+        public void Generate_BuildingMap_UsesSeededStartAndTarget()
+        {
+            var placements = new HashSet<string>();
+            for (var seed = 5100; seed < 5106; seed++)
+            {
+                var generator = CreateGenerator();
+                generator.SelectedLevel = RLMapLevel.SeededBuilding;
+                generator.BaseSeed = seed;
+                generator.Generate();
+
+                var environment = generator.Environments[0];
+                placements.Add(NodeToString(environment.StartNode) + "->" + NodeToString(environment.TargetNode));
+            }
+
+            Assert.That(placements.Count, Is.GreaterThan(1));
         }
 
         [Test]
