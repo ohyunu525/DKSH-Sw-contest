@@ -19,9 +19,7 @@ namespace DKSH.Spiderbot.Training
         private const string WallPrefabAssetPath = "Assets/Prefabs/WallPrefab.prefab";
         private const string CeilingPrefabAssetPath = "Assets/Prefabs/CeilingPrefab.prefab";
         private const string HollowCeilingPrefabAssetPath = "Assets/Prefabs/HollowCeilingPrefab.prefab";
-        private static readonly Quaternion BuildingTileRotation = Quaternion.Euler(0f, 45f, 0f);
-        private static readonly Vector3 HollowCeilingScale = Vector3.one;
-        private static readonly Vector3 BuildingStairPrefabScale = new Vector3(0.5f, 1.25f, 0.5f);
+        private static readonly Quaternion BuildingWallRotation = new Quaternion(0.5f, 0.5f, -0.5f, 0.5f);
 
         [Header("Generation")]
         [SerializeField]
@@ -1198,10 +1196,15 @@ namespace DKSH.Spiderbot.Training
             var wallPrefabAsset = ResolveWallPrefab();
             var ceilingPrefabAsset = ResolveCeilingPrefab();
             var hollowCeilingPrefabAsset = ResolveHollowCeilingPrefab();
+            var floorGroup = CreateChild("Floors", context.GeometryRoot);
+            var wallGroup = CreateChild("Walls", context.GeometryRoot);
+            var stairGroup = CreateChild("Stairs", context.GeometryRoot);
 
             for (var floor = 0; floor < building.FloorCount; floor++)
             {
                 var floorY = floor * BuildingFloorHeight;
+                var floorParent = CreateChild(string.Format("Floor {0}", floor + 1), floorGroup);
+                var wallParent = CreateChild(string.Format("Floor {0} Walls", floor + 1), wallGroup);
 
                 for (var z = 0; z < building.Depth; z++)
                 {
@@ -1215,6 +1218,7 @@ namespace DKSH.Spiderbot.Training
                                 ? string.Format("HollowCeilingPrefabFloor_F{0}_{1}_{2}", floor, x, z)
                                 : string.Format("CeilingPrefabFloor_F{0}_{1}_{2}", floor, x, z),
                             context,
+                            floorParent,
                             cell,
                             floorY - 0.05f,
                             floorPrefab,
@@ -1223,28 +1227,7 @@ namespace DKSH.Spiderbot.Training
                         if (!building.Walkable[floor, x, z])
                         {
                             MarkObstacle(context, cell);
-                            var wallPosition = RLTrainingGenerationUtility.CellToLocalPosition(
-                                cell,
-                                context.MapSize,
-                                context.CellSize,
-                                floorY + 1.25f);
-                            if (wallPrefabAsset != null)
-                            {
-                                CreatePrefabInstance(
-                                    string.Format("WallPrefab_F{0}_{1}_{2}", floor, x, z),
-                                    context.GeometryRoot,
-                                    wallPrefabAsset,
-                                    wallPosition,
-                                    true);
-                            }
-                            else
-                            {
-                                CreatePrimitiveBlock(
-                                    string.Format("WallPrefab_F{0}_{1}_{2}", floor, x, z),
-                                    context.GeometryRoot,
-                                    wallPosition,
-                                    new Vector3(context.CellSize, 2.5f, context.CellSize));
-                            }
+                            CreateBuildingWall(context, wallParent, wallPrefabAsset, floor, x, z);
                             continue;
                         }
 
@@ -1262,6 +1245,7 @@ namespace DKSH.Spiderbot.Training
 
             var roofY = building.FloorCount * BuildingFloorHeight;
             var ceilingPrefab = ResolveCeilingPrefab();
+            var roofParent = CreateChild("Roof", floorGroup);
             for (var z = 0; z < building.Depth; z++)
             {
                 for (var x = 0; x < building.Width; x++)
@@ -1269,6 +1253,7 @@ namespace DKSH.Spiderbot.Training
                     CreateBuildingTile(
                         string.Format("CeilingPrefabRoof_{0}_{1}", x, z),
                         context,
+                        roofParent,
                         new Vector2Int(x, z),
                         roofY - 0.05f,
                         ceilingPrefab,
@@ -1276,10 +1261,10 @@ namespace DKSH.Spiderbot.Training
                 }
             }
 
-            CreateBuildingStairVisuals(context, building, ResolveStairPrefab());
+            CreateBuildingStairVisuals(context, building, stairGroup, ResolveStairPrefab());
         }
 
-        private void CreateBuildingStairVisuals(MapBuildContext context, BuildingGrid building, GameObject stairPrefabAsset)
+        private void CreateBuildingStairVisuals(MapBuildContext context, BuildingGrid building, Transform stairGroup, GameObject stairPrefabAsset)
         {
             var stairCell = new Vector2Int(building.Width / 2, building.Depth / 2);
             var stepCount = 7;
@@ -1288,9 +1273,10 @@ namespace DKSH.Spiderbot.Training
                 for (var floor = 0; floor < building.FloorCount - 1; floor++)
                 {
                     var floorY = floor * BuildingFloorHeight;
+                    var stairParent = CreateChild(string.Format("Floor {0} Stairs", floor + 1), stairGroup);
                     var stair = CreatePrefabInstance(
                         string.Format("StairPrefabConnector_F{0}", floor),
-                        context.GeometryRoot,
+                        stairParent,
                         stairPrefabAsset,
                         RLTrainingGenerationUtility.CellToLocalPosition(
                             stairCell,
@@ -1298,7 +1284,6 @@ namespace DKSH.Spiderbot.Training
                             context.CellSize,
                             floorY + BuildingFloorHeight * 0.5f),
                         Quaternion.identity,
-                        BuildingStairPrefabScale,
                         true);
                     MovePrefabTopToLocalY(stair, floorY + BuildingFloorHeight - 0.15f);
                 }
@@ -1309,6 +1294,7 @@ namespace DKSH.Spiderbot.Training
             for (var floor = 0; floor < building.FloorCount - 1; floor++)
             {
                 var floorY = floor * BuildingFloorHeight;
+                var stairParent = CreateChild(string.Format("Floor {0} Stairs", floor + 1), stairGroup);
                 for (var step = 0; step < stepCount; step++)
                 {
                     var t = (step + 1f) / stepCount;
@@ -1321,7 +1307,7 @@ namespace DKSH.Spiderbot.Training
 
                     CreatePrimitiveBlock(
                         string.Format("StairConnector_F{0}_{1}", floor, step),
-                        context.GeometryRoot,
+                        stairParent,
                         local,
                         new Vector3(context.CellSize * 0.8f, BuildingFloorHeight * t, context.CellSize * 0.28f));
                 }
@@ -1331,6 +1317,7 @@ namespace DKSH.Spiderbot.Training
         private void CreateBuildingTile(
             string name,
             MapBuildContext context,
+            Transform parent,
             Vector2Int cell,
             float y,
             GameObject prefab,
@@ -1343,23 +1330,15 @@ namespace DKSH.Spiderbot.Training
                 {
                     CreatePrefabInstance(
                         name,
-                        context.GeometryRoot,
+                        parent,
                         prefab,
                         localPosition,
-                        BuildingTileRotation,
-                        HollowCeilingScale,
+                        Quaternion.identity,
                         true);
                 }
                 else
                 {
-                    CreatePrefabInstance(
-                        name,
-                        context.GeometryRoot,
-                        prefab,
-                        localPosition,
-                        BuildingTileRotation,
-                        prefab.transform.localScale,
-                        true);
+                    CreatePrefabInstance(name, parent, prefab, localPosition, true);
                 }
 
                 return;
@@ -1368,17 +1347,57 @@ namespace DKSH.Spiderbot.Training
             if (isHollowTile)
             {
                 var opening = new GameObject(name);
-                opening.transform.SetParent(context.GeometryRoot, false);
+                opening.transform.SetParent(parent, false);
                 opening.transform.localPosition = localPosition;
                 return;
             }
 
             CreatePrefabBlock(
                 name,
-                context.GeometryRoot,
+                parent,
                 prefab,
                 localPosition,
                 new Vector3(context.CellSize, 0.1f, context.CellSize));
+        }
+
+        private void CreateBuildingWall(
+            MapBuildContext context,
+            Transform parent,
+            GameObject wallPrefabAsset,
+            int floor,
+            int x,
+            int z)
+        {
+            var wallPosition = GetBuildingWallLocalPosition(context, floor, x, z);
+            var wallName = string.Format("WallPrefab_F{0}_{1}_{2}", floor, x, z);
+            if (wallPrefabAsset != null)
+            {
+                CreatePrefabInstance(
+                    wallName,
+                    parent,
+                    wallPrefabAsset,
+                    wallPosition,
+                    BuildingWallRotation,
+                    false);
+            }
+            else
+            {
+                CreatePrimitiveBlock(
+                    wallName,
+                    parent,
+                    wallPosition,
+                    new Vector3(context.CellSize, 2.5f, context.CellSize));
+            }
+        }
+
+        private static Vector3 GetBuildingWallLocalPosition(MapBuildContext context, int floor, int x, int z)
+        {
+            var baseX = -context.MapSize.x * 0.5f * context.CellSize;
+            var baseZ = -(context.MapSize.y - 1) * 0.5f * context.CellSize;
+            return new Vector3(
+                baseX + x * context.CellSize,
+                floor * BuildingFloorHeight + 0.5f,
+                baseZ + z * context.CellSize);
         }
 
         private static bool IsBuildingStairOpening(BuildingGrid building, int floor, int x, int z)
@@ -1911,17 +1930,10 @@ namespace DKSH.Spiderbot.Training
             if (!TryGetLocalBounds(instance, out localBounds))
             {
                 instance.transform.localPosition = localPosition;
-                instance.transform.localScale = targetSize;
                 return instance;
             }
 
-            var scale = new Vector3(
-                CalculatePrefabScale(targetSize.x, localBounds.size.x),
-                CalculatePrefabScale(targetSize.y, localBounds.size.y),
-                CalculatePrefabScale(targetSize.z, localBounds.size.z));
-            instance.transform.localScale = scale;
-
-            var centerOffset = localRotation * Vector3.Scale(localBounds.center, scale);
+            var centerOffset = localRotation * localBounds.center;
             instance.transform.localPosition = localPosition - centerOffset;
             return instance;
         }
@@ -1962,7 +1974,6 @@ namespace DKSH.Spiderbot.Training
                 prefab,
                 localPosition,
                 prefab.transform.localRotation,
-                prefab.transform.localScale,
                 alignBoundsToCenter);
         }
 
@@ -1972,7 +1983,6 @@ namespace DKSH.Spiderbot.Training
             GameObject prefab,
             Vector3 localPosition,
             Quaternion localRotation,
-            Vector3 localScale,
             bool alignBoundsToCenter)
         {
             if (prefab == null)
@@ -1985,7 +1995,7 @@ namespace DKSH.Spiderbot.Training
             instance.transform.SetParent(parent, false);
             instance.transform.localPosition = Vector3.zero;
             instance.transform.localRotation = localRotation;
-            instance.transform.localScale = localScale;
+            instance.transform.localScale = Vector3.one;
 
             if (!alignBoundsToCenter)
             {
@@ -2000,7 +2010,7 @@ namespace DKSH.Spiderbot.Training
                 return instance;
             }
 
-            var centerOffset = localRotation * Vector3.Scale(localBounds.center, localScale);
+            var centerOffset = localRotation * localBounds.center;
             instance.transform.localPosition = localPosition - centerOffset;
             return instance;
         }
@@ -2100,11 +2110,6 @@ namespace DKSH.Spiderbot.Training
                     }
                 }
             }
-        }
-
-        private static float CalculatePrefabScale(float targetSize, float sourceSize)
-        {
-            return targetSize > 0.0001f && sourceSize > 0.0001f ? targetSize / sourceSize : 1f;
         }
 
         private static Material CreateRuntimeMaterial(string materialName, Color baseColor)

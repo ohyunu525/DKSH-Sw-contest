@@ -145,16 +145,28 @@ namespace DKSH.Spiderbot.Training.Tests
             Assert.That(environment.StartNode.z, Is.Not.EqualTo(environment.TargetNode.z));
             Assert.True(environment.HasPathFromStartToTarget());
             AssertStairNodeOnEveryFloor(environment);
-            Assert.NotNull(FindDescendantContaining(environment.GeometryRoot, "StairPrefabConnector"));
+            Assert.NotNull(environment.GeometryRoot.Find("Floors/Floor 1"));
+            Assert.NotNull(environment.GeometryRoot.Find("Walls/Floor 1 Walls"));
+            Assert.NotNull(environment.GeometryRoot.Find("Stairs/Floor 1 Stairs"));
+            var stair = FindDescendantContaining(environment.GeometryRoot, "StairPrefabConnector");
+            Assert.NotNull(stair);
+            AssertPrefabScale(stair, Vector3.one);
             var wall = FindDescendantContaining(environment.GeometryRoot, "WallPrefab");
             Assert.NotNull(wall);
             AssertPrefabScale(wall, Vector3.one);
+            var originWall = FindDescendantContaining(environment.GeometryRoot, "WallPrefab_F0_0_0");
+            Assert.NotNull(originWall);
+            Assert.That(Vector3.Distance(originWall.localPosition, new Vector3(-6f, 0.5f, -5.5f)), Is.LessThan(0.001f));
+            AssertQuaternion(originWall.localRotation, new Quaternion(0.5f, 0.5f, -0.5f, 0.5f));
+            var nextWall = FindDescendantContaining(environment.GeometryRoot, "WallPrefab_F0_0_1");
+            Assert.NotNull(nextWall);
+            Assert.That(Vector3.Distance(nextWall.localPosition, new Vector3(-6f, 0.5f, -4.5f)), Is.LessThan(0.001f));
             var ceiling = FindDescendantContaining(environment.GeometryRoot, "CeilingPrefabFloor");
             Assert.NotNull(ceiling);
-            AssertPrefabTransform(ceiling, Vector3.one, 45f);
+            AssertPrefabTransform(ceiling, Vector3.one, 0f);
             var hollowCeiling = FindDescendantContaining(environment.GeometryRoot, "HollowCeilingPrefabFloor");
             Assert.NotNull(hollowCeiling);
-            AssertPrefabTransform(hollowCeiling, Vector3.one, 45f);
+            AssertPrefabTransform(hollowCeiling, Vector3.one, 0f);
             Assert.That(CountDescendantsContaining(environment.GeometryRoot, "HollowCeilingPrefabFloor"), Is.EqualTo(environment.FloorCount - 1));
         }
 
@@ -309,6 +321,11 @@ namespace DKSH.Spiderbot.Training.Tests
             Assert.That(target.localScale.x, Is.EqualTo(expectedScale.x).Within(0.001f));
             Assert.That(target.localScale.y, Is.EqualTo(expectedScale.y).Within(0.001f));
             Assert.That(target.localScale.z, Is.EqualTo(expectedScale.z).Within(0.001f));
+        }
+
+        private static void AssertQuaternion(Quaternion actual, Quaternion expected)
+        {
+            Assert.That(Mathf.Abs(Quaternion.Dot(actual, expected)), Is.GreaterThan(0.999f));
         }
 
         private static int CountDescendantsContaining(Transform root, string text)
