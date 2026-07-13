@@ -17,7 +17,13 @@ namespace DKSH.Spiderbot.Training
         private float cellSize = 1f;
 
         [SerializeField, Min(0.1f)]
-        private float spreadInterval = 5f;
+        private float spreadInterval = 8f;
+
+        [SerializeField, Min(0.1f)]
+        private float minIgnitionDelay = 6f;
+
+        [SerializeField, Min(0.1f)]
+        private float maxIgnitionDelay = 12f;
 
         [SerializeField]
         private bool spreadOnTimer = true;
@@ -37,6 +43,9 @@ namespace DKSH.Spiderbot.Training
         [SerializeField]
         private List<RLHazardZone> activeFireZones = new List<RLHazardZone>();
 
+        [SerializeField]
+        private List<ScheduledIgnition> pendingIgnitions = new List<ScheduledIgnition>();
+
         private readonly List<Vector2Int> activeFireCells = new List<Vector2Int>();
         private readonly Vector2Int[] directions =
         {
@@ -47,11 +56,31 @@ namespace DKSH.Spiderbot.Training
         };
 
         private System.Random random;
-        private float spreadTimer;
+        private float elapsedSpreadTime;
 
         public int Seed { get { return seed; } }
         public IReadOnlyList<RLHazardZone> ActiveFireZones { get { return activeFireZones; } }
         public IReadOnlyList<Vector2Int> ActiveFireCells { get { return activeFireCells; } }
+        public IReadOnlyList<ScheduledIgnition> PendingIgnitions { get { return pendingIgnitions; } }
+
+        [Serializable]
+        public struct ScheduledIgnition
+        {
+            [SerializeField]
+            private Vector2Int cell;
+
+            [SerializeField]
+            private float ignitionTime;
+
+            public ScheduledIgnition(Vector2Int scheduledCell, float scheduledIgnitionTime)
+            {
+                cell = scheduledCell;
+                ignitionTime = scheduledIgnitionTime;
+            }
+
+            public Vector2Int Cell { get { return cell; } }
+            public float IgnitionTime { get { return ignitionTime; } }
+        }
 
         public void Configure(
             int deterministicSeed,
@@ -75,54 +104,67 @@ namespace DKSH.Spiderbot.Training
         public void ResetDeterministic()
         {
             random = new System.Random(seed);
-            spreadTimer = 0f;
+            elapsedSpreadTime = 0f;
             ClearGeneratedFireZones();
             activeFireZones.Clear();
             activeFireCells.Clear();
+            pendingIgnitions.Clear();
 
             for (var i = 0; i < initialFireCells.Length; i++)
             {
                 if (IsSpreadCandidate(initialFireCells[i]))
                 {
                     AddFireZone(initialFireCells[i]);
+                    ScheduleNeighborIgnitions(initialFireCells[i]);
                 }
             }
         }
 
         public bool StepSpread()
         {
-            if (activeFireCells.Count == 0)
+            while (pendingIgnitions.Count > 0)
             {
-                return false;
-            }
+                var nextIgnition = pendingIgnitions[0];
+                pendingIgnitions.RemoveAt(0);
+                elapsedSpreadTime = Mathf.Max(elapsedSpreadTime, nextIgnition.IgnitionTime);
 
-            if (random == null)
-            {
-                random = new System.Random(seed);
-            }
-
-            var candidates = new List<Vector2Int>();
-            for (var i = 0; i < activeFireCells.Count; i++)
-            {
-                var fireCell = activeFireCells[i];
-                for (var directionIndex = 0; directionIndex < directions.Length; directionIndex++)
+                if (!IsSpreadCandidate(nextIgnition.Cell))
                 {
-                    var candidate = fireCell + directions[directionIndex];
-                    if (IsSpreadCandidate(candidate))
-                    {
-                        RLTrainingGenerationUtility.AddIfMissing(candidates, candidate);
-                    }
+                    continue;
                 }
+
+                AddFireZone(nextIgnition.Cell);
+                ScheduleNeighborIgnitions(nextIgnition.Cell);
+                return true;
             }
 
-            if (candidates.Count == 0)
+            return false;
+        }
+
+        public int AdvanceSpread(float deltaTime)
+        {
+            if (deltaTime <= 0f)
             {
-                return false;
+                return 0;
             }
 
-            var chosenCell = candidates[random.Next(candidates.Count)];
-            AddFireZone(chosenCell);
-            return true;
+            elapsedSpreadTime += deltaTime;
+            var ignitedCount = 0;
+            while (pendingIgnitions.Count > 0 && pendingIgnitions[0].IgnitionTime <= elapsedSpreadTime)
+            {
+                var nextIgnition = pendingIgnitions[0];
+                pendingIgnitions.RemoveAt(0);
+                if (!IsSpreadCandidate(nextIgnition.Cell))
+                {
+                    continue;
+                }
+
+                AddFireZone(nextIgnition.Cell);
+                ScheduleNeighborIgnitions(nextIgnition.Cell);
+                ignitedCount++;
+            }
+
+            return ignitedCount;
         }
 
         private void Update()
@@ -132,15 +174,58 @@ namespace DKSH.Spiderbot.Training
                 return;
             }
 
-            spreadTimer += Time.deltaTime;
-            while (spreadTimer >= spreadInterval)
+            AdvanceSpread(Time.deltaTime);
+        }
+
+        private void ScheduleNeighborIgnitions(Vector2Int sourceCell)
+        {
+            if (random == null)
             {
-                spreadTimer -= spreadInterval;
-                if (!StepSpread())
+                random = new System.Random(seed);
+            }
+
+            for (var directionIndex = 0; directionIndex < directions.Length; directionIndex++)
+            {
+                var candidate = sourceCell + directions[directionIndex];
+                if (!IsSpreadCandidate(candidate) || IsPendingIgnition(candidate))
                 {
+                    continue;
+                }
+
+                var delay = Mathf.Lerp(minIgnitionDelay, maxIgnitionDelay, (float)random.NextDouble());
+                InsertPendingIgnition(new ScheduledIgnition(candidate, elapsedSpreadTime + delay));
+            }
+        }
+
+        private bool IsPendingIgnition(Vector2Int cell)
+        {
+            for (var i = 0; i < pendingIgnitions.Count; i++)
+            {
+                if (pendingIgnitions[i].Cell == cell)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void InsertPendingIgnition(ScheduledIgnition ignition)
+        {
+            var insertIndex = pendingIgnitions.Count;
+            for (var i = 0; i < pendingIgnitions.Count; i++)
+            {
+                var scheduled = pendingIgnitions[i];
+                if (scheduled.IgnitionTime > ignition.IgnitionTime ||
+                    (Mathf.Approximately(scheduled.IgnitionTime, ignition.IgnitionTime) &&
+                    RLTrainingGenerationUtility.CompareCells(scheduled.Cell, ignition.Cell) > 0))
+                {
+                    insertIndex = i;
                     break;
                 }
             }
+
+            pendingIgnitions.Insert(insertIndex, ignition);
         }
 
         private bool IsSpreadCandidate(Vector2Int cell)
@@ -190,6 +275,8 @@ namespace DKSH.Spiderbot.Training
         {
             cellSize = Mathf.Max(0.25f, cellSize);
             spreadInterval = Mathf.Max(0.1f, spreadInterval);
+            minIgnitionDelay = Mathf.Max(0.1f, minIgnitionDelay);
+            maxIgnitionDelay = Mathf.Max(minIgnitionDelay, maxIgnitionDelay);
         }
     }
 }

@@ -110,6 +110,7 @@ namespace DKSH.Spiderbot.Training.Tests
             Assert.False(environment.IsCellUnsafe(environment.StartCell));
             Assert.True(environment.HasPathFromStartToTarget());
             Assert.That(environment.StartPoint.localPosition.y, Is.EqualTo(0.25f).Within(0.001f));
+            Assert.NotNull(FindDescendantContaining(environment.GeometryRoot, "StairPrefabRun"));
         }
 
         [Test]
@@ -143,6 +144,18 @@ namespace DKSH.Spiderbot.Training.Tests
             Assert.That(environment.FloorCount, Is.GreaterThanOrEqualTo(2));
             Assert.That(environment.StartNode.z, Is.Not.EqualTo(environment.TargetNode.z));
             Assert.True(environment.HasPathFromStartToTarget());
+            AssertStairNodeOnEveryFloor(environment);
+            Assert.NotNull(FindDescendantContaining(environment.GeometryRoot, "StairPrefabConnector"));
+            var wall = FindDescendantContaining(environment.GeometryRoot, "WallPrefab");
+            Assert.NotNull(wall);
+            AssertPrefabScale(wall, Vector3.one);
+            var ceiling = FindDescendantContaining(environment.GeometryRoot, "CeilingPrefabFloor");
+            Assert.NotNull(ceiling);
+            AssertPrefabTransform(ceiling, Vector3.one, 45f);
+            var hollowCeiling = FindDescendantContaining(environment.GeometryRoot, "HollowCeilingPrefabFloor");
+            Assert.NotNull(hollowCeiling);
+            AssertPrefabTransform(hollowCeiling, Vector3.one, 45f);
+            Assert.That(CountDescendantsContaining(environment.GeometryRoot, "HollowCeilingPrefabFloor"), Is.EqualTo(environment.FloorCount - 1));
         }
 
         [Test]
@@ -160,6 +173,37 @@ namespace DKSH.Spiderbot.Training.Tests
             var secondSchedule = CollapseSchedule(generator.Environments[0]);
 
             Assert.That(firstSchedule, Is.Not.Empty);
+            Assert.That(secondSchedule, Is.EqualTo(firstSchedule));
+        }
+
+        [Test]
+        public void SpreadingFire_UsesDeterministicPendingIgnitionSchedule()
+        {
+            var controllerObject = new GameObject("SpreadingFireControllerTest");
+            cleanupObjects.Add(controllerObject);
+            var fireRootObject = new GameObject("FireRoot");
+            fireRootObject.transform.SetParent(controllerObject.transform, false);
+            var controller = controllerObject.AddComponent<RLSpreadingFireController>();
+
+            controller.Configure(
+                7200,
+                new Vector2Int(5, 5),
+                1f,
+                fireRootObject.transform,
+                new[] { new Vector2Int(2, 2) },
+                Array.Empty<Vector2Int>(),
+                Array.Empty<Vector2Int>());
+
+            var firstSchedule = FireSchedule(controller);
+            Assert.That(controller.ActiveFireCells.Count, Is.EqualTo(1));
+            Assert.That(controller.PendingIgnitions.Count, Is.EqualTo(4));
+            Assert.That(controller.AdvanceSpread(5.9f), Is.EqualTo(0));
+            Assert.That(controller.ActiveFireCells.Count, Is.EqualTo(1));
+            Assert.True(controller.StepSpread());
+            Assert.That(controller.ActiveFireCells.Count, Is.EqualTo(2));
+
+            controller.ResetDeterministic();
+            var secondSchedule = FireSchedule(controller);
             Assert.That(secondSchedule, Is.EqualTo(firstSchedule));
         }
 
@@ -198,6 +242,89 @@ namespace DKSH.Spiderbot.Training.Tests
             }
 
             return string.Join(",", parts);
+        }
+
+        private static string FireSchedule(RLSpreadingFireController controller)
+        {
+            var parts = new string[controller.PendingIgnitions.Count];
+            for (var i = 0; i < controller.PendingIgnitions.Count; i++)
+            {
+                var ignition = controller.PendingIgnitions[i];
+                parts[i] = string.Format("{0}@{1:0.000}", CellToString(ignition.Cell), ignition.IgnitionTime);
+            }
+
+            return string.Join(",", parts);
+        }
+
+        private static Transform FindDescendantContaining(Transform root, string text)
+        {
+            if (root == null)
+            {
+                return null;
+            }
+
+            if (root.name.IndexOf(text, StringComparison.Ordinal) >= 0)
+            {
+                return root;
+            }
+
+            for (var i = 0; i < root.childCount; i++)
+            {
+                var found = FindDescendantContaining(root.GetChild(i), text);
+                if (found != null)
+                {
+                    return found;
+                }
+            }
+
+            return null;
+        }
+
+        private static void AssertStairNodeOnEveryFloor(GeneratedTrainingEnvironment environment)
+        {
+            for (var floor = 0; floor < environment.FloorCount; floor++)
+            {
+                var hasStair = false;
+                for (var i = 0; i < environment.StairNodes.Count; i++)
+                {
+                    if (environment.StairNodes[i].z == floor)
+                    {
+                        hasStair = true;
+                        break;
+                    }
+                }
+
+                Assert.True(hasStair, string.Format("Missing stair node on floor {0}.", floor));
+            }
+        }
+
+        private static void AssertPrefabTransform(Transform target, Vector3 expectedScale, float expectedYRotation)
+        {
+            AssertPrefabScale(target, expectedScale);
+            Assert.That(Mathf.Abs(Mathf.DeltaAngle(target.localEulerAngles.y, expectedYRotation)), Is.LessThan(0.1f));
+        }
+
+        private static void AssertPrefabScale(Transform target, Vector3 expectedScale)
+        {
+            Assert.That(target.localScale.x, Is.EqualTo(expectedScale.x).Within(0.001f));
+            Assert.That(target.localScale.y, Is.EqualTo(expectedScale.y).Within(0.001f));
+            Assert.That(target.localScale.z, Is.EqualTo(expectedScale.z).Within(0.001f));
+        }
+
+        private static int CountDescendantsContaining(Transform root, string text)
+        {
+            if (root == null)
+            {
+                return 0;
+            }
+
+            var count = root.name.IndexOf(text, StringComparison.Ordinal) >= 0 ? 1 : 0;
+            for (var i = 0; i < root.childCount; i++)
+            {
+                count += CountDescendantsContaining(root.GetChild(i), text);
+            }
+
+            return count;
         }
 
         private static string CellsToString(IReadOnlyList<Vector2Int> cells)

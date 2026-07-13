@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 namespace DKSH.Spiderbot.Training
 {
@@ -12,6 +15,13 @@ namespace DKSH.Spiderbot.Training
         private const float StairStepRise = 0.22f;
         private const float BuildingFloorHeight = 3.2f;
         private const float HillMaxNeighborHeightDelta = 0.45f;
+        private const string StairPrefabAssetPath = "Assets/Prefabs/StairPrefab.prefab";
+        private const string WallPrefabAssetPath = "Assets/Prefabs/WallPrefab.prefab";
+        private const string CeilingPrefabAssetPath = "Assets/Prefabs/CeilingPrefab.prefab";
+        private const string HollowCeilingPrefabAssetPath = "Assets/Prefabs/HollowCeilingPrefab.prefab";
+        private static readonly Quaternion BuildingTileRotation = Quaternion.Euler(0f, 45f, 0f);
+        private static readonly Vector3 HollowCeilingScale = Vector3.one;
+        private static readonly Vector3 BuildingStairPrefabScale = new Vector3(0.5f, 1.25f, 0.5f);
 
         [Header("Generation")]
         [SerializeField]
@@ -44,6 +54,19 @@ namespace DKSH.Spiderbot.Training
 
         [SerializeField, Min(1)]
         private int maxGenerationAttempts = 8;
+
+        [Header("Geometry Prefabs")]
+        [SerializeField]
+        private GameObject stairPrefab;
+
+        [SerializeField]
+        private GameObject wallPrefab;
+
+        [SerializeField]
+        private GameObject ceilingPrefab;
+
+        [SerializeField]
+        private GameObject hollowCeilingPrefab;
 
         [Header("Generated References")]
         [SerializeField]
@@ -109,6 +132,30 @@ namespace DKSH.Spiderbot.Training
         {
             get { return cellSize; }
             set { cellSize = Mathf.Max(0.25f, value); }
+        }
+
+        public GameObject StairPrefab
+        {
+            get { return stairPrefab; }
+            set { stairPrefab = value; }
+        }
+
+        public GameObject WallPrefab
+        {
+            get { return wallPrefab; }
+            set { wallPrefab = value; }
+        }
+
+        public GameObject CeilingPrefab
+        {
+            get { return ceilingPrefab; }
+            set { ceilingPrefab = value; }
+        }
+
+        public GameObject HollowCeilingPrefab
+        {
+            get { return hollowCeilingPrefab; }
+            set { hollowCeilingPrefab = value; }
         }
 
         public IReadOnlyList<GeneratedTrainingEnvironment> Environments
@@ -324,6 +371,7 @@ namespace DKSH.Spiderbot.Training
             topCell.x = Mathf.Clamp(topCell.x, 1, context.MapSize.x - 2);
             topCell.y = Mathf.Clamp(topCell.y, 1, context.MapSize.y - 2);
             var surfaceHeights = new Dictionary<Vector2Int, float>();
+            var stairPrefabAsset = ResolveStairPrefab();
 
             var bottomPlatformScale = horizontal
                 ? new Vector3(context.CellSize * 2f, 0.1f, width)
@@ -335,6 +383,7 @@ namespace DKSH.Spiderbot.Training
                 bottomPlatformScale);
             MarkStairSurfaceCells(context, surfaceHeights, bottomCell, horizontal, 0, 1, 1, 0.07f);
 
+            CreateStairRun(context, stairPrefabAsset, horizontal, stepCount, centerX, centerY, width, topHeight);
             for (var i = 0; i < stepCount; i++)
             {
                 var cell = horizontal
@@ -342,11 +391,6 @@ namespace DKSH.Spiderbot.Training
                     : new Vector2Int(centerX, Mathf.Clamp(2 + i, 1, context.MapSize.y - 2));
 
                 var height = StairStepRise * (i + 1);
-                var localPosition = RLTrainingGenerationUtility.CellToLocalPosition(cell, context.MapSize, context.CellSize, height * 0.5f);
-                var localScale = horizontal
-                    ? new Vector3(context.CellSize, height, width)
-                    : new Vector3(width, height, context.CellSize);
-                CreatePrimitiveBlock("StairStep_" + i, context.GeometryRoot, localPosition, localScale);
                 MarkStairSurfaceCells(context, surfaceHeights, cell, horizontal, 0, 0, 1, height);
             }
 
@@ -450,6 +494,54 @@ namespace DKSH.Spiderbot.Training
             }
         }
 
+        private void CreateStairRun(
+            MapBuildContext context,
+            GameObject stairPrefabAsset,
+            bool horizontal,
+            int stepCount,
+            int centerX,
+            int centerY,
+            float width,
+            float topHeight)
+        {
+            if (stairPrefabAsset != null)
+            {
+                var firstCell = horizontal
+                    ? new Vector2Int(Mathf.Clamp(2, 1, context.MapSize.x - 2), centerY)
+                    : new Vector2Int(centerX, Mathf.Clamp(2, 1, context.MapSize.y - 2));
+                var lastCell = horizontal
+                    ? new Vector2Int(Mathf.Clamp(2 + stepCount - 1, 1, context.MapSize.x - 2), centerY)
+                    : new Vector2Int(centerX, Mathf.Clamp(2 + stepCount - 1, 1, context.MapSize.y - 2));
+                var firstPosition = RLTrainingGenerationUtility.CellToLocalPosition(firstCell, context.MapSize, context.CellSize, 0f);
+                var lastPosition = RLTrainingGenerationUtility.CellToLocalPosition(lastCell, context.MapSize, context.CellSize, 0f);
+                var stairCenter = (firstPosition + lastPosition) * 0.5f;
+                stairCenter.y = topHeight * 0.5f;
+
+                CreatePrefabBlock(
+                    "StairPrefabRun",
+                    context.GeometryRoot,
+                    stairPrefabAsset,
+                    stairCenter,
+                    new Vector3(width, topHeight, context.CellSize * stepCount),
+                    horizontal ? Quaternion.Euler(0f, 90f, 0f) : Quaternion.identity);
+                return;
+            }
+
+            for (var i = 0; i < stepCount; i++)
+            {
+                var cell = horizontal
+                    ? new Vector2Int(Mathf.Clamp(2 + i, 1, context.MapSize.x - 2), centerY)
+                    : new Vector2Int(centerX, Mathf.Clamp(2 + i, 1, context.MapSize.y - 2));
+
+                var height = StairStepRise * (i + 1);
+                var localPosition = RLTrainingGenerationUtility.CellToLocalPosition(cell, context.MapSize, context.CellSize, height * 0.5f);
+                var localScale = horizontal
+                    ? new Vector3(context.CellSize, height, width)
+                    : new Vector3(width, height, context.CellSize);
+                CreatePrimitiveBlock("StairStep_" + i, context.GeometryRoot, localPosition, localScale);
+            }
+        }
+
         private bool GenerateHillMap(MapBuildContext context)
         {
             var heights = GeneratePerlinHeights(context);
@@ -470,6 +562,12 @@ namespace DKSH.Spiderbot.Training
             var building = CreateBuildingGrid(context);
             if (building == null)
             {
+                return false;
+            }
+
+            if (!HasStairOnEveryFloor(building))
+            {
+                Debug.LogWarning("RLMapGenerator building grid does not contain at least one stair cell on every floor.", this);
                 return false;
             }
 
@@ -1097,28 +1195,56 @@ namespace DKSH.Spiderbot.Training
 
         private void CreateBuildingGeometry(MapBuildContext context, BuildingGrid building)
         {
+            var wallPrefabAsset = ResolveWallPrefab();
+            var ceilingPrefabAsset = ResolveCeilingPrefab();
+            var hollowCeilingPrefabAsset = ResolveHollowCeilingPrefab();
+
             for (var floor = 0; floor < building.FloorCount; floor++)
             {
                 var floorY = floor * BuildingFloorHeight;
-                CreatePrimitiveBlock(
-                    "BuildingFloor_" + floor,
-                    context.GeometryRoot,
-                    new Vector3(0f, floorY - 0.05f, 0f),
-                    new Vector3(building.Width * context.CellSize, 0.1f, building.Depth * context.CellSize));
 
                 for (var z = 0; z < building.Depth; z++)
                 {
                     for (var x = 0; x < building.Width; x++)
                     {
                         var cell = new Vector2Int(x, z);
+                        var hasStairOpening = IsBuildingStairOpening(building, floor, x, z);
+                        var floorPrefab = hasStairOpening ? hollowCeilingPrefabAsset : ceilingPrefabAsset;
+                        CreateBuildingTile(
+                            hasStairOpening
+                                ? string.Format("HollowCeilingPrefabFloor_F{0}_{1}_{2}", floor, x, z)
+                                : string.Format("CeilingPrefabFloor_F{0}_{1}_{2}", floor, x, z),
+                            context,
+                            cell,
+                            floorY - 0.05f,
+                            floorPrefab,
+                            hasStairOpening);
+
                         if (!building.Walkable[floor, x, z])
                         {
                             MarkObstacle(context, cell);
-                            CreatePrimitiveBlock(
-                                string.Format("Wall_F{0}_{1}_{2}", floor, x, z),
-                                context.GeometryRoot,
-                                RLTrainingGenerationUtility.CellToLocalPosition(cell, context.MapSize, context.CellSize, floorY + 1.25f),
-                                new Vector3(context.CellSize * 0.95f, 2.5f, context.CellSize * 0.95f));
+                            var wallPosition = RLTrainingGenerationUtility.CellToLocalPosition(
+                                cell,
+                                context.MapSize,
+                                context.CellSize,
+                                floorY + 1.25f);
+                            if (wallPrefabAsset != null)
+                            {
+                                CreatePrefabInstance(
+                                    string.Format("WallPrefab_F{0}_{1}_{2}", floor, x, z),
+                                    context.GeometryRoot,
+                                    wallPrefabAsset,
+                                    wallPosition,
+                                    true);
+                            }
+                            else
+                            {
+                                CreatePrimitiveBlock(
+                                    string.Format("WallPrefab_F{0}_{1}_{2}", floor, x, z),
+                                    context.GeometryRoot,
+                                    wallPosition,
+                                    new Vector3(context.CellSize, 2.5f, context.CellSize));
+                            }
                             continue;
                         }
 
@@ -1134,13 +1260,52 @@ namespace DKSH.Spiderbot.Training
                 }
             }
 
-            CreateBuildingStairVisuals(context, building);
+            var roofY = building.FloorCount * BuildingFloorHeight;
+            var ceilingPrefab = ResolveCeilingPrefab();
+            for (var z = 0; z < building.Depth; z++)
+            {
+                for (var x = 0; x < building.Width; x++)
+                {
+                    CreateBuildingTile(
+                        string.Format("CeilingPrefabRoof_{0}_{1}", x, z),
+                        context,
+                        new Vector2Int(x, z),
+                        roofY - 0.05f,
+                        ceilingPrefab,
+                        false);
+                }
+            }
+
+            CreateBuildingStairVisuals(context, building, ResolveStairPrefab());
         }
 
-        private void CreateBuildingStairVisuals(MapBuildContext context, BuildingGrid building)
+        private void CreateBuildingStairVisuals(MapBuildContext context, BuildingGrid building, GameObject stairPrefabAsset)
         {
             var stairCell = new Vector2Int(building.Width / 2, building.Depth / 2);
             var stepCount = 7;
+            if (stairPrefabAsset != null)
+            {
+                for (var floor = 0; floor < building.FloorCount - 1; floor++)
+                {
+                    var floorY = floor * BuildingFloorHeight;
+                    var stair = CreatePrefabInstance(
+                        string.Format("StairPrefabConnector_F{0}", floor),
+                        context.GeometryRoot,
+                        stairPrefabAsset,
+                        RLTrainingGenerationUtility.CellToLocalPosition(
+                            stairCell,
+                            context.MapSize,
+                            context.CellSize,
+                            floorY + BuildingFloorHeight * 0.5f),
+                        Quaternion.identity,
+                        BuildingStairPrefabScale,
+                        true);
+                    MovePrefabTopToLocalY(stair, floorY + BuildingFloorHeight - 0.15f);
+                }
+
+                return;
+            }
+
             for (var floor = 0; floor < building.FloorCount - 1; floor++)
             {
                 var floorY = floor * BuildingFloorHeight;
@@ -1161,6 +1326,92 @@ namespace DKSH.Spiderbot.Training
                         new Vector3(context.CellSize * 0.8f, BuildingFloorHeight * t, context.CellSize * 0.28f));
                 }
             }
+        }
+
+        private void CreateBuildingTile(
+            string name,
+            MapBuildContext context,
+            Vector2Int cell,
+            float y,
+            GameObject prefab,
+            bool isHollowTile)
+        {
+            var localPosition = RLTrainingGenerationUtility.CellToLocalPosition(cell, context.MapSize, context.CellSize, y);
+            if (prefab != null)
+            {
+                if (isHollowTile)
+                {
+                    CreatePrefabInstance(
+                        name,
+                        context.GeometryRoot,
+                        prefab,
+                        localPosition,
+                        BuildingTileRotation,
+                        HollowCeilingScale,
+                        true);
+                }
+                else
+                {
+                    CreatePrefabInstance(
+                        name,
+                        context.GeometryRoot,
+                        prefab,
+                        localPosition,
+                        BuildingTileRotation,
+                        prefab.transform.localScale,
+                        true);
+                }
+
+                return;
+            }
+
+            if (isHollowTile)
+            {
+                var opening = new GameObject(name);
+                opening.transform.SetParent(context.GeometryRoot, false);
+                opening.transform.localPosition = localPosition;
+                return;
+            }
+
+            CreatePrefabBlock(
+                name,
+                context.GeometryRoot,
+                prefab,
+                localPosition,
+                new Vector3(context.CellSize, 0.1f, context.CellSize));
+        }
+
+        private static bool IsBuildingStairOpening(BuildingGrid building, int floor, int x, int z)
+        {
+            return floor > 0 &&
+                building.Stairs[floor - 1, x, z] &&
+                building.Stairs[floor, x, z];
+        }
+
+        private static bool HasStairOnEveryFloor(BuildingGrid building)
+        {
+            for (var floor = 0; floor < building.FloorCount; floor++)
+            {
+                var hasStair = false;
+                for (var z = 0; z < building.Depth && !hasStair; z++)
+                {
+                    for (var x = 0; x < building.Width; x++)
+                    {
+                        if (building.Stairs[floor, x, z] && !building.Blocked[floor, x, z])
+                        {
+                            hasStair = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!hasStair)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private Vector3Int FindNearestWalkableNode(BuildingGrid building, Vector3Int preferred)
@@ -1624,6 +1875,236 @@ namespace DKSH.Spiderbot.Training
             block.transform.localPosition = localPosition;
             block.transform.localScale = localScale;
             return block;
+        }
+
+        private GameObject CreatePrefabBlock(
+            string name,
+            Transform parent,
+            GameObject prefab,
+            Vector3 localPosition,
+            Vector3 targetSize)
+        {
+            return CreatePrefabBlock(name, parent, prefab, localPosition, targetSize, Quaternion.identity);
+        }
+
+        private GameObject CreatePrefabBlock(
+            string name,
+            Transform parent,
+            GameObject prefab,
+            Vector3 localPosition,
+            Vector3 targetSize,
+            Quaternion localRotation)
+        {
+            if (prefab == null)
+            {
+                return CreatePrimitiveBlock(name, parent, localPosition, targetSize);
+            }
+
+            var instance = Instantiate(prefab);
+            instance.name = name;
+            instance.transform.SetParent(parent, false);
+            instance.transform.localPosition = Vector3.zero;
+            instance.transform.localRotation = localRotation;
+            instance.transform.localScale = Vector3.one;
+
+            Bounds localBounds;
+            if (!TryGetLocalBounds(instance, out localBounds))
+            {
+                instance.transform.localPosition = localPosition;
+                instance.transform.localScale = targetSize;
+                return instance;
+            }
+
+            var scale = new Vector3(
+                CalculatePrefabScale(targetSize.x, localBounds.size.x),
+                CalculatePrefabScale(targetSize.y, localBounds.size.y),
+                CalculatePrefabScale(targetSize.z, localBounds.size.z));
+            instance.transform.localScale = scale;
+
+            var centerOffset = localRotation * Vector3.Scale(localBounds.center, scale);
+            instance.transform.localPosition = localPosition - centerOffset;
+            return instance;
+        }
+
+        private static void MovePrefabTopToLocalY(GameObject instance, float targetTopY)
+        {
+            if (instance == null)
+            {
+                return;
+            }
+
+            Bounds localBounds;
+            if (!TryGetLocalBounds(instance, out localBounds))
+            {
+                return;
+            }
+
+            var localPosition = instance.transform.localPosition;
+            localPosition.y = targetTopY - localBounds.max.y * instance.transform.localScale.y;
+            instance.transform.localPosition = localPosition;
+        }
+
+        private static GameObject CreatePrefabInstance(
+            string name,
+            Transform parent,
+            GameObject prefab,
+            Vector3 localPosition,
+            bool alignBoundsToCenter)
+        {
+            if (prefab == null)
+            {
+                return null;
+            }
+
+            return CreatePrefabInstance(
+                name,
+                parent,
+                prefab,
+                localPosition,
+                prefab.transform.localRotation,
+                prefab.transform.localScale,
+                alignBoundsToCenter);
+        }
+
+        private static GameObject CreatePrefabInstance(
+            string name,
+            Transform parent,
+            GameObject prefab,
+            Vector3 localPosition,
+            Quaternion localRotation,
+            Vector3 localScale,
+            bool alignBoundsToCenter)
+        {
+            if (prefab == null)
+            {
+                return null;
+            }
+
+            var instance = Instantiate(prefab);
+            instance.name = name;
+            instance.transform.SetParent(parent, false);
+            instance.transform.localPosition = Vector3.zero;
+            instance.transform.localRotation = localRotation;
+            instance.transform.localScale = localScale;
+
+            if (!alignBoundsToCenter)
+            {
+                instance.transform.localPosition = localPosition;
+                return instance;
+            }
+
+            Bounds localBounds;
+            if (!TryGetLocalBounds(instance, out localBounds))
+            {
+                instance.transform.localPosition = localPosition;
+                return instance;
+            }
+
+            var centerOffset = localRotation * Vector3.Scale(localBounds.center, localScale);
+            instance.transform.localPosition = localPosition - centerOffset;
+            return instance;
+        }
+
+        private GameObject ResolveStairPrefab()
+        {
+            return ResolvePrefab(stairPrefab, StairPrefabAssetPath, "StairPrefab");
+        }
+
+        private GameObject ResolveWallPrefab()
+        {
+            return ResolvePrefab(wallPrefab, WallPrefabAssetPath, "WallPrefab");
+        }
+
+        private GameObject ResolveCeilingPrefab()
+        {
+            return ResolvePrefab(ceilingPrefab, CeilingPrefabAssetPath, "CeilingPrefab");
+        }
+
+        private GameObject ResolveHollowCeilingPrefab()
+        {
+            return ResolvePrefab(hollowCeilingPrefab, HollowCeilingPrefabAssetPath, "HollowCeilingPrefab");
+        }
+
+        private GameObject ResolvePrefab(GameObject assignedPrefab, string assetPath, string displayName)
+        {
+            if (assignedPrefab != null)
+            {
+                return assignedPrefab;
+            }
+
+#if UNITY_EDITOR
+            var loadedPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+            if (loadedPrefab != null)
+            {
+                return loadedPrefab;
+            }
+#endif
+
+            Debug.LogWarning(
+                string.Format(
+                    "RLMapGenerator could not resolve {0}. Assign it in the Inspector or place it at {1}. Primitive fallback will be used.",
+                    displayName,
+                    assetPath),
+                this);
+            return null;
+        }
+
+        private static bool TryGetLocalBounds(GameObject instance, out Bounds bounds)
+        {
+            bounds = new Bounds(Vector3.zero, Vector3.zero);
+            var hasBounds = false;
+            var renderers = instance.GetComponentsInChildren<Renderer>();
+            for (var i = 0; i < renderers.Length; i++)
+            {
+                EncapsulateWorldBounds(instance.transform, renderers[i].bounds, ref bounds, ref hasBounds);
+            }
+
+            if (hasBounds)
+            {
+                return true;
+            }
+
+            var colliders = instance.GetComponentsInChildren<Collider>();
+            for (var i = 0; i < colliders.Length; i++)
+            {
+                EncapsulateWorldBounds(instance.transform, colliders[i].bounds, ref bounds, ref hasBounds);
+            }
+
+            return hasBounds;
+        }
+
+        private static void EncapsulateWorldBounds(Transform root, Bounds worldBounds, ref Bounds localBounds, ref bool hasBounds)
+        {
+            var min = worldBounds.min;
+            var max = worldBounds.max;
+            for (var xi = 0; xi <= 1; xi++)
+            {
+                for (var yi = 0; yi <= 1; yi++)
+                {
+                    for (var zi = 0; zi <= 1; zi++)
+                    {
+                        var corner = new Vector3(
+                            xi == 0 ? min.x : max.x,
+                            yi == 0 ? min.y : max.y,
+                            zi == 0 ? min.z : max.z);
+                        var localCorner = root.InverseTransformPoint(corner);
+                        if (!hasBounds)
+                        {
+                            localBounds = new Bounds(localCorner, Vector3.zero);
+                            hasBounds = true;
+                        }
+                        else
+                        {
+                            localBounds.Encapsulate(localCorner);
+                        }
+                    }
+                }
+            }
+        }
+
+        private static float CalculatePrefabScale(float targetSize, float sourceSize)
+        {
+            return targetSize > 0.0001f && sourceSize > 0.0001f ? targetSize / sourceSize : 1f;
         }
 
         private static Material CreateRuntimeMaterial(string materialName, Color baseColor)
