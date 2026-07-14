@@ -1,0 +1,14 @@
+{
+    "name": "DKSH.Spiderbot.Training",
+    "rootNamespace": "DKSH.Spiderbot.Training",
+    "references": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
