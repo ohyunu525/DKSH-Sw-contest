@@ -56,6 +56,16 @@ namespace DKSH.Spiderbot.Sensors
             }
         }
 
+        public void Configure(LidarScanSettings configuredSettings, bool automatic)
+        {
+            profile = null;
+            settings = configuredSettings;
+            settings.Clamp();
+            scanAutomatically = automatic;
+            scanTimer = 0f;
+            initialScanPending = scanOnEnable;
+        }
+
         public bool TryGetLatestFrame(out LidarScanFrame frame)
         {
             frame = latestFrame;
