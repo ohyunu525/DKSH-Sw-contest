@@ -52,7 +52,7 @@ namespace DKSH.Spiderbot.Navigation
             }
         }
 
-        private void SpawnAgent(GeneratedTrainingEnvironment environment, int index)
+private void SpawnAgent(GeneratedTrainingEnvironment environment, int index)
         {
             var agentObject = new GameObject("SpiderNavigationAgent_" + index);
             agentObject.SetActive(false);
@@ -60,7 +60,16 @@ namespace DKSH.Spiderbot.Navigation
 
             var controller = agentObject.AddComponent<CharacterController>();
             controller.enabled = true;
-            agentObject.AddComponent<BehaviorParameters>();
+
+            var behavior = agentObject.AddComponent<BehaviorParameters>();
+            behavior.BehaviorName = SpiderNavigationAgent.NavigationBehaviorName;
+            behavior.BehaviorType = BehaviorType.Default;
+            behavior.BrainParameters.VectorObservationSize = SpiderNavigationAgent.VectorObservationSize;
+            behavior.BrainParameters.NumStackedVectorObservations = 1;
+            behavior.BrainParameters.ActionSpec =
+                Unity.MLAgents.Actuators.ActionSpec.MakeContinuous(
+                    SpiderNavigationAgent.ContinuousActionCount);
+
             var lidar = agentObject.AddComponent<SimulatedLidarSensor>();
             var lidarSettings = LidarScanSettings.Default;
             lidarSettings.horizontalResolution = 72;
