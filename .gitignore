@@ -1,0 +1,13 @@
+# Isaac Lab runtime artifacts
+logs/
+outputs/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+**/.asset_hash
+isaaclab_project/assets/spiderbot_usd/config.yaml
+
+# Isaac Sim conversion/cache links and editor files
+IsaacLab/_isaac_sim
+.vscode/
