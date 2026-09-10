@@ -37,6 +37,9 @@ else {
 
 Push-Location $isaacLabRoot
 try {
+    # Do not use `isaaclab.bat -i`: it also installs Isaac Lab Mimic, which is
+    # unnecessary for this project and can conflict with the bundled Python.
+    # Isaac Lab 2.1.0 leaves Warp unconstrained, so pin versions compatible with Isaac Sim 4.5.
     Install-IsaacPythonPackage @("--upgrade", "numpy==1.26.4", "warp-lang==1.5.0")
     Install-IsaacPythonPackage @("--editable", ".\source\isaaclab")
     Install-IsaacPythonPackage @("--editable", ".\source\isaaclab_assets")

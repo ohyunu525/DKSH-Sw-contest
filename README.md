@@ -19,6 +19,15 @@ git submodule update --init --recursive
 .\setup_isaaclab.ps1 -IsaacSimPath "D:\path\to\isaac-sim-4.5"
 ```
 
+설치 상태나 Isaac Sim 자체 동작을 별도로 확인하려면 빈 뷰어 또는 Isaac Lab 기본 Cartpole 학습을
+실행할 수 있습니다.
+
+```powershell
+.\run_isaaclab.ps1 -Mode isaac-smoke
+.\run_isaaclab.ps1 -Mode viewer
+.\run_isaaclab.ps1 -Mode cartpole -NumEnvs 32
+```
+
 성공하면 `DKSH_ISAACLAB_SMOKE_PASS`가 출력됩니다. 실제 PPO 학습은 다음처럼 시작합니다.
 
 ```powershell

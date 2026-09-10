@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet("smoke", "train", "evaluate", "play")]
+    [ValidateSet("smoke", "isaac-smoke", "train", "evaluate", "play", "viewer", "cartpole")]
     [string]$Mode = "smoke",
     [ValidateRange(1, 128)]
     [int]$NumEnvs = 4,
@@ -31,6 +31,17 @@ try {
             if (-not ($output -match "DKSH_ISAACLAB_SMOKE_PASS")) {
                 throw "The custom environment smoke test failed (native exit code $nativeExitCode)."
             }
+            cmd.exe /d /c exit 0
+        }
+        "isaac-smoke" {
+            $scriptPath = Join-Path $projectRoot "scripts\isaaclab_smoke.py"
+            $output = @(& $launcher -p $scriptPath --headless "--steps=$Steps" 2>&1)
+            $nativeExitCode = $LASTEXITCODE
+            $output | Write-Output
+            if (-not ($output -match "ISAAC_LAB_SMOKE_TEST_PASS")) {
+                throw "Isaac Lab smoke test failed (native exit code $nativeExitCode)."
+            }
+            # Isaac Sim 4.5 can return 1 after a clean headless Kit shutdown.
             cmd.exe /d /c exit 0
         }
         "train" {
@@ -92,6 +103,28 @@ try {
             if ($LASTEXITCODE -eq 1) {
                 # Isaac Sim 4.5 commonly reports 1 after the user closes a healthy Kit window.
                 cmd.exe /d /c exit 0
+            }
+            elseif ($LASTEXITCODE -ne 0) {
+                throw "Isaac Lab playback exited with code $LASTEXITCODE."
+            }
+        }
+        "viewer" {
+            $scriptPath = Join-Path $isaacLabRoot "scripts\tutorials\00_sim\create_empty.py"
+            & $launcher -p $scriptPath
+            if ($LASTEXITCODE -eq 1) {
+                # Isaac Sim 4.5 commonly reports 1 after the user closes a healthy Kit window.
+                cmd.exe /d /c exit 0
+            }
+            elseif ($LASTEXITCODE -ne 0) {
+                throw "Isaac Lab viewer exited with code $LASTEXITCODE."
+            }
+        }
+        "cartpole" {
+            $scriptPath = Join-Path $isaacLabRoot "scripts\reinforcement_learning\rsl_rl\train.py"
+            & $launcher -p $scriptPath `
+                "--task=Isaac-Cartpole-Direct-v0" --headless "--num_envs=$NumEnvs"
+            if ($LASTEXITCODE -ne 0) {
+                throw "Isaac Lab Cartpole training exited with code $LASTEXITCODE."
             }
         }
     }
