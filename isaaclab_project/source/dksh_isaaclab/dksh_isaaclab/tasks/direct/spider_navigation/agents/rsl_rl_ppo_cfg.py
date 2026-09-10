@@ -8,13 +8,13 @@ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, R
 class SpiderNavigationPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """Compact PPO settings suitable for an 8 GB RTX 3070."""
 
-    num_steps_per_env = 24
-    max_iterations = 1000
+    num_steps_per_env = 48
+    max_iterations = 1500
     save_interval = 50
     experiment_name = "dksh_spider_navigation"
     empirical_normalization = True
     policy = RslRlPpoActorCriticCfg(
-        init_noise_std=0.7,
+        init_noise_std=0.35,
         actor_hidden_dims=[256, 128, 64],
         critic_hidden_dims=[256, 128, 64],
         activation="elu",
@@ -23,13 +23,13 @@ class SpiderNavigationPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         value_loss_coef=1.0,
         use_clipped_value_loss=True,
         clip_param=0.2,
-        entropy_coef=0.01,
+        entropy_coef=0.005,
         num_learning_epochs=5,
         num_mini_batches=4,
-        learning_rate=5.0e-4,
+        learning_rate=3.0e-4,
         schedule="adaptive",
-        gamma=0.99,
+        gamma=0.995,
         lam=0.95,
-        desired_kl=0.01,
+        desired_kl=0.008,
         max_grad_norm=1.0,
     )

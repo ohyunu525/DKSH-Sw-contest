@@ -39,7 +39,7 @@ try {
             $latestCheckpointBefore = Get-ChildItem $logRoot -Recurse -Filter "model_*.pt" -ErrorAction SilentlyContinue |
                 Sort-Object LastWriteTime -Descending | Select-Object -First 1
             & $launcher -p $scriptPath "--task=$taskName" "--num_envs=$NumEnvs" `
-                "--max_iterations=$MaxIterations" --headless
+                "--max_iterations=$MaxIterations"
             $nativeExitCode = $LASTEXITCODE
             $latestCheckpointAfter = Get-ChildItem $logRoot -Recurse -Filter "model_*.pt" -ErrorAction SilentlyContinue |
                 Sort-Object LastWriteTime -Descending | Select-Object -First 1

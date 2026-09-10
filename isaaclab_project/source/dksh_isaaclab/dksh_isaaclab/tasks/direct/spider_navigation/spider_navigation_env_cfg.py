@@ -41,20 +41,21 @@ class SpiderNavigationEnvCfg(DirectRLEnvCfg):
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=32, env_spacing=7.0, replicate_physics=True)
     robot = SPIDERBOT_CFG.replace(prim_path="/World/envs/env_.*/Robot")
 
-    action_scale = 0.55
+    # Keep early exploration inside a range the MG996R-powered stance can recover from.
+    action_scale = 0.30
     joint_velocity_scale = 0.10
-    goal_min_distance = 1.5
-    goal_max_distance = 3.5
+    goal_min_distance = 0.75
+    goal_max_distance = 2.50
     goal_radius = 0.30
     max_distance_from_origin = 5.5
-    minimum_base_height = 0.07
+    minimum_base_height = 0.09
 
-    progress_reward_scale = 8.0
-    velocity_to_goal_reward_scale = 0.35
-    heading_reward_scale = 0.04
-    upright_reward_scale = 0.04
-    action_rate_penalty_scale = -0.003
-    torque_penalty_scale = -0.0002
-    vertical_velocity_penalty_scale = -0.02
-    goal_reward = 12.0
-    failure_penalty = -5.0
+    progress_reward_scale = 10.0
+    velocity_to_goal_reward_scale = 0.50
+    heading_reward_scale = 0.10
+    upright_reward_scale = 0.25
+    action_rate_penalty_scale = -0.015
+    torque_penalty_scale = -0.0003
+    vertical_velocity_penalty_scale = -0.05
+    goal_reward = 20.0
+    failure_penalty = -3.0
