@@ -2058,7 +2058,7 @@ namespace DKSH.Spiderbot.Training
         private static float GetSeededStairStepRise(MapBuildContext context)
         {
             var random = new System.Random(GetDerivedSeed(context.Seed, 4219));
-            return 0.16f + random.Next(0, 7) * 0.02f;
+            return 0.14f + random.Next(0, 3) * 0.01f;
         }
 
         private static Transform CreateChild(string name, Transform parent)

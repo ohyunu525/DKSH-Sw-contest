@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 629be9d12545248438cd96b0b91203ba, type: 3}
+  m_Name: SpiderRobotPhysicalProfile
+  m_EditorClassIdentifier: DKSH.Spiderbot.Training::DKSH.Spiderbot.Training.SpiderRobotPhysicalProfile
+  legCount: 8
+  servosPerLeg: 3
+  bearingsPerLeg: 3
+  servoMassKg: 0.055
+  bearingMassKg: 0.0024
+  printedPartsMassPerLegKg: 0.13007
+  hipLengthM: 0.08617
+  femurLengthM: 0.1
+  tibiaLengthM: 0.12
+  supplyVoltageV: 6
+  stallTorqueKgCm: 10
+  jointRangeDegrees: 180
+  commandFrequencyHz: 50
+  secondsPer60Degrees: 0.15
+  recommendedStepHeightM: 0.16
+  proxyMaxSpeedMps: 1
+  proxyAccelerationMps2: 3.5
+  proxyYawSpeedDegreesPerSecond: 150

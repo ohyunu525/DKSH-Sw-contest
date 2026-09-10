@@ -56,6 +56,16 @@ namespace DKSH.Spiderbot.Sensors
             }
         }
 
+        public void Configure(LidarScanSettings configuredSettings, bool automatic)
+        {
+            profile = null;
+            settings = configuredSettings;
+            settings.Clamp();
+            scanAutomatically = automatic;
+            scanTimer = 0f;
+            initialScanPending = scanOnEnable;
+        }
+
         public bool TryGetLatestFrame(out LidarScanFrame frame)
         {
             frame = latestFrame;
@@ -208,7 +218,7 @@ namespace DKSH.Spiderbot.Sensors
             var point = didHit ? hitInfo.point : origin + direction * maxDistance;
             var normal = didHit ? hitInfo.normal : Vector3.zero;
             var distance = didHit ? hitInfo.distance : maxDistance;
-            var colliderInstanceId = didHit && hitInfo.collider != null ? hitInfo.collider.GetInstanceID() : 0;
+            var colliderInstanceId = didHit && hitInfo.collider != null ? hitInfo.collider.GetHashCode() : 0;
 
             return new LidarSample(
                 horizontal,
