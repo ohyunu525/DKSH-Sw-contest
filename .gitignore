@@ -11,3 +11,4 @@ isaaclab_project/assets/spiderbot_usd/config.yaml
 # Isaac Sim conversion/cache links and editor files
 IsaacLab/_isaac_sim
 .vscode/
+.venv/

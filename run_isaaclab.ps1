@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet("smoke", "isaac-smoke", "train", "evaluate", "play", "viewer", "cartpole")]
+    [ValidateSet("smoke", "isaac-smoke", "train", "evaluate", "play", "preview", "viewer", "cartpole")]
     [string]$Mode = "smoke",
     [ValidateRange(1, 128)]
     [int]$NumEnvs = 4,
@@ -10,10 +10,17 @@ param(
     [int]$MaxIterations = 1000,
     [string]$Checkpoint = "",
     [ValidateSet('baseline', 'cad8', 'cad6')]
-    [string]$RobotModel = 'baseline'
+    [string]$RobotModel = 'baseline',
+    [ValidateSet('flat', 'narrow', 'vibrating', 'falling_debris', 'rough', 'mixed')]
+    [string]$Environment = 'flat',
+    [ValidateRange(0.0, 1.0)]
+    [double]$Difficulty = 0.5,
+    [ValidateRange(0, 2147483647)]
+    [int]$Seed = 42
 )
 
 $projectRoot = $PSScriptRoot
+$Environment = $Environment.ToLowerInvariant()
 $isaacLabRoot = Join-Path $projectRoot "IsaacLab"
 $launcher = Join-Path $isaacLabRoot "isaaclab.bat"
 $taskName = "Isaac-DKSH-Spider-Navigation-Direct-v0"
@@ -22,6 +29,19 @@ if ($RobotModel -ne 'baseline') {
     $cadCount = $RobotModel.Substring(3)
     $taskName = "Isaac-DKSH-Spider-CAD$cadCount-Navigation-Direct-v0"
     $experimentName = "dksh_spider_cad${cadCount}_navigation"
+}
+if ($Environment -ne 'flat') {
+    $experimentName += '_obstacles'
+}
+$difficultyText = $Difficulty.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+$environmentArguments = @("--environment=$Environment", "--difficulty=$difficultyText")
+$runnerEnvironmentArguments = @(
+    "env.environment_preset=$Environment", "env.environment_difficulty=$difficultyText",
+    "--experiment_name=$experimentName"
+)
+if ($PSBoundParameters.ContainsKey('Seed')) {
+    $environmentArguments += "--seed=$Seed"
+    $runnerEnvironmentArguments += "--seed=$Seed"
 }
 
 if (-not (Test-Path -LiteralPath $launcher)) {
@@ -33,7 +53,7 @@ try {
     switch ($Mode) {
         "smoke" {
             $scriptPath = Join-Path $projectRoot "isaaclab_project\scripts\smoke_env.py"
-            $output = @(& $launcher -p $scriptPath --headless "--task=$taskName" "--num_envs=$NumEnvs" "--steps=$Steps" 2>&1)
+            $output = @(& $launcher -p $scriptPath --headless "--task=$taskName" "--num_envs=$NumEnvs" "--steps=$Steps" @environmentArguments 2>&1)
             $nativeExitCode = $LASTEXITCODE
             $output | Write-Output
             if (-not ($output -match "DKSH_ISAACLAB_SMOKE_PASS")) {
@@ -58,7 +78,7 @@ try {
             $latestCheckpointBefore = Get-ChildItem $logRoot -Recurse -Filter "model_*.pt" -ErrorAction SilentlyContinue |
                 Sort-Object LastWriteTime -Descending | Select-Object -First 1
             & $launcher -p $scriptPath "--task=$taskName" "--num_envs=$NumEnvs" `
-                "--max_iterations=$MaxIterations"
+                "--max_iterations=$MaxIterations" @runnerEnvironmentArguments
             $nativeExitCode = $LASTEXITCODE
             $latestCheckpointAfter = Get-ChildItem $logRoot -Recurse -Filter "model_*.pt" -ErrorAction SilentlyContinue |
                 Sort-Object LastWriteTime -Descending | Select-Object -First 1
@@ -79,7 +99,7 @@ try {
             $arguments = @(
                 "-p", $scriptPath, "--headless", "--task=$taskName",
                 "--num_envs=$NumEnvs", "--steps=$Steps"
-            )
+            ) + $environmentArguments
             if ($Checkpoint) {
                 $arguments += "--checkpoint=$Checkpoint"
             }
@@ -93,21 +113,21 @@ try {
         }
         "play" {
             $scriptPath = Join-Path $projectRoot "isaaclab_project\scripts\play.py"
-            $arguments = @("-p", $scriptPath, "--task=$taskName", "--num_envs=$NumEnvs")
+            $arguments = @("-p", $scriptPath, "--task=$taskName", "--num_envs=$NumEnvs") + $runnerEnvironmentArguments
             if ($Checkpoint) {
                 $arguments += "--checkpoint=$Checkpoint"
             }
             else {
                 $localCheckpoints = Get-ChildItem (Join-Path $projectRoot "logs\rsl_rl\$experimentName") `
                     -Recurse -Filter "model_*.pt" -ErrorAction SilentlyContinue
-                if (-not $localCheckpoints -and $RobotModel -eq 'baseline') {
+                if (-not $localCheckpoints -and $RobotModel -eq 'baseline' -and $Environment -eq 'flat') {
                     $bundledCheckpoint = Join-Path $projectRoot "isaaclab_project\checkpoints\balance_baseline.pt"
                     if (Test-Path -LiteralPath $bundledCheckpoint) {
                         $arguments += "--checkpoint=$bundledCheckpoint"
                     }
                 }
                 elseif (-not $localCheckpoints) {
-                    throw "No checkpoint for $RobotModel. Train this model first or provide -Checkpoint."
+                    throw "No compatible checkpoint for $RobotModel / $Environment. Use -Mode preview to inspect the environment, train first, or provide -Checkpoint."
                 }
             }
             & $launcher @arguments
@@ -118,6 +138,26 @@ try {
             elseif ($LASTEXITCODE -ne 0) {
                 throw "Isaac Lab playback exited with code $LASTEXITCODE."
             }
+        }
+        "preview" {
+            $scriptPath = Join-Path $projectRoot "isaaclab_project\scripts\preview_env.py"
+            $arguments = @("-p", $scriptPath, "--task=$taskName", "--num_envs=$NumEnvs") + $environmentArguments
+            if ($PSBoundParameters.ContainsKey('Steps')) {
+                $arguments += "--steps=$Steps"
+            }
+            $previewPassed = $false
+            & $launcher @arguments 2>&1 | ForEach-Object {
+                if ([string]$_ -match '^DKSH_ISAACLAB_PREVIEW_PASS\s*$') {
+                    $previewPassed = $true
+                }
+                Write-Output $_
+            }
+            $nativeExitCode = $LASTEXITCODE
+            if (-not $previewPassed -or $nativeExitCode -notin @(0, 1)) {
+                throw "Isaac Lab environment preview failed (native exit code $nativeExitCode)."
+            }
+            # Normalize Isaac Sim 4.5's shutdown code only after successful playback.
+            cmd.exe /d /c exit 0
         }
         "viewer" {
             $scriptPath = Join-Path $isaacLabRoot "scripts\tutorials\00_sim\create_empty.py"

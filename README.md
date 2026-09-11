@@ -40,6 +40,30 @@ git submodule update --init --recursive
 
 학습 결과는 `logs/rsl_rl/dksh_spider_navigation` 아래에 저장됩니다.
 
+## 학습 환경 선택
+
+`-Environment`로 평지(`flat`), 좁은 틈(`narrow`), 진동 바닥(`vibrating`),
+낙하물 위험구역(`falling_debris`), 요철·단차(`rough`), 복합 환경(`mixed`)을 선택합니다.
+`-Difficulty`는 0~1이며 기본값은 0.5입니다. `-Seed`로 무작위 시드를 지정할 수 있습니다.
+
+```powershell
+# 학습된 모델 없이 좁은 통로를 화면에서 확인
+.\run_isaaclab.ps1 -Mode preview -Environment narrow -Difficulty 0.7 -NumEnvs 1
+
+# 진동 바닥, 낙하물, 복합 환경 학습
+.\run_isaaclab.ps1 -Mode train -Environment vibrating -NumEnvs 32 -MaxIterations 1000
+.\run_isaaclab.ps1 -Mode train -Environment falling_debris -Difficulty 0.3 -NumEnvs 32
+.\run_isaaclab.ps1 -Mode train -Environment mixed -Difficulty 0.5 -Seed 42 -NumEnvs 32
+
+# 학습한 복합 환경 정책을 낙하물 구역에서 평가
+.\run_isaaclab.ps1 -Mode evaluate -Environment falling_debris -NumEnvs 4 -Steps 1000
+```
+
+평지 이외의 환경은 장애물 관측이 32차원 추가되어 별도 `*_obstacles` 로그 폴더를 사용합니다.
+같은 로봇 모델의 비평지 환경끼리는 정책을 공유할 수 있으며, 기존 평지 체크포인트는 호환되지 않습니다.
+`preview`는 기본 자세로 환경을 확인하는 모드입니다. 학습한 보행을 보려면 `play`를 사용합니다.
+환경별 동작과 실행 예시는 [학습 환경 안내](isaaclab_project/docs/training_environments.md)를 참고하세요.
+
 가장 최근 체크포인트를 창 없이 유한 시간 검증하려면 다음 명령을 사용합니다.
 
 ```powershell
@@ -54,7 +78,7 @@ git submodule update --init --recursive
 .\run_isaaclab.ps1 -Mode play -NumEnvs 1 -Checkpoint "C:\path\to\model.pt"
 ```
 
-로그가 없는 새 체크아웃에서는 함께 제공되는 `balance_baseline.pt`를 자동 사용합니다. 이 모델은
+기본 로봇의 평지에서 로그가 없는 새 체크아웃은 함께 제공되는 `balance_baseline.pt`를 자동 사용합니다. 이 모델은
 500회 PPO 학습으로 20초 자세 유지를 검증한 시작점이며, 목표 보행을 완성한 모델은 아닙니다.
 
 등록된 환경 ID는 `Isaac-DKSH-Spider-Navigation-Direct-v0`입니다. 로봇은 실제 설계값을 반영한
@@ -75,7 +99,8 @@ Isaac Sim 4.5는 변환 파일을 정상 기록한 뒤 종료 코드 1을 반환
 ## 검증 범위
 
 - 물리 주기 200 Hz, 정책 제어 주기 50 Hz
-- 관측 84차원, 연속 행동 24차원
+- 기본 8족 로봇: 평지 관측 84차원, 비평지 관측 116차원, 연속 행동 24차원
+- CAD 6족 로봇: 평지 관측 66차원, 비평지 관측 98차원, 연속 행동 18차원
 - 무작위 방향/거리 목표, 목표 도달·낙상·영역 이탈·시간 제한 종료
 - PPO 보상 항목과 성공/낙상/시간초과를 TensorBoard 로그에 기록
 - 초록색 원판으로 각 병렬 환경의 목표 반경 표시
