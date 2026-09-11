@@ -8,6 +8,7 @@ from isaaclab.app import AppLauncher
 parser = argparse.ArgumentParser(description="Smoke-test the DKSH spiderbot task.")
 parser.add_argument("--steps", type=int, default=32)
 parser.add_argument("--num_envs", type=int, default=2)
+parser.add_argument('--task', default='Isaac-DKSH-Spider-Navigation-Direct-v0')
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
@@ -23,20 +24,21 @@ from isaaclab_tasks.utils import parse_env_cfg
 
 def main() -> None:
     """Create, reset, and step the environment with bounded random actions."""
-    task_name = "Isaac-DKSH-Spider-Navigation-Direct-v0"
+    task_name = args_cli.task
     cfg = parse_env_cfg(task_name, device=args_cli.device, num_envs=args_cli.num_envs)
     env = gym.make(task_name, cfg=cfg)
     try:
         observation, _ = env.reset()
         base_env = env.unwrapped
         policy_obs = observation["policy"]
-        assert policy_obs.shape == (args_cli.num_envs, 84), policy_obs.shape
-        assert base_env._robot.num_joints == 24, base_env._robot.num_joints
-        assert base_env._robot.num_bodies == 25, base_env._robot.num_bodies
+        dof = cfg.action_space
+        assert policy_obs.shape == (args_cli.num_envs, cfg.observation_space), policy_obs.shape
+        assert base_env._robot.num_joints == dof, base_env._robot.num_joints
+        assert base_env._robot.num_bodies == dof + 1, base_env._robot.num_bodies
         reset_count = 0
         reward_sum = 0.0
         for _ in range(args_cli.steps):
-            actions = 0.1 * (2.0 * torch.rand((args_cli.num_envs, 24), device=env.unwrapped.device) - 1.0)
+            actions = 0.1 * (2.0 * torch.rand((args_cli.num_envs, dof), device=env.unwrapped.device) - 1.0)
             observation, rewards, terminated, truncated, _ = env.step(actions)
             assert torch.isfinite(observation["policy"]).all()
             assert torch.isfinite(rewards).all()

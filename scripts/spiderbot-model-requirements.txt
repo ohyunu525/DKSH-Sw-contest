@@ -1,0 +1,7 @@
+ufbx==0.0.5
+numpy==2.5.3
+trimesh==5.1.0
+scipy==1.18.1
+usd-core==26.8
+matplotlib==3.11.1
+PyYAML==6.0.3

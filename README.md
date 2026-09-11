@@ -2,6 +2,10 @@
 
 Unity와 NVIDIA Isaac Lab에서 사용할 수 있는 8족 spiderbot 강화학습 프로젝트입니다.
 
+분리 CAD 다리를 사용한 **8족·6족 조립 모델**과 Unity 프리팹도 제공합니다.
+[모델 파일, 실행법 및 보정 가정](isaaclab_project/assets/spiderbot_variants/README.md)을 참고하세요.
+Isaac Lab 실행 시 `-RobotModel cad8` 또는 `-RobotModel cad6`로 선택할 수 있습니다.
+
 ![Isaac Lab에서 렌더링한 DKSH spiderbot](isaaclab_project/docs/spiderbot_preview.png)
 
 ## Isaac Lab 빠른 시작
