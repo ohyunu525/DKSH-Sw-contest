@@ -36,15 +36,16 @@ def _resolve_checkpoint() -> Path:
             raise FileNotFoundError(f"Checkpoint does not exist: {checkpoint}")
         return checkpoint
 
-    log_root = Path.cwd() / "logs" / "rsl_rl" / "dksh_spider_navigation"
+    agent_cfg = load_cfg_from_registry(args_cli.task, 'rsl_rl_cfg_entry_point')
+    log_root = Path.cwd() / "logs" / "rsl_rl" / agent_cfg.experiment_name
     candidates = list(log_root.glob("**/model_*.pt"))
     if candidates:
         return max(candidates, key=lambda path: path.stat().st_mtime)
 
     bundled = Path(__file__).resolve().parents[1] / "checkpoints" / "balance_baseline.pt"
-    if bundled.is_file():
+    if args_cli.task == 'Isaac-DKSH-Spider-Navigation-Direct-v0' and bundled.is_file():
         return bundled
-    raise FileNotFoundError(f"No checkpoint found below {log_root}, and the bundled baseline is missing.")
+    raise FileNotFoundError(f"No compatible checkpoint found below {log_root}. Train this task or pass --checkpoint.")
 
 
 def main() -> None:

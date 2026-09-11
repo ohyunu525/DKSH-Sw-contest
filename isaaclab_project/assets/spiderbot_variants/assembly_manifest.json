@@ -1,0 +1,149 @@
+{
+  "source": "DKSH SW Project\\Assets\\Prefabs\\spiderbot\\completeLEG.fbx",
+  "source_sha256": "208dcdee9c9d47adc933e12fa8a74612a2d9eaaa24f8443706d5102654170ac3",
+  "cad_unit_assumption": "millimetres",
+  "cad_to_link_rotation_y_degrees": 45,
+  "groups": {
+    "mount": [
+      0,
+      4,
+      5,
+      16
+    ],
+    "hip": [
+      2,
+      3,
+      7,
+      9,
+      12
+    ],
+    "femur": [
+      8,
+      10,
+      13,
+      14
+    ],
+    "tibia": [
+      1,
+      6,
+      11,
+      15
+    ]
+  },
+  "component_triangle_counts": [
+    3162,
+    1784,
+    2888,
+    4518,
+    2384,
+    2936,
+    2888,
+    4002,
+    2310,
+    3162,
+    3624,
+    2310,
+    2310,
+    3162,
+    4402,
+    1784,
+    2686
+  ],
+  "hinge_pivots_cad_mm": {
+    "mount": [
+      -41.94260931015015,
+      4.01646488904953,
+      -19.5125695168972
+    ],
+    "hip": [
+      -41.94260931015015,
+      4.01646488904953,
+      -19.5125695168972
+    ],
+    "femur": [
+      -16.86719512939453,
+      4.01646488904953,
+      7.719538852572441
+    ],
+    "tibia": [
+      24.482805728912354,
+      4.01646488904953,
+      7.719539117068052
+    ]
+  },
+  "joint_offsets_m": {
+    "hip": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "femur": [
+      0.03698700390233254,
+      0.0,
+      0.0015250130857853072
+    ],
+    "tibia": [
+      0.029238866196005,
+      0.0,
+      -0.02923886582195172
+    ]
+  },
+  "standalone_part_inventory": {
+    "legLast1.fbx": {
+      "triangles": 1784,
+      "reference_components_with_matching_area": [
+        1,
+        15
+      ]
+    },
+    "motorCover1End.fbx": {
+      "triangles": 3710,
+      "reference_components_with_matching_area": []
+    },
+    "motorCover1First.fbx": {
+      "triangles": 3628,
+      "reference_components_with_matching_area": [
+        10
+      ]
+    },
+    "motorCover1Mid.fbx": {
+      "triangles": 4006,
+      "reference_components_with_matching_area": [
+        7
+      ]
+    },
+    "motorCover2End.fbx": {
+      "triangles": 4640,
+      "reference_components_with_matching_area": []
+    },
+    "motorCover2First.fbx": {
+      "triangles": 4402,
+      "reference_components_with_matching_area": [
+        14
+      ]
+    },
+    "motorCover2Mid.fbx": {
+      "triangles": 4518,
+      "reference_components_with_matching_area": [
+        3
+      ]
+    },
+    "motorJoint.fbx": {
+      "triangles": 2888,
+      "reference_components_with_matching_area": [
+        2,
+        6
+      ]
+    },
+    "\ubca0\uc5b4\ub9c1Joint.fbx": {
+      "triangles": 2310,
+      "reference_components_with_matching_area": [
+        8,
+        11,
+        12
+      ]
+    }
+  },
+  "mount_radius_m": 0.12,
+  "calibration_status": "Provisional axes, mass, COM, collision boxes; verify against hardware CAD."
+}

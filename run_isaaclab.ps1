@@ -8,13 +8,21 @@ param(
     [int]$Steps = 32,
     [ValidateRange(1, 100000)]
     [int]$MaxIterations = 1000,
-    [string]$Checkpoint = ""
+    [string]$Checkpoint = "",
+    [ValidateSet('baseline', 'cad8', 'cad6')]
+    [string]$RobotModel = 'baseline'
 )
 
 $projectRoot = $PSScriptRoot
 $isaacLabRoot = Join-Path $projectRoot "IsaacLab"
 $launcher = Join-Path $isaacLabRoot "isaaclab.bat"
 $taskName = "Isaac-DKSH-Spider-Navigation-Direct-v0"
+$experimentName = 'dksh_spider_navigation'
+if ($RobotModel -ne 'baseline') {
+    $cadCount = $RobotModel.Substring(3)
+    $taskName = "Isaac-DKSH-Spider-CAD$cadCount-Navigation-Direct-v0"
+    $experimentName = "dksh_spider_cad${cadCount}_navigation"
+}
 
 if (-not (Test-Path -LiteralPath $launcher)) {
     throw "Isaac Lab is missing. Run .\setup_isaaclab.ps1 first."
@@ -25,7 +33,7 @@ try {
     switch ($Mode) {
         "smoke" {
             $scriptPath = Join-Path $projectRoot "isaaclab_project\scripts\smoke_env.py"
-            $output = @(& $launcher -p $scriptPath --headless "--num_envs=$NumEnvs" "--steps=$Steps" 2>&1)
+            $output = @(& $launcher -p $scriptPath --headless "--task=$taskName" "--num_envs=$NumEnvs" "--steps=$Steps" 2>&1)
             $nativeExitCode = $LASTEXITCODE
             $output | Write-Output
             if (-not ($output -match "DKSH_ISAACLAB_SMOKE_PASS")) {
@@ -46,7 +54,7 @@ try {
         }
         "train" {
             $scriptPath = Join-Path $projectRoot "isaaclab_project\scripts\train.py"
-            $logRoot = Join-Path $projectRoot "logs\rsl_rl\dksh_spider_navigation"
+            $logRoot = Join-Path $projectRoot "logs\rsl_rl\$experimentName"
             $latestCheckpointBefore = Get-ChildItem $logRoot -Recurse -Filter "model_*.pt" -ErrorAction SilentlyContinue |
                 Sort-Object LastWriteTime -Descending | Select-Object -First 1
             & $launcher -p $scriptPath "--task=$taskName" "--num_envs=$NumEnvs" `
@@ -90,13 +98,16 @@ try {
                 $arguments += "--checkpoint=$Checkpoint"
             }
             else {
-                $localCheckpoints = Get-ChildItem (Join-Path $projectRoot "logs\rsl_rl\dksh_spider_navigation") `
+                $localCheckpoints = Get-ChildItem (Join-Path $projectRoot "logs\rsl_rl\$experimentName") `
                     -Recurse -Filter "model_*.pt" -ErrorAction SilentlyContinue
-                if (-not $localCheckpoints) {
+                if (-not $localCheckpoints -and $RobotModel -eq 'baseline') {
                     $bundledCheckpoint = Join-Path $projectRoot "isaaclab_project\checkpoints\balance_baseline.pt"
                     if (Test-Path -LiteralPath $bundledCheckpoint) {
                         $arguments += "--checkpoint=$bundledCheckpoint"
                     }
+                }
+                elseif (-not $localCheckpoints) {
+                    throw "No checkpoint for $RobotModel. Train this model first or provide -Checkpoint."
                 }
             }
             & $launcher @arguments

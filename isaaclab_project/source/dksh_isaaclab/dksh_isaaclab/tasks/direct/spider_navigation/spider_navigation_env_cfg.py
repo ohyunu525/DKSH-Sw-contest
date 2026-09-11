@@ -7,6 +7,7 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
 from dksh_isaaclab.assets import SPIDERBOT_CFG
+from dksh_isaaclab.assets.spiderbot import cad_spiderbot_cfg
 
 
 @configclass
@@ -59,3 +60,21 @@ class SpiderNavigationEnvCfg(DirectRLEnvCfg):
     vertical_velocity_penalty_scale = -0.05
     goal_reward = 20.0
     failure_penalty = -3.0
+
+
+@configclass
+class SpiderCad8NavigationEnvCfg(SpiderNavigationEnvCfg):
+    """Eight-legged assembly built from the user's CAD leg meshes."""
+
+    robot = cad_spiderbot_cfg(8).replace(prim_path='/World/envs/env_.*/Robot')
+    minimum_base_height = 0.045
+    action_scale = 0.20
+
+
+@configclass
+class SpiderCad6NavigationEnvCfg(SpiderCad8NavigationEnvCfg):
+    """Six-legged version, with 18 actions and 66 observations."""
+
+    action_space = 18
+    observation_space = 66
+    robot = cad_spiderbot_cfg(6).replace(prim_path='/World/envs/env_.*/Robot')
