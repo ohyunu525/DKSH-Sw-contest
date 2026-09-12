@@ -87,7 +87,13 @@ namespace DKSH.Spiderbot.Sensors
                 Array.Resize(ref samples, sampleCount);
             }
 
-            latestFrame = CreateFrame(activeSettings, origin, sensorRotation, hitCount, samples);
+            latestFrame = CreateFrame(
+                activeSettings,
+                origin,
+                sensorRotation,
+                scanRotation,
+                hitCount,
+                samples);
             PublishScanCompleted(latestFrame);
 
             return latestFrame;
@@ -236,6 +242,7 @@ namespace DKSH.Spiderbot.Sensors
             LidarScanSettings activeSettings,
             Vector3 origin,
             Quaternion sensorRotation,
+            Quaternion rayRotation,
             int hitCount,
             LidarSample[] samples)
         {
@@ -243,6 +250,7 @@ namespace DKSH.Spiderbot.Sensors
                 Time.timeAsDouble,
                 origin,
                 sensorRotation,
+                rayRotation,
                 activeSettings.horizontalResolution,
                 activeSettings.verticalResolution,
                 hitCount,

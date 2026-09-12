@@ -1497,7 +1497,7 @@ GameObject:
   - component: {fileID: 1663009290}
   - component: {fileID: 1663009291}
   - component: {fileID: 1663009292}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: LiDAR Sensor
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1609,8 +1609,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 11b74e31ce3e4bf2a5006085766028dc, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
+  m_Name:
+  m_EditorClassIdentifier:
   profile: {fileID: 0}
   settings:
     horizontalResolution: 180
@@ -1621,7 +1621,7 @@ MonoBehaviour:
     scanFrequencyHz: 10
     detectionMask:
       serializedVersion: 2
-      m_Bits: 4294967295
+      m_Bits: 4294967039
     triggerInteraction: 1
     rotateWithSensor: 1
     includeMisses: 1
@@ -1643,8 +1643,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 5e03496e60c343b49ccafa0fb3acb0d6, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
+  m_Name:
+  m_EditorClassIdentifier:
   lidarSensor: {fileID: 1663009290}
   realSpaceFloor: {fileID: 406260630}
   realSpaceFloorName: RealSpaceFloor
@@ -1668,8 +1668,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fae0c69943a54f14a5cb8f6c7616e234, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
+  m_Name:
+  m_EditorClassIdentifier:
   pointCloudMap: {fileID: 1663009291}
   virtualSpaceFloor: {fileID: 783155741}
   virtualSpaceFloorName: VirtualSpaceFloor
@@ -1886,6 +1886,105 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &2120000000
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2120000001}
+  - component: {fileID: 2120000002}
+  - component: {fileID: 2120000003}
+  - component: {fileID: 2120000004}
+  m_Layer: 0
+  m_Name: Occupancy Grid 2D
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2120000001
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2120000000}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2120000002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2120000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dc107256d6eec7741bdb47e11ad0b288, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  resolution: 0.1
+  width: 120
+  height: 120
+  mapOrigin: {x: -6, y: 0.02, z: -6}
+  occupiedThreshold: 3
+  occupiedEvidenceIncrement: 4
+  freeEvidenceDecrement: 1
+  minimumEvidence: -20
+  maximumEvidence: 20
+  drawDebugBounds: 1
+  debugBoundsColor: {r: 0.2, g: 0.8, b: 1, a: 0.8}
+--- !u!114 &2120000003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2120000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb0c88f36dad1e44d99aa59f45e7824e, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  lidarSensor: {fileID: 1663009290}
+  occupancyGrid: {fileID: 2120000002}
+  poseProviderComponent: {fileID: 0}
+  maximumAbsoluteRayElevationDegrees: 6
+  minimumOccupiedHeightRelativeToSensor: -0.1
+  maximumOccupiedHeightRelativeToSensor: 1.5
+  maximumTraversalCellsPerRay: 4096
+  logStatistics: 0
+  logEveryScans: 30
+--- !u!114 &2120000004
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2120000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 00c0baa9bb13a4040a78ac65ac826224, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  occupancyGrid: {fileID: 2120000002}
+  robotTransform: {fileID: 1663009289}
+  debugVisualization: 1
+  unknownColor: {r: 0.35, g: 0.35, b: 0.35, a: 1}
+  freeColor: {r: 0.92, g: 0.92, b: 0.88, a: 1}
+  occupiedColor: {r: 0.04, g: 0.04, b: 0.04, a: 1}
+  robotColor: {r: 1, g: 0.15, b: 0.05, a: 1}
+  visualizationHeightOffset: 0.025
+  robotMarkerSize: 0.3
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -1905,3 +2004,4 @@ SceneRoots:
   - {fileID: 948448451}
   - {fileID: 537745097}
   - {fileID: 360854454}
+  - {fileID: 2120000001}
