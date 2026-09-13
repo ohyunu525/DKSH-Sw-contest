@@ -8,6 +8,16 @@ Isaac Lab 실행 시 `-RobotModel cad8` 또는 `-RobotModel cad6`로 선택할 �
 
 ![Isaac Lab에서 렌더링한 DKSH spiderbot](isaaclab_project/docs/spiderbot_preview.png)
 
+## 개발 컴퓨터 선택
+
+이 저장소는 한 컴퓨터에 모든 도구를 동시에 실행하는 방식으로 운영하지 않습니다. RTX 3070·RAM
+32GB 장비는 Isaac Sim 4.5/Isaac Lab 학습과 정책 검증을 담당하고, RAM 16GB·내장 GPU 장비는
+Unity 및 headless ROS2/Nav2 통합을 담당합니다. 그보다 낮은 사양의 장비는 사양에 따라 Unity 단독,
+정적 테스트 또는 문서·코드 리뷰만 수행합니다.
+
+설치 전 반드시 [개발 컴퓨터 요구사항 및 작업 분담](DEVELOPMENT_REQUIREMENTS.md)에서 해당 장비의
+등급, 금지되는 동시 실행 조합과 컴퓨터 간 결과 전달 규칙을 확인하세요.
+
 ## 6족 자율 탐색 빠른 시작
 
 Unity `LidarScene`에는 기존 Frontier 탐지·군집·목표 선택을 보존한 독립 실행 경로가 구성되어

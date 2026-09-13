@@ -2,6 +2,8 @@
 
 This directory is the replaceable ROS2 navigation side of the project. Unity remains the sensor/physics simulator. The image includes the Unity bridge endpoint, the ROS2 frontier candidate, the required Nav2 runtime servers and `slam_toolbox`.
 
+Machine roles and the rule separating the RTX 3070 Isaac workstation, the 16 GB Unity/ROS integration machine and lower-spec development machines are defined in [`DEVELOPMENT_REQUIREMENTS.md`](../DEVELOPMENT_REQUIREMENTS.md).
+
 ## Hardware profile
 
 The current development machine has a 14-core/18-thread Intel Core Ultra 5 125H, 16 GB shared system memory, Intel Arc integrated graphics and about 35 GB free on `C:` at setup time. The stack therefore uses a headless `ros-base` image and deliberately excludes Gazebo, desktop metapackages and CUDA. `slam_toolbox` brings some RViz support libraries as binary dependencies, but no RViz process is launched.
