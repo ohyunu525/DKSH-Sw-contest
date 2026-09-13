@@ -1497,6 +1497,9 @@ GameObject:
   - component: {fileID: 1663009290}
   - component: {fileID: 1663009291}
   - component: {fileID: 1663009292}
+  - component: {fileID: 1663009293}
+  - component: {fileID: 1663009294}
+  - component: {fileID: 1663009295}
   m_Layer: 8
   m_Name: LiDAR Sensor
   m_TagString: Untagged
@@ -1504,8 +1507,8 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!136 &1663009286
-CapsuleCollider:
+--- !u!143 &1663009286
+CharacterController:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -1519,13 +1522,15 @@ CapsuleCollider:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
-  m_IsTrigger: 0
   m_ProvidesContacts: 0
   m_Enabled: 1
-  serializedVersion: 2
-  m_Radius: 0.5
+  serializedVersion: 3
   m_Height: 2
-  m_Direction: 1
+  m_Radius: 0.5
+  m_SlopeLimit: 50
+  m_StepOffset: 0.1
+  m_SkinWidth: 0.05
+  m_MinMoveDistance: 0
   m_Center: {x: 0, y: 0, z: 0}
 --- !u!23 &1663009287
 MeshRenderer:
@@ -1682,6 +1687,74 @@ MonoBehaviour:
   particleMaterial: {fileID: 0}
   pointRenderer: {fileID: 0}
   updateEveryFrame: 0
+--- !u!114 &1663009293
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1663009285}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 99b7d2d9d95a4c199275453266d676ad, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  moveSpeedMetersPerSecond: 0.6
+  turnSpeedDegreesPerSecond: 240
+  waypointToleranceMeters: 0.08
+  stuckTimeoutSeconds: 2.5
+  minimumProgressMeters: 0.025
+  gravityMetersPerSecondSquared: 18
+--- !u!114 &1663009294
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1663009285}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b63b16de22044f78bc489f2414380aa5, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  standaloneFollower: {fileID: 1663009293}
+  standaloneCoordinator: {fileID: 2120000007}
+  maximumForwardMetersPerSecond: 0.35
+  maximumBackwardMetersPerSecond: 0.2
+  maximumLateralMetersPerSecond: 0.25
+  maximumYawRadiansPerSecond: 0.8
+  linearAccelerationMetersPerSecondSquared: 0.8
+  yawAccelerationRadiansPerSecondSquared: 2
+  commandTimeoutSeconds: 0.5
+  gravityMetersPerSecondSquared: 18
+--- !u!114 &1663009295
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1663009285}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e24c20d60a574d47a984b55734c8c3d1, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  lidarSensor: {fileID: 1663009290}
+  robotRoot: {fileID: 1663009289}
+  locomotionAdapter: {fileID: 1663009294}
+  rosIpAddress: 127.0.0.1
+  rosTcpPort: 10000
+  scanTopic: /scan
+  odometryTopic: /odom
+  transformTopic: /tf
+  clockTopic: /clock
+  velocityCommandTopic: /cmd_vel
+  odometryFrame: odom
+  baseFrame: base_footprint
+  laserFrame: laser
+  posePublishFrequencyHz: 10
+  publishSimulationClock: 1
+  disconnectOnDisable: 1
 --- !u!1 &2076465348
 GameObject:
   m_ObjectHideFlags: 0
@@ -1898,6 +1971,9 @@ GameObject:
   - component: {fileID: 2120000002}
   - component: {fileID: 2120000003}
   - component: {fileID: 2120000004}
+  - component: {fileID: 2120000005}
+  - component: {fileID: 2120000006}
+  - component: {fileID: 2120000007}
   m_Layer: 0
   m_Name: Occupancy Grid 2D
   m_TagString: Untagged
@@ -1985,6 +2061,78 @@ MonoBehaviour:
   robotColor: {r: 1, g: 0.15, b: 0.05, a: 1}
   visualizationHeightOffset: 0.025
   robotMarkerSize: 0.3
+--- !u!114 &2120000005
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2120000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5d05a1c402104c11b40fa3b25d777d4c, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  occupancyGrid: {fileID: 2120000002}
+  mappingSource: {fileID: 2120000003}
+  robotTransform: {fileID: 1663009289}
+  frontierNeighborConnectivity: 8
+  clusterConnectivity: 8
+  minClusterSize: 3
+  informationGainWeight: 1
+  distanceWeight: 1
+  replanInterval: 1.5
+  minimumGoalHoldTime: 2
+  goalSwitchScoreMargin: 1
+  robotMovementReevaluationDistance: 0.1
+  logStatistics: 0
+  logEveryEvaluations: 20
+--- !u!114 &2120000006
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2120000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0e7da87a5698432391b821330233773d, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  goalSelector: {fileID: 2120000005}
+  explorerCoordinator: {fileID: 2120000007}
+  drawFrontierCells: 1
+  drawClusterCenters: 1
+  drawSelectedGoal: 1
+  drawRobotPosition: 1
+  drawCurrentPath: 1
+  frontierCellColor: {r: 0, g: 0.95, b: 0.9, a: 0.85}
+  clusterCenterColor: {r: 1, g: 0.85, b: 0, a: 0.95}
+  selectedGoalColor: {r: 1, g: 0.05, b: 0.55, a: 1}
+  robotPositionColor: {r: 0.1, g: 0.45, b: 1, a: 1}
+  currentPathColor: {r: 0.25, g: 1, b: 0.25, a: 1}
+  frontierCellScale: 0.65
+  clusterCenterRadius: 0.08
+  selectedGoalRadius: 0.18
+  heightOffset: 0.08
+--- !u!114 &2120000007
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2120000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8f943246feb44ea6a2e4784ac53fa1f3, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  occupancyGrid: {fileID: 2120000002}
+  goalSelector: {fileID: 2120000005}
+  pathFollower: {fileID: 1663009293}
+  robotTransform: {fileID: 1663009289}
+  clearanceMeters: 0.25
+  scanSettleTimeSeconds: 0.35
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

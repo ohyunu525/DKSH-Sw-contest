@@ -8,6 +8,28 @@ Isaac Lab 실행 시 `-RobotModel cad8` 또는 `-RobotModel cad6`로 선택할 �
 
 ![Isaac Lab에서 렌더링한 DKSH spiderbot](isaaclab_project/docs/spiderbot_preview.png)
 
+## 6족 자율 탐색 빠른 시작
+
+Unity `LidarScene`에는 기존 Frontier 탐지·군집·목표 선택을 보존한 독립 실행 경로가 구성되어
+있습니다. 최소 8방향 A*, 이진 clearance, line-of-sight waypoint 압축,
+`CharacterController` 추종 및 단일 exploration coordinator를 사용합니다. ROS 브리지와
+locomotion adapter는 독립 실행 동작을 방해하지 않도록 씬에서 기본 비활성 상태입니다.
+
+ROS2 전환 경로는 `ros2` 폴더에 분리되어 있습니다. Docker Desktop을 시작한 뒤 다음처럼
+Unity TCP Endpoint만 먼저 올립니다.
+
+```powershell
+.\ros2\manage.ps1 Start
+.\ros2\manage.ps1 Validate
+```
+
+Unity Play Mode에서 `/clock`, `/scan`, `/odom`, `/tf`를 게시할 때만 headless
+SLAM/Nav2 launch를 실행합니다. ROS 측은 Jazzy, SLAM Toolbox, SmacPlanner2D,
+MPPI Omni, velocity smoother, collision monitor와 검증된 Frontier 후보 v1.6.1을 사용합니다.
+현재 16 GB RAM·내장 Intel Arc PC에서는 Unity와 이 headless 스택만 함께 실행하고,
+Isaac Lab 학습은 반드시 별도 세션에서 실행합니다. 상세 명령, 자원 상한 및 실측치는
+[ROS2/Nav2 실행 안내](ros2/README.md)를 참고하세요.
+
 ## Isaac Lab 빠른 시작
 
 현재 구성은 Isaac Sim 4.5.0과 호환되는 Isaac Lab 2.1.0/Python 3.10을 사용합니다. NVIDIA GPU와
