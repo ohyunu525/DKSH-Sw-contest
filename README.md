@@ -8,6 +8,38 @@ Isaac Lab 실행 시 `-RobotModel cad8` 또는 `-RobotModel cad6`로 선택할 �
 
 ![Isaac Lab에서 렌더링한 DKSH spiderbot](isaaclab_project/docs/spiderbot_preview.png)
 
+## 개발 컴퓨터 선택
+
+이 저장소는 한 컴퓨터에 모든 도구를 동시에 실행하는 방식으로 운영하지 않습니다. RTX 3070·RAM
+32GB 장비는 Isaac Sim 4.5/Isaac Lab 학습과 정책 검증을 담당하고, RAM 16GB·내장 GPU 장비는
+Unity 및 headless ROS2/Nav2 통합을 담당합니다. 그보다 낮은 사양의 장비는 사양에 따라 Unity 단독,
+정적 테스트 또는 문서·코드 리뷰만 수행합니다.
+
+설치 전 반드시 [개발 컴퓨터 요구사항 및 작업 분담](DEVELOPMENT_REQUIREMENTS.md)에서 해당 장비의
+등급, 금지되는 동시 실행 조합과 컴퓨터 간 결과 전달 규칙을 확인하세요.
+
+## 6족 자율 탐색 빠른 시작
+
+Unity `LidarScene`에는 기존 Frontier 탐지·군집·목표 선택을 보존한 독립 실행 경로가 구성되어
+있습니다. 최소 8방향 A*, 이진 clearance, line-of-sight waypoint 압축,
+`CharacterController` 추종 및 단일 exploration coordinator를 사용합니다. ROS 브리지와
+locomotion adapter는 독립 실행 동작을 방해하지 않도록 씬에서 기본 비활성 상태입니다.
+
+ROS2 전환 경로는 `ros2` 폴더에 분리되어 있습니다. Docker Desktop을 시작한 뒤 다음처럼
+Unity TCP Endpoint만 먼저 올립니다.
+
+```powershell
+.\ros2\manage.ps1 Start
+.\ros2\manage.ps1 Validate
+```
+
+Unity Play Mode에서 `/clock`, `/scan`, `/odom`, `/tf`를 게시할 때만 headless
+SLAM/Nav2 launch를 실행합니다. ROS 측은 Jazzy, SLAM Toolbox, SmacPlanner2D,
+MPPI Omni, velocity smoother, collision monitor와 검증된 Frontier 후보 v1.6.1을 사용합니다.
+현재 16 GB RAM·내장 Intel Arc PC에서는 Unity와 이 headless 스택만 함께 실행하고,
+Isaac Lab 학습은 반드시 별도 세션에서 실행합니다. 상세 명령, 자원 상한 및 실측치는
+[ROS2/Nav2 실행 안내](ros2/README.md)를 참고하세요.
+
 ## Isaac Lab 빠른 시작
 
 현재 구성은 Isaac Sim 4.5.0과 호환되는 Isaac Lab 2.1.0/Python 3.10을 사용합니다. NVIDIA GPU와
@@ -40,6 +72,30 @@ git submodule update --init --recursive
 
 학습 결과는 `logs/rsl_rl/dksh_spider_navigation` 아래에 저장됩니다.
 
+## 학습 환경 선택
+
+`-Environment`로 평지(`flat`), 좁은 틈(`narrow`), 진동 바닥(`vibrating`),
+낙하물 위험구역(`falling_debris`), 요철·단차(`rough`), 복합 환경(`mixed`)을 선택합니다.
+`-Difficulty`는 0~1이며 기본값은 0.5입니다. `-Seed`로 무작위 시드를 지정할 수 있습니다.
+
+```powershell
+# 학습된 모델 없이 좁은 통로를 화면에서 확인
+.\run_isaaclab.ps1 -Mode preview -Environment narrow -Difficulty 0.7 -NumEnvs 1
+
+# 진동 바닥, 낙하물, 복합 환경 학습
+.\run_isaaclab.ps1 -Mode train -Environment vibrating -NumEnvs 32 -MaxIterations 1000
+.\run_isaaclab.ps1 -Mode train -Environment falling_debris -Difficulty 0.3 -NumEnvs 32
+.\run_isaaclab.ps1 -Mode train -Environment mixed -Difficulty 0.5 -Seed 42 -NumEnvs 32
+
+# 학습한 복합 환경 정책을 낙하물 구역에서 평가
+.\run_isaaclab.ps1 -Mode evaluate -Environment falling_debris -NumEnvs 4 -Steps 1000
+```
+
+평지 이외의 환경은 장애물 관측이 32차원 추가되어 별도 `*_obstacles` 로그 폴더를 사용합니다.
+같은 로봇 모델의 비평지 환경끼리는 정책을 공유할 수 있으며, 기존 평지 체크포인트는 호환되지 않습니다.
+`preview`는 기본 자세로 환경을 확인하는 모드입니다. 학습한 보행을 보려면 `play`를 사용합니다.
+환경별 동작과 실행 예시는 [학습 환경 안내](isaaclab_project/docs/training_environments.md)를 참고하세요.
+
 가장 최근 체크포인트를 창 없이 유한 시간 검증하려면 다음 명령을 사용합니다.
 
 ```powershell
@@ -54,7 +110,7 @@ git submodule update --init --recursive
 .\run_isaaclab.ps1 -Mode play -NumEnvs 1 -Checkpoint "C:\path\to\model.pt"
 ```
 
-로그가 없는 새 체크아웃에서는 함께 제공되는 `balance_baseline.pt`를 자동 사용합니다. 이 모델은
+기본 로봇의 평지에서 로그가 없는 새 체크아웃은 함께 제공되는 `balance_baseline.pt`를 자동 사용합니다. 이 모델은
 500회 PPO 학습으로 20초 자세 유지를 검증한 시작점이며, 목표 보행을 완성한 모델은 아닙니다.
 
 등록된 환경 ID는 `Isaac-DKSH-Spider-Navigation-Direct-v0`입니다. 로봇은 실제 설계값을 반영한
@@ -75,7 +131,8 @@ Isaac Sim 4.5는 변환 파일을 정상 기록한 뒤 종료 코드 1을 반환
 ## 검증 범위
 
 - 물리 주기 200 Hz, 정책 제어 주기 50 Hz
-- 관측 84차원, 연속 행동 24차원
+- 기본 8족 로봇: 평지 관측 84차원, 비평지 관측 116차원, 연속 행동 24차원
+- CAD 6족 로봇: 평지 관측 66차원, 비평지 관측 98차원, 연속 행동 18차원
 - 무작위 방향/거리 목표, 목표 도달·낙상·영역 이탈·시간 제한 종료
 - PPO 보상 항목과 성공/낙상/시간초과를 TensorBoard 로그에 기록
 - 초록색 원판으로 각 병렬 환경의 목표 반경 표시
