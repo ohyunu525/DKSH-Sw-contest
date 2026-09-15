@@ -40,6 +40,7 @@ class SpiderNavigationEnv(DirectRLEnv):
                 "action_rate",
                 "torque",
                 "vertical_velocity",
+                "stillness",
                 "goal",
                 "failure",
             )
@@ -96,6 +97,7 @@ class SpiderNavigationEnv(DirectRLEnv):
         distance, direction_w, direction_b = self._goal_data()
         progress = (self._previous_goal_distance - distance).clamp(-0.25, 0.25)
         velocity_to_goal = torch.sum(self._robot.data.root_lin_vel_w[:, :2] * direction_w[:, :2], dim=1)
+        velocity_to_goal = velocity_to_goal.clamp(-0.50, 0.75)
         heading = direction_b[:, 0].clamp(-1.0, 1.0)
         upright = (-self._robot.data.projected_gravity_b[:, 2]).clamp(0.0, 1.0)
         action_rate = torch.sum(torch.square(self._actions - self._previous_actions), dim=1)
@@ -112,6 +114,7 @@ class SpiderNavigationEnv(DirectRLEnv):
             "action_rate": self.cfg.action_rate_penalty_scale * action_rate * self.step_dt,
             "torque": self.cfg.torque_penalty_scale * torque_cost * self.step_dt,
             "vertical_velocity": self.cfg.vertical_velocity_penalty_scale * vertical_velocity * self.step_dt,
+            "stillness": self.cfg.stillness_penalty_scale * (velocity_to_goal < 0.03).float() * self.step_dt,
             "goal": self.cfg.goal_reward * reached_goal.float(),
             "failure": self.cfg.failure_penalty * fallen.float(),
         }

@@ -44,18 +44,21 @@ class SpiderNavigationEnvCfg(DirectRLEnvCfg):
     # Keep early exploration inside a range the MG996R-powered stance can recover from.
     action_scale = 0.30
     joint_velocity_scale = 0.10
-    goal_min_distance = 0.75
-    goal_max_distance = 2.50
-    goal_radius = 0.30
+    # Stage 2 curriculum: first learn repeatable short-range locomotion.
+    goal_min_distance = 0.50
+    goal_max_distance = 1.50
+    goal_radius = 0.35
     max_distance_from_origin = 5.5
     minimum_base_height = 0.09
 
-    progress_reward_scale = 10.0
-    velocity_to_goal_reward_scale = 0.50
-    heading_reward_scale = 0.10
-    upright_reward_scale = 0.25
+    # Translational progress must dominate the passive reward for standing still.
+    progress_reward_scale = 25.0
+    velocity_to_goal_reward_scale = 1.50
+    heading_reward_scale = 0.05
+    upright_reward_scale = 0.05
     action_rate_penalty_scale = -0.015
     torque_penalty_scale = -0.0003
     vertical_velocity_penalty_scale = -0.05
-    goal_reward = 20.0
-    failure_penalty = -3.0
+    stillness_penalty_scale = -0.10
+    goal_reward = 30.0
+    failure_penalty = -10.0
