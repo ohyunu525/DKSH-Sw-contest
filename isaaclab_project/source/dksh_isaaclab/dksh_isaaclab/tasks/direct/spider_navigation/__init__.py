@@ -2,6 +2,16 @@
 
 import gymnasium as gym
 
+gym.register(
+    id="Isaac-DKSH-MG90S-Walk-Direct-v0",
+    entry_point=f"{__name__}.mg90s_env:MG90SWalkEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.mg90s_env_cfg:MG90SWalkEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{__name__}.mg90s_env_cfg:MG90SWalkRunnerCfg",
+    },
+)
+
 
 gym.register(
     id="Isaac-DKSH-Spider-Navigation-Direct-v0",
