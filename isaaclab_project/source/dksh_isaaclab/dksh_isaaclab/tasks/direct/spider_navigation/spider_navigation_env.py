@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from pathlib import Path
 
 import gymnasium as gym
 import torch
@@ -29,9 +30,7 @@ class SpiderNavigationEnv(DirectRLEnv):
         validate_environment(cfg.environment_preset, cfg.environment_difficulty)
         cfg.observation_space = 12 + 3 * cfg.action_space + (32 if cfg.environment_preset != "flat" else 0)
         self._scenario = None
-        if cfg.environment_preset != "flat":
-            cfg.viewer.eye = (3.8, 3.4, 3.0)
-            cfg.viewer.lookat = (0.0, 0.0, 0.15)
+        self._viewer_visuals = None
         super().__init__(cfg, render_mode, **kwargs)
         if self._scenario is not None:
             self._scenario.initialize()
@@ -93,7 +92,59 @@ class SpiderNavigationEnv(DirectRLEnv):
         direction_b = quat_rotate_inverse(self._robot.data.root_quat_w, direction_w)
         return distance, direction_w, direction_b
 
+    def _sync_cad_visual_for_gui(self) -> None:
+        """Show a visual-only CAD copy at the GPU articulation's body poses.
+
+        Isaac Sim on this host keeps the referenced CAD USD hierarchy at its
+        source pose while Direct GPU PhysX moves the articulation.  Editing that
+        physics hierarchy is forbidden by PhysX, so the viewport receives a
+        separate, mesh-only copy instead.  It is created only for an interactive
+        GUI and has no collision or physics schemas.
+        """
+        if not self.sim.has_gui():
+            return
+        if self._viewer_visuals is None:
+            import omni.usd
+            from pxr import UsdGeom
+
+            stage = omni.usd.get_context().get_stage()
+            display_root = "/World/envs/env_0/RobotDisplay"
+            stage.DefinePrim(display_root, "Xform")
+            asset_path = (
+                Path(__file__).resolve().parents[6]
+                / "assets"
+                / "spiderbot_variants"
+                / "spiderbot_6leg"
+                / "visuals.usdc"
+            )
+            mesh_for_body = {
+                "base": "base",
+                "hip": "hip",
+                "femur": "femur",
+                "tibia": "tibia",
+            }
+            self._viewer_visuals = []
+            for index, body_name in enumerate(self._robot.body_names):
+                mesh_name = next(kind for kind in mesh_for_body if body_name == "base" or body_name.endswith(kind))
+                prim = stage.DefinePrim(f"{display_root}/{body_name}", "Mesh")
+                prim.GetReferences().AddReference(str(asset_path), f"/{mesh_for_body[mesh_name]}")
+                xformable = UsdGeom.Xformable(prim)
+                self._viewer_visuals.append((index, xformable.MakeMatrixXform()))
+
+        from pxr import Gf
+
+        body_positions = self._robot.data.body_pos_w[0].detach().cpu().tolist()
+        body_quaternions = self._robot.data.body_quat_w[0].detach().cpu().tolist()
+        for index, transform_op in self._viewer_visuals:
+            position = body_positions[index]
+            quaternion = body_quaternions[index]
+            transform = Gf.Matrix4d(1.0)
+            transform.SetRotate(Gf.Quatd(quaternion[0], Gf.Vec3d(quaternion[1], quaternion[2], quaternion[3])))
+            transform.SetTranslateOnly(Gf.Vec3d(*position))
+            transform_op.Set(transform)
+
     def _get_observations(self) -> dict[str, torch.Tensor]:
+        self._sync_cad_visual_for_gui()
         distance, _, direction_b = self._goal_data()
         observation = torch.cat(
             (

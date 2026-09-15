@@ -34,10 +34,14 @@ class SpiderNavigationEnvCfg(DirectRLEnvCfg):
         ),
     )
     viewer = ViewerCfg(
-        eye=(1.2, 1.2, 0.8),
-        lookat=(0.0, 0.0, 0.10),
-        origin_type="env",
+        # Track the robot root during playback.  A static environment camera can
+        # leave the spawn point behind a corridor wall, making the policy appear
+        # to run without a visible robot.
+        eye=(1.5, -1.5, 1.0),
+        lookat=(0.0, 0.0, 0.12),
+        origin_type="asset_root",
         env_index=0,
+        asset_name="robot",
     )
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=32, env_spacing=7.0, replicate_physics=True)
     robot = SPIDERBOT_CFG.replace(prim_path="/World/envs/env_.*/Robot")
