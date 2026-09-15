@@ -36,7 +36,7 @@ if ($Environment -ne 'flat') {
 $difficultyText = $Difficulty.ToString([System.Globalization.CultureInfo]::InvariantCulture)
 $environmentArguments = @("--environment=$Environment", "--difficulty=$difficultyText")
 $runnerEnvironmentArguments = @(
-    "env.environment_preset=$Environment", "env.environment_difficulty=$difficultyText",
+    "--environment=$Environment", "--difficulty=$difficultyText",
     "--experiment_name=$experimentName"
 )
 if ($PSBoundParameters.ContainsKey('Seed')) {
@@ -77,8 +77,15 @@ try {
             $logRoot = Join-Path $projectRoot "logs\rsl_rl\$experimentName"
             $latestCheckpointBefore = Get-ChildItem $logRoot -Recurse -Filter "model_*.pt" -ErrorAction SilentlyContinue |
                 Sort-Object LastWriteTime -Descending | Select-Object -First 1
-            & $launcher -p $scriptPath "--task=$taskName" "--num_envs=$NumEnvs" `
-                "--max_iterations=$MaxIterations" @runnerEnvironmentArguments
+            # Pass a single argument array to the batch launcher.  Inline splatting
+            # after positional arguments can lose the value part of Hydra overrides
+            # on Windows PowerShell, producing e.g. `env.environment_preset` without
+            # its `=rough` value.  Training is intentionally headless on this host.
+            $arguments = @(
+                "-p", $scriptPath, "--headless", "--task=$taskName",
+                "--num_envs=$NumEnvs", "--max_iterations=$MaxIterations"
+            ) + $runnerEnvironmentArguments
+            & $launcher @arguments
             $nativeExitCode = $LASTEXITCODE
             $latestCheckpointAfter = Get-ChildItem $logRoot -Recurse -Filter "model_*.pt" -ErrorAction SilentlyContinue |
                 Sort-Object LastWriteTime -Descending | Select-Object -First 1
@@ -113,7 +120,9 @@ try {
         }
         "play" {
             $scriptPath = Join-Path $projectRoot "isaaclab_project\scripts\play.py"
-            $arguments = @("-p", $scriptPath, "--task=$taskName", "--num_envs=$NumEnvs") + $runnerEnvironmentArguments
+            # GUI playback must use USD I/O.  Fabric is faster but does not keep
+            # the USD viewport synchronized with the simulated articulation.
+            $arguments = @("-p", $scriptPath, "--disable_fabric", "--task=$taskName", "--num_envs=$NumEnvs") + $runnerEnvironmentArguments
             if ($Checkpoint) {
                 $arguments += "--checkpoint=$Checkpoint"
             }

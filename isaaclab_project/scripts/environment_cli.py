@@ -106,11 +106,8 @@ def configure_runner(argv: list[str], *, training: bool) -> list[str]:
     spec.kwargs["env_cfg_entry_point"] = environment_factory
     spec.kwargs["rsl_rl_cfg_entry_point"] = agent_factory
     remaining.append(f"--task={options.task}")
-    if training:
-        # Keep the requested preset visible in Hydra overrides and saved config.
-        remaining.extend(
-            (f"env.environment_preset={options.environment}", f"env.environment_difficulty={options.difficulty}")
-        )
-        if options.seed is not None:
-            remaining.append(f"--seed={options.seed}")
+    # The factories above already apply the requested environment, difficulty and
+    # seed.  Do not re-inject them as Hydra `env.*` overrides: Isaac Lab 2.1's
+    # trainer consumes the root config before our factory fields exist, which
+    # rejects those overrides on Windows.
     return remaining
