@@ -56,3 +56,17 @@ SPIDERBOT_CFG = ArticulationCfg(
     soft_joint_pos_limit_factor=0.95,
 )
 """Eight-leg, 24-DoF articulation using measured MG996R constraints."""
+
+
+def cad_spiderbot_cfg(leg_count: int) -> ArticulationCfg:
+    """CAD variants have their own assembled zero pose and shorter stance."""
+    if leg_count not in (6, 8):
+        raise ValueError('CAD spiderbots support 6 or 8 legs')
+    cfg = SPIDERBOT_CFG.copy()
+    cfg.spawn.usd_path = str(
+        _PROJECT_ROOT / 'assets' / 'spiderbot_variants' / f'spiderbot_{leg_count}leg'
+        / f'spiderbot_{leg_count}leg.usd'
+    )
+    cfg.init_state.pos = (0.0, 0.0, 0.12004)
+    cfg.init_state.joint_pos = {'.*_joint': 0.0}
+    return cfg

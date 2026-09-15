@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 from isaaclab.app import AppLauncher
+from environment_cli import add_environment_args, apply_environment_cfg, experiment_for_environment
 
 
 parser = argparse.ArgumentParser(description="Evaluate a trained DKSH spiderbot policy.")
@@ -13,8 +14,11 @@ parser.add_argument("--task", default="Isaac-DKSH-Spider-Navigation-Direct-v0")
 parser.add_argument("--checkpoint", default="", help="Checkpoint path; defaults to the newest local model_*.pt.")
 parser.add_argument("--num_envs", type=int, default=4)
 parser.add_argument("--steps", type=int, default=500)
+add_environment_args(parser)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
+if args_cli.num_envs < 1 or args_cli.steps < 1:
+    parser.error("--num_envs and --steps must be positive")
 
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
@@ -29,29 +33,34 @@ from isaaclab_tasks.utils import parse_env_cfg
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 
-def _resolve_checkpoint() -> Path:
+def _resolve_checkpoint(agent_cfg) -> Path:
     if args_cli.checkpoint:
         checkpoint = Path(args_cli.checkpoint).expanduser().resolve()
         if not checkpoint.is_file():
             raise FileNotFoundError(f"Checkpoint does not exist: {checkpoint}")
         return checkpoint
 
-    log_root = Path.cwd() / "logs" / "rsl_rl" / "dksh_spider_navigation"
+    log_root = Path.cwd() / "logs" / "rsl_rl" / agent_cfg.experiment_name
     candidates = list(log_root.glob("**/model_*.pt"))
     if candidates:
         return max(candidates, key=lambda path: path.stat().st_mtime)
 
     bundled = Path(__file__).resolve().parents[1] / "checkpoints" / "balance_baseline.pt"
-    if bundled.is_file():
+    if (args_cli.environment == "flat" and args_cli.task == 'Isaac-DKSH-Spider-Navigation-Direct-v0'
+            and bundled.is_file()):
         return bundled
-    raise FileNotFoundError(f"No checkpoint found below {log_root}, and the bundled baseline is missing.")
+    raise FileNotFoundError(f"No compatible checkpoint found below {log_root}. Train this task or pass --checkpoint.")
 
 
 def main() -> None:
-    checkpoint = _resolve_checkpoint()
     env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs)
+    apply_environment_cfg(env_cfg, args_cli.environment, args_cli.difficulty, args_cli.seed)
     agent_cfg = load_cfg_from_registry(args_cli.task, "rsl_rl_cfg_entry_point")
+    agent_cfg.experiment_name = experiment_for_environment(agent_cfg.experiment_name, args_cli.environment)
     agent_cfg.device = args_cli.device
+    if args_cli.seed is not None:
+        agent_cfg.seed = args_cli.seed
+    checkpoint = _resolve_checkpoint(agent_cfg)
 
     env = gym.make(args_cli.task, cfg=env_cfg)
     wrapped_env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
@@ -89,7 +98,8 @@ def main() -> None:
                     timeout_count += int(log.get("Episode_Termination/time_out", 0))
 
         print(
-            f"DKSH_ISAACLAB_EVAL_PASS checkpoint={checkpoint} envs={args_cli.num_envs} "
+            f"DKSH_ISAACLAB_EVAL_PASS checkpoint={checkpoint} environment={args_cli.environment} "
+            f"difficulty={args_cli.difficulty} envs={args_cli.num_envs} "
             f"steps={args_cli.steps} mean_reward={total_reward.mean().item():.6f} resets={reset_count} "
             f"goals={goal_count} falls={fall_count} timeouts={timeout_count} "
             f"mean_speed={planar_speed_sum / args_cli.steps:.6f} "

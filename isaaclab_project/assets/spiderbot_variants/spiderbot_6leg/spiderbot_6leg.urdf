@@ -1,0 +1,582 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot name="dksh_spiderbot_6leg_cad">
+  <link name="base">
+    <inertial>
+      <origin xyz="0.000000000 0.000000000 0.000324922" rpy="0 0 0" />
+      <mass value="0.5" />
+      <inertia ixx="0.002372023602868209" iyy="0.0029870802451547884" izz="0.005207855534088765" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/base.obj" />
+      </geometry>
+      <material name="base">
+        <color rgba="0.110000000 0.150000000 0.190000000 1.000000000" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.000000000 0.000000000 0.000000000" rpy="0.000000000 0.000000000 0.000000000" />
+      <geometry>
+        <box size="0.150000000 0.150000000 0.022000000" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin xyz="0.095421148 0.005144166 0.000324922" rpy="0.000000000 0.000000000 0.000000000" />
+      <geometry>
+        <box size="0.073496399 0.101663288 0.042602579" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin xyz="0.043255595 0.085209222 0.000324922" rpy="0.000000000 0.000000000 1.047197551" />
+      <geometry>
+        <box size="0.073496399 0.101663288 0.042602579" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin xyz="-0.052165553 0.080065055 0.000324922" rpy="0.000000000 0.000000000 2.094395102" />
+      <geometry>
+        <box size="0.073496399 0.101663288 0.042602579" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin xyz="-0.095421148 -0.005144166 0.000324922" rpy="0.000000000 0.000000000 3.141592654" />
+      <geometry>
+        <box size="0.073496399 0.101663288 0.042602579" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin xyz="-0.043255595 -0.085209222 0.000324922" rpy="0.000000000 0.000000000 4.188790205" />
+      <geometry>
+        <box size="0.073496399 0.101663288 0.042602579" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin xyz="0.052165553 -0.080065055 0.000324922" rpy="0.000000000 0.000000000 5.235987756" />
+      <geometry>
+        <box size="0.073496399 0.101663288 0.042602579" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="leg_0_hip">
+    <inertial>
+      <origin xyz="0.020932082 -0.001750000 0.000497309" rpy="0 0 0" />
+      <mass value="0.1" />
+      <inertia ixx="2.8352668118290987e-05" iyy="4.63277654963587e-05" izz="4.0057764739009287e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/hip.obj" />
+      </geometry>
+      <material name="hip">
+        <color rgba="0.160000000 0.470000000 0.650000000 1.000000000" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.020932082 -0.001750000 0.000497309" rpy="0.000000000 0.000000000 0.000000000" />
+      <geometry>
+        <box size="0.059008234 0.036400001 0.045578066" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="leg_0_hip_joint" type="revolute">
+    <parent link="base" />
+    <child link="leg_0_hip" />
+    <origin xyz="0.120000000 0.000000000 0.000000000" rpy="0.000000000 0.000000000 0.000000000" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="0.980665" velocity="6.981317007977318" />
+    <dynamics damping="0.05" friction="0.01" />
+  </joint>
+  <link name="leg_0_femur">
+    <inertial>
+      <origin xyz="0.017335109 0.001250000 -0.017335109" rpy="0 0 0" />
+      <mass value="0.1" />
+      <inertia ixx="3.8126683006580906e-05" iyy="4.629069859330931e-05" izz="3.8126683062110895e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/femur.obj" />
+      </geometry>
+      <material name="femur">
+        <color rgba="0.310000000 0.640000000 0.730000000 1.000000000" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.017335109 0.001250000 -0.017335109" rpy="0.000000000 0.000000000 0.000000000" />
+      <geometry>
+        <box size="0.052701441 0.042400001 0.052701441" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="leg_0_femur_joint" type="revolute">
+    <parent link="leg_0_hip" />
+    <child link="leg_0_femur" />
+    <origin xyz="0.036987004 0.000000000 0.001525013" rpy="0.000000000 0.000000000 0.000000000" />
+    <axis xyz="0 1 0" />
+    <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="0.980665" velocity="6.981317007977318" />
+    <dynamics damping="0.05" friction="0.01" />
+  </joint>
+  <link name="leg_0_tibia">
+    <inertial>
+      <origin xyz="0.016120809 -0.000150000 -0.036284219" rpy="0 0 0" />
+      <mass value="0.10227" />
+      <inertia ixx="8.354875232560094e-05" iyy="8.752562848118777e-05" izz="3.880049413117583e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/tibia.obj" />
+      </geometry>
+      <material name="tibia">
+        <color rgba="0.920000000 0.470000000 0.180000000 1.000000000" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.016120809 -0.000150000 -0.036284219" rpy="0.000000000 0.000000000 0.000000000" />
+      <geometry>
+        <box size="0.050096633 0.045200001 0.088092423" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="leg_0_tibia_joint" type="revolute">
+    <parent link="leg_0_femur" />
+    <child link="leg_0_tibia" />
+    <origin xyz="0.029238866 0.000000000 -0.029238866" rpy="0.000000000 0.000000000 0.000000000" />
+    <axis xyz="0 1 0" />
+    <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="0.980665" velocity="6.981317007977318" />
+    <dynamics damping="0.05" friction="0.01" />
+  </joint>
+  <link name="leg_1_hip">
+    <inertial>
+      <origin xyz="0.020932082 -0.001750000 0.000497309" rpy="0 0 0" />
+      <mass value="0.1" />
+      <inertia ixx="2.8352668118290987e-05" iyy="4.63277654963587e-05" izz="4.0057764739009287e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/hip.obj" />
+      </geometry>
+      <material name="hip">
+        <color rgba="0.160000000 0.470000000 0.650000000 1.000000000" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.020932082 -0.001750000 0.000497309" rpy="0.000000000 0.000000000 0.000000000" />
+      <geometry>
+        <box size="0.059008234 0.036400001 0.045578066" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="leg_1_hip_joint" type="revolute">
+    <parent link="base" />
+    <child link="leg_1_hip" />
+    <origin xyz="0.060000000 0.103923048 0.000000000" rpy="0.000000000 0.000000000 1.047197551" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="0.980665" velocity="6.981317007977318" />
+    <dynamics damping="0.05" friction="0.01" />
+  </joint>
+  <link name="leg_1_femur">
+    <inertial>
+      <origin xyz="0.017335109 0.001250000 -0.017335109" rpy="0 0 0" />
+      <mass value="0.1" />
+      <inertia ixx="3.8126683006580906e-05" iyy="4.629069859330931e-05" izz="3.8126683062110895e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/femur.obj" />
+      </geometry>
+      <material name="femur">
+        <color rgba="0.310000000 0.640000000 0.730000000 1.000000000" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.017335109 0.001250000 -0.017335109" rpy="0.000000000 0.000000000 0.000000000" />
+      <geometry>
+        <box size="0.052701441 0.042400001 0.052701441" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="leg_1_femur_joint" type="revolute">
+    <parent link="leg_1_hip" />
+    <child link="leg_1_femur" />
+    <origin xyz="0.036987004 0.000000000 0.001525013" rpy="0.000000000 0.000000000 0.000000000" />
+    <axis xyz="0 1 0" />
+    <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="0.980665" velocity="6.981317007977318" />
+    <dynamics damping="0.05" friction="0.01" />
+  </joint>
+  <link name="leg_1_tibia">
+    <inertial>
+      <origin xyz="0.016120809 -0.000150000 -0.036284219" rpy="0 0 0" />
+      <mass value="0.10227" />
+      <inertia ixx="8.354875232560094e-05" iyy="8.752562848118777e-05" izz="3.880049413117583e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/tibia.obj" />
+      </geometry>
+      <material name="tibia">
+        <color rgba="0.920000000 0.470000000 0.180000000 1.000000000" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.016120809 -0.000150000 -0.036284219" rpy="0.000000000 0.000000000 0.000000000" />
+      <geometry>
+        <box size="0.050096633 0.045200001 0.088092423" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="leg_1_tibia_joint" type="revolute">
+    <parent link="leg_1_femur" />
+    <child link="leg_1_tibia" />
+    <origin xyz="0.029238866 0.000000000 -0.029238866" rpy="0.000000000 0.000000000 0.000000000" />
+    <axis xyz="0 1 0" />
+    <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="0.980665" velocity="6.981317007977318" />
+    <dynamics damping="0.05" friction="0.01" />
+  </joint>
+  <link name="leg_2_hip">
+    <inertial>
+      <origin xyz="0.020932082 -0.001750000 0.000497309" rpy="0 0 0" />
+      <mass value="0.1" />
+      <inertia ixx="2.8352668118290987e-05" iyy="4.63277654963587e-05" izz="4.0057764739009287e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/hip.obj" />
+      </geometry>
+      <material name="hip">
+        <color rgba="0.160000000 0.470000000 0.650000000 1.000000000" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.020932082 -0.001750000 0.000497309" rpy="0.000000000 0.000000000 0.000000000" />
+      <geometry>
+        <box size="0.059008234 0.036400001 0.045578066" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="leg_2_hip_joint" type="revolute">
+    <parent link="base" />
+    <child link="leg_2_hip" />
+    <origin xyz="-0.060000000 0.103923048 0.000000000" rpy="0.000000000 0.000000000 2.094395102" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="0.980665" velocity="6.981317007977318" />
+    <dynamics damping="0.05" friction="0.01" />
+  </joint>
+  <link name="leg_2_femur">
+    <inertial>
+      <origin xyz="0.017335109 0.001250000 -0.017335109" rpy="0 0 0" />
+      <mass value="0.1" />
+      <inertia ixx="3.8126683006580906e-05" iyy="4.629069859330931e-05" izz="3.8126683062110895e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/femur.obj" />
+      </geometry>
+      <material name="femur">
+        <color rgba="0.310000000 0.640000000 0.730000000 1.000000000" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.017335109 0.001250000 -0.017335109" rpy="0.000000000 0.000000000 0.000000000" />
+      <geometry>
+        <box size="0.052701441 0.042400001 0.052701441" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="leg_2_femur_joint" type="revolute">
+    <parent link="leg_2_hip" />
+    <child link="leg_2_femur" />
+    <origin xyz="0.036987004 0.000000000 0.001525013" rpy="0.000000000 0.000000000 0.000000000" />
+    <axis xyz="0 1 0" />
+    <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="0.980665" velocity="6.981317007977318" />
+    <dynamics damping="0.05" friction="0.01" />
+  </joint>
+  <link name="leg_2_tibia">
+    <inertial>
+      <origin xyz="0.016120809 -0.000150000 -0.036284219" rpy="0 0 0" />
+      <mass value="0.10227" />
+      <inertia ixx="8.354875232560094e-05" iyy="8.752562848118777e-05" izz="3.880049413117583e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/tibia.obj" />
+      </geometry>
+      <material name="tibia">
+        <color rgba="0.920000000 0.470000000 0.180000000 1.000000000" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.016120809 -0.000150000 -0.036284219" rpy="0.000000000 0.000000000 0.000000000" />
+      <geometry>
+        <box size="0.050096633 0.045200001 0.088092423" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="leg_2_tibia_joint" type="revolute">
+    <parent link="leg_2_femur" />
+    <child link="leg_2_tibia" />
+    <origin xyz="0.029238866 0.000000000 -0.029238866" rpy="0.000000000 0.000000000 0.000000000" />
+    <axis xyz="0 1 0" />
+    <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="0.980665" velocity="6.981317007977318" />
+    <dynamics damping="0.05" friction="0.01" />
+  </joint>
+  <link name="leg_3_hip">
+    <inertial>
+      <origin xyz="0.020932082 -0.001750000 0.000497309" rpy="0 0 0" />
+      <mass value="0.1" />
+      <inertia ixx="2.8352668118290987e-05" iyy="4.63277654963587e-05" izz="4.0057764739009287e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/hip.obj" />
+      </geometry>
+      <material name="hip">
+        <color rgba="0.160000000 0.470000000 0.650000000 1.000000000" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.020932082 -0.001750000 0.000497309" rpy="0.000000000 0.000000000 0.000000000" />
+      <geometry>
+        <box size="0.059008234 0.036400001 0.045578066" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="leg_3_hip_joint" type="revolute">
+    <parent link="base" />
+    <child link="leg_3_hip" />
+    <origin xyz="-0.120000000 0.000000000 0.000000000" rpy="0.000000000 0.000000000 3.141592654" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="0.980665" velocity="6.981317007977318" />
+    <dynamics damping="0.05" friction="0.01" />
+  </joint>
+  <link name="leg_3_femur">
+    <inertial>
+      <origin xyz="0.017335109 0.001250000 -0.017335109" rpy="0 0 0" />
+      <mass value="0.1" />
+      <inertia ixx="3.8126683006580906e-05" iyy="4.629069859330931e-05" izz="3.8126683062110895e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/femur.obj" />
+      </geometry>
+      <material name="femur">
+        <color rgba="0.310000000 0.640000000 0.730000000 1.000000000" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.017335109 0.001250000 -0.017335109" rpy="0.000000000 0.000000000 0.000000000" />
+      <geometry>
+        <box size="0.052701441 0.042400001 0.052701441" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="leg_3_femur_joint" type="revolute">
+    <parent link="leg_3_hip" />
+    <child link="leg_3_femur" />
+    <origin xyz="0.036987004 0.000000000 0.001525013" rpy="0.000000000 0.000000000 0.000000000" />
+    <axis xyz="0 1 0" />
+    <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="0.980665" velocity="6.981317007977318" />
+    <dynamics damping="0.05" friction="0.01" />
+  </joint>
+  <link name="leg_3_tibia">
+    <inertial>
+      <origin xyz="0.016120809 -0.000150000 -0.036284219" rpy="0 0 0" />
+      <mass value="0.10227" />
+      <inertia ixx="8.354875232560094e-05" iyy="8.752562848118777e-05" izz="3.880049413117583e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/tibia.obj" />
+      </geometry>
+      <material name="tibia">
+        <color rgba="0.920000000 0.470000000 0.180000000 1.000000000" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.016120809 -0.000150000 -0.036284219" rpy="0.000000000 0.000000000 0.000000000" />
+      <geometry>
+        <box size="0.050096633 0.045200001 0.088092423" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="leg_3_tibia_joint" type="revolute">
+    <parent link="leg_3_femur" />
+    <child link="leg_3_tibia" />
+    <origin xyz="0.029238866 0.000000000 -0.029238866" rpy="0.000000000 0.000000000 0.000000000" />
+    <axis xyz="0 1 0" />
+    <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="0.980665" velocity="6.981317007977318" />
+    <dynamics damping="0.05" friction="0.01" />
+  </joint>
+  <link name="leg_4_hip">
+    <inertial>
+      <origin xyz="0.020932082 -0.001750000 0.000497309" rpy="0 0 0" />
+      <mass value="0.1" />
+      <inertia ixx="2.8352668118290987e-05" iyy="4.63277654963587e-05" izz="4.0057764739009287e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/hip.obj" />
+      </geometry>
+      <material name="hip">
+        <color rgba="0.160000000 0.470000000 0.650000000 1.000000000" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.020932082 -0.001750000 0.000497309" rpy="0.000000000 0.000000000 0.000000000" />
+      <geometry>
+        <box size="0.059008234 0.036400001 0.045578066" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="leg_4_hip_joint" type="revolute">
+    <parent link="base" />
+    <child link="leg_4_hip" />
+    <origin xyz="-0.060000000 -0.103923048 0.000000000" rpy="0.000000000 0.000000000 4.188790205" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="0.980665" velocity="6.981317007977318" />
+    <dynamics damping="0.05" friction="0.01" />
+  </joint>
+  <link name="leg_4_femur">
+    <inertial>
+      <origin xyz="0.017335109 0.001250000 -0.017335109" rpy="0 0 0" />
+      <mass value="0.1" />
+      <inertia ixx="3.8126683006580906e-05" iyy="4.629069859330931e-05" izz="3.8126683062110895e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/femur.obj" />
+      </geometry>
+      <material name="femur">
+        <color rgba="0.310000000 0.640000000 0.730000000 1.000000000" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.017335109 0.001250000 -0.017335109" rpy="0.000000000 0.000000000 0.000000000" />
+      <geometry>
+        <box size="0.052701441 0.042400001 0.052701441" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="leg_4_femur_joint" type="revolute">
+    <parent link="leg_4_hip" />
+    <child link="leg_4_femur" />
+    <origin xyz="0.036987004 0.000000000 0.001525013" rpy="0.000000000 0.000000000 0.000000000" />
+    <axis xyz="0 1 0" />
+    <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="0.980665" velocity="6.981317007977318" />
+    <dynamics damping="0.05" friction="0.01" />
+  </joint>
+  <link name="leg_4_tibia">
+    <inertial>
+      <origin xyz="0.016120809 -0.000150000 -0.036284219" rpy="0 0 0" />
+      <mass value="0.10227" />
+      <inertia ixx="8.354875232560094e-05" iyy="8.752562848118777e-05" izz="3.880049413117583e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/tibia.obj" />
+      </geometry>
+      <material name="tibia">
+        <color rgba="0.920000000 0.470000000 0.180000000 1.000000000" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.016120809 -0.000150000 -0.036284219" rpy="0.000000000 0.000000000 0.000000000" />
+      <geometry>
+        <box size="0.050096633 0.045200001 0.088092423" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="leg_4_tibia_joint" type="revolute">
+    <parent link="leg_4_femur" />
+    <child link="leg_4_tibia" />
+    <origin xyz="0.029238866 0.000000000 -0.029238866" rpy="0.000000000 0.000000000 0.000000000" />
+    <axis xyz="0 1 0" />
+    <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="0.980665" velocity="6.981317007977318" />
+    <dynamics damping="0.05" friction="0.01" />
+  </joint>
+  <link name="leg_5_hip">
+    <inertial>
+      <origin xyz="0.020932082 -0.001750000 0.000497309" rpy="0 0 0" />
+      <mass value="0.1" />
+      <inertia ixx="2.8352668118290987e-05" iyy="4.63277654963587e-05" izz="4.0057764739009287e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/hip.obj" />
+      </geometry>
+      <material name="hip">
+        <color rgba="0.160000000 0.470000000 0.650000000 1.000000000" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.020932082 -0.001750000 0.000497309" rpy="0.000000000 0.000000000 0.000000000" />
+      <geometry>
+        <box size="0.059008234 0.036400001 0.045578066" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="leg_5_hip_joint" type="revolute">
+    <parent link="base" />
+    <child link="leg_5_hip" />
+    <origin xyz="0.060000000 -0.103923048 0.000000000" rpy="0.000000000 0.000000000 5.235987756" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="0.980665" velocity="6.981317007977318" />
+    <dynamics damping="0.05" friction="0.01" />
+  </joint>
+  <link name="leg_5_femur">
+    <inertial>
+      <origin xyz="0.017335109 0.001250000 -0.017335109" rpy="0 0 0" />
+      <mass value="0.1" />
+      <inertia ixx="3.8126683006580906e-05" iyy="4.629069859330931e-05" izz="3.8126683062110895e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/femur.obj" />
+      </geometry>
+      <material name="femur">
+        <color rgba="0.310000000 0.640000000 0.730000000 1.000000000" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.017335109 0.001250000 -0.017335109" rpy="0.000000000 0.000000000 0.000000000" />
+      <geometry>
+        <box size="0.052701441 0.042400001 0.052701441" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="leg_5_femur_joint" type="revolute">
+    <parent link="leg_5_hip" />
+    <child link="leg_5_femur" />
+    <origin xyz="0.036987004 0.000000000 0.001525013" rpy="0.000000000 0.000000000 0.000000000" />
+    <axis xyz="0 1 0" />
+    <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="0.980665" velocity="6.981317007977318" />
+    <dynamics damping="0.05" friction="0.01" />
+  </joint>
+  <link name="leg_5_tibia">
+    <inertial>
+      <origin xyz="0.016120809 -0.000150000 -0.036284219" rpy="0 0 0" />
+      <mass value="0.10227" />
+      <inertia ixx="8.354875232560094e-05" iyy="8.752562848118777e-05" izz="3.880049413117583e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/tibia.obj" />
+      </geometry>
+      <material name="tibia">
+        <color rgba="0.920000000 0.470000000 0.180000000 1.000000000" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.016120809 -0.000150000 -0.036284219" rpy="0.000000000 0.000000000 0.000000000" />
+      <geometry>
+        <box size="0.050096633 0.045200001 0.088092423" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="leg_5_tibia_joint" type="revolute">
+    <parent link="leg_5_femur" />
+    <child link="leg_5_tibia" />
+    <origin xyz="0.029238866 0.000000000 -0.029238866" rpy="0.000000000 0.000000000 0.000000000" />
+    <axis xyz="0 1 0" />
+    <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="0.980665" velocity="6.981317007977318" />
+    <dynamics damping="0.05" friction="0.01" />
+  </joint>
+</robot>

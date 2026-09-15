@@ -33,3 +33,13 @@ class SpiderNavigationPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         desired_kl=0.008,
         max_grad_norm=1.0,
     )
+
+
+@configclass
+class SpiderCad8PPORunnerCfg(SpiderNavigationPPORunnerCfg):
+    experiment_name = 'dksh_spider_cad8_navigation'
+
+
+@configclass
+class SpiderCad6PPORunnerCfg(SpiderNavigationPPORunnerCfg):
+    experiment_name = 'dksh_spider_cad6_navigation'

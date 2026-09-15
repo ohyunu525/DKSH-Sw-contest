@@ -1,0 +1,36 @@
+name: dksh-spiderbot
+
+services:
+  ros2:
+    image: dksh-spiderbot/ros2-bridge:jazzy
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        ROS_DISTRO: jazzy
+        ROS_BASE_IMAGE: ros:jazzy-ros-base-noble
+        ROS_TCP_ENDPOINT_TAG: ROS2v0.7.0
+        FRONTIER_EXPLORATION_TAG: v1.6.1
+    container_name: dksh-ros2-bridge
+    init: true
+    restart: "no"
+    cpus: 4.0
+    mem_limit: 5g
+    memswap_limit: 6g
+    pids_limit: 1024
+    shm_size: 256m
+    environment:
+      ROS_DOMAIN_ID: 42
+      ROS_AUTOMATIC_DISCOVERY_RANGE: LOCALHOST
+    ports:
+      - "127.0.0.1:10000:10000"
+    volumes:
+      - ./config:/opt/dksh/config:ro
+      - ./launch:/opt/dksh/launch:ro
+      - ./tools:/opt/dksh/tools:ro
+    healthcheck:
+      test: ["CMD", "bash", "-c", "source /opt/ros/jazzy/setup.bash && source /opt/dksh_ros2/install/setup.bash && ros2 node list 2>/dev/null | grep -qx /UnityEndpoint"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
