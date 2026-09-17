@@ -1,5 +1,9 @@
 # MG90S 예비 보행 학습
 
+> 2026-09-16 정정: 실물은 **6족**이다. 이 문서와 기존 정책은 8족 예비 실험 기록이다.
+> 현재 기본 실행은 [6족 MG90S 학습](mg90s_cad6_training.md)을 따른다.
+> 아래 과거 실행을 재현할 때만 `run_mg90s.ps1`에 `-RobotModel legacy8`을 명시한다.
+
 ## 범위와 가정
 
 `Isaac-DKSH-MG90S-Walk-Direct-v0`는 기존 primitive 8족 기하를 사용하는 별도 실험이다.

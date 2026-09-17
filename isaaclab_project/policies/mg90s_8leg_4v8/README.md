@@ -1,5 +1,9 @@
 # MG90S 8-leg 4.8 V selected policy
 
+**Historical eight-leg experiment; not compatible with the user's six-leg robot.**
+The default launcher now selects CAD6 and rejects this checkpoint unless
+`-RobotModel legacy8` is explicitly selected.
+
 `model_1999.pt` was trained with `Isaac-DKSH-MG90S-Walk-Direct-v0` on 2026-09-15.
 
 - 32 environments, seed 42, 2,000 PPO iterations, 3,072,000 transitions.

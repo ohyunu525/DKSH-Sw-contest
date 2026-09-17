@@ -8,6 +8,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--num_envs", type=int, default=4)
 parser.add_argument("--steps", type=int, default=1000)
 parser.add_argument("--output", default="")
+parser.add_argument("--task", default="Isaac-DKSH-MG90S-Walk-Direct-v0",
+                    choices=["Isaac-DKSH-MG90S-Walk-Direct-v0", "Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0",
+                             "Isaac-DKSH-MG90S-CAD6-Sprint-Direct-v0"])
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 if args.steps < 1000 or args.num_envs < 1:
@@ -22,20 +25,25 @@ from dksh_isaaclab.tasks.direct.spider_navigation.mg90s_env_cfg import MG90S_STA
 
 
 def main():
-    cfg = parse_env_cfg("Isaac-DKSH-MG90S-Walk-Direct-v0", device=args.device, num_envs=args.num_envs)
+    cfg = parse_env_cfg(args.task, device=args.device, num_envs=args.num_envs)
     # Inspect one uninterrupted 20 second trajectory in each phase.
     cfg.episode_length_s = (args.steps + 10) * cfg.sim.dt * cfg.decimation
-    env = gym.make("Isaac-DKSH-MG90S-Walk-Direct-v0", cfg=cfg)
+    env = gym.make(args.task, cfg=cfg)
     robot_env = env.unwrapped
     robot = robot_env._robot
     results = {}
     try:
+        assert robot.num_joints == cfg.action_space
+        assert robot.num_bodies == cfg.action_space + 1
         print("MG90S_PREFLIGHT_PHYSICS", {
+            "task": args.task, "usd": cfg.robot.spawn.usd_path,
+            "joints": robot.num_joints, "bodies": robot.num_bodies,
             "mass_kg": float(robot.root_physx_view.get_masses()[0].sum()),
             "effort_cap_nm": float(robot.actuators["mg90s_4v8"].effort_limit.max()),
             "no_load_speed_rad_s": MG90S_NO_LOAD_SPEED,
         }, flush=True)
-        for label, speed_min, speed_max, lift in (("stand", 0., 0., 0.), ("wave", 0.004, 0.010, 0.006)):
+        wave_parameters = (cfg.command_speed_min, cfg.command_speed_max, cfg.gait_lift)
+        for label, speed_min, speed_max, lift in (("stand", 0., 0., 0.), ("wave", *wave_parameters)):
             robot_env.cfg.command_speed_min = speed_min
             robot_env.cfg.command_speed_max = speed_max
             robot_env.cfg.gait_lift = lift
@@ -47,10 +55,10 @@ def main():
             speed_sum = 0.
             saturated_sum = 0.
             for step in range(args.steps):
-                obs, reward, terminated, truncated, info = env.step(torch.zeros((args.num_envs, 24), device=robot_env.device))
+                obs, reward, terminated, truncated, info = env.step(torch.zeros((args.num_envs, cfg.action_space), device=robot_env.device))
                 if not torch.isfinite(obs["policy"]).all() or not torch.isfinite(reward).all():
                     raise RuntimeError("Non-finite physics or reward")
-                assert obs["policy"].shape == (args.num_envs, 86)
+                assert obs["policy"].shape == (args.num_envs, cfg.observation_space)
                 min_height = min(min_height, float(robot.data.root_pos_w[:, 2].min()))
                 max_torque = max(max_torque, float(robot.data.applied_torque.abs().max()))
                 speed_sum += float(robot.data.root_lin_vel_b[:, 0].mean())

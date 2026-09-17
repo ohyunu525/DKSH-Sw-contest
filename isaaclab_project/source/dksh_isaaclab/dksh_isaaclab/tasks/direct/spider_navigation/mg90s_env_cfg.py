@@ -46,7 +46,9 @@ class MG90SWalkEnvCfg(DirectRLEnvCfg):
     decimation = 4
     sim: SimulationCfg = SimulationCfg(dt=0.005, render_interval=4)
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=32, env_spacing=2.0, replicate_physics=True)
-    viewer = ViewerCfg(eye=(1.0, 1.0, 0.65), lookat=(0, 0, 0.15), origin_type="asset_root", asset_name="robot")
+    # Keep the playback viewport user-controlled.  ``asset_root`` rewrites the
+    # camera pose on every render frame, which prevents orbit/pan navigation.
+    viewer = ViewerCfg(eye=(1.0, 1.0, 0.65), lookat=(0, 0, 0.15), origin_type="world")
     robot = mg90s_robot_cfg()
     episode_length_s = 20.0
     action_space = 24

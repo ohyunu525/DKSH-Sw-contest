@@ -16,9 +16,9 @@ class MG90SWalkEnv(DirectRLEnv):
         super().__init__(cfg, render_mode, **kwargs)
         self._joint_ids = torch.tensor([
             self._robot.joint_names.index(f"leg_{i}_{part}_joint")
-            for i in range(8) for part in ("hip", "femur", "tibia")
+            for i in range(cfg.action_space // 3) for part in ("hip", "femur", "tibia")
         ], device=self.device)
-        self._actions = torch.zeros((self.num_envs, 24), device=self.device)
+        self._actions = torch.zeros((self.num_envs, cfg.action_space), device=self.device)
         self._previous_actions = torch.zeros_like(self._actions)
         self._filtered_actions = torch.zeros_like(self._actions)
         self._targets = self._robot.data.default_joint_pos.clone()
@@ -42,15 +42,18 @@ class MG90SWalkEnv(DirectRLEnv):
     def _phase(self):
         return (self._phase_offset + (self._age - self.cfg.settling_seconds).clamp_min(0) / self.cfg.gait_period).remainder(1)
 
+    def _gait_joint_positions(self):
+        feet = foot_targets(self._phase(), self._speed, self.cfg.gait_period, self.cfg.gait_lift)
+        return inverse_kinematics(feet).flatten(1)
+
     def _pre_physics_step(self, actions):
         self.extras["log"] = {}
         self._previous_actions.copy_(self._actions)
         self._actions.copy_(actions.clamp(-1, 1))
         self._filtered_actions.lerp_(self._actions, self.cfg.action_smoothing)
         self._age += self.step_dt
-        feet = foot_targets(self._phase(), self._speed, self.cfg.gait_period, self.cfg.gait_lift)
         reference = self._robot.data.default_joint_pos.clone()
-        reference[:, self._joint_ids] = inverse_kinematics(feet).flatten(1)
+        reference[:, self._joint_ids] = self._gait_joint_positions()
         # Smoothly leave the reset pose after one second of settling.
         ramp = ((self._age - self.cfg.settling_seconds) / 1.0).clamp(0, 1)[:, None]
         reference = torch.lerp(self._robot.data.default_joint_pos, reference, ramp)

@@ -54,6 +54,17 @@ Stop only this project's container with:
 
 The endpoint listens on host `127.0.0.1:10000`. `ROS_DOMAIN_ID` is fixed to `42`, and DDS discovery is restricted to the container's localhost because the Unity boundary is TCP. This avoids accidental discovery of unrelated ROS2 systems and reduces multicast traffic.
 
+## Tailscale remote Unity connection
+
+When Unity and ROS2 run on different computers, keep the Docker endpoint local and publish it only to the tailnet with Tailscale Serve. This does not open port 10000 on the LAN or public internet.
+
+1. Install Tailscale for Windows on both computers and sign in to the same tailnet. The ROS2 computer must allow Tailscale Serve in the tailnet policy.
+2. Start the ROS2 endpoint on the ROS2 computer: `./ros2/manage.ps1 Start`.
+3. In an elevated PowerShell window on that computer, run `./ros2/tailscale.ps1 Configure`. It prints the Tailscale IPv4 endpoint, for example `tcp://100.x.y.z:10000`.
+4. On the Unity computer, set **Ros2UnityBridge > Ros Ip Address** to that `100.x.y.z` address, keep **Ros Tcp Port** at `10000`, then enable `Ros2UnityBridge` and `HexapodVelocityCommandAdapter`.
+
+Run `./ros2/tailscale.ps1 Status` to inspect the forwarding rule. Use `./ros2/tailscale.ps1 Disable` to remove it. The remote Unity machine must be permitted to reach the ROS2 machine by the tailnet's access-control policy. This path forwards raw ROS TCP traffic; it is not Tailscale Funnel and is never public.
+
 For standalone Unity exploration, leave `HexapodVelocityCommandAdapter` and `Ros2UnityBridge` disabled on the `LiDAR Sensor` object. For ROS2 validation, enable those two components in the Inspector before entering Play Mode. Enabling the bridge temporarily disables the standalone path follower and coordinator, so only one system owns motion.
 
 Start the low-resource SLAM/Nav2 nodes inside the running container after Unity Play Mode is publishing `/clock`, `/scan`, `/odom` and `/tf`:

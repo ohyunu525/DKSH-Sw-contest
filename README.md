@@ -40,6 +40,17 @@ MPPI Omni, velocity smoother, collision monitor와 검증된 Frontier 후보 v1.
 Isaac Lab 학습은 반드시 별도 세션에서 실행합니다. 상세 명령, 자원 상한 및 실측치는
 [ROS2/Nav2 실행 안내](ros2/README.md)를 참고하세요.
 
+Unity와 ROS2를 서로 다른 네트워크의 두 컴퓨터에서 연결하려면 Tailscale을 사용할 수 있습니다.
+ROS2 컴퓨터에서 `./ros2/manage.ps1 Start` 후 관리자 PowerShell로
+`./ros2/tailscale.ps1 Configure`를 실행하고, 출력된 `100.x.y.z` 주소를 Unity의
+`Ros2UnityBridge` IP에 입력하세요. Docker의 ROS 포트는 로컬 전용으로 유지되며, 원격 접속은
+tailnet 안에서만 허용됩니다. 자세한 조건과 해제 방법은 [ROS2/Nav2 실행 안내](ros2/README.md)를 참고하세요.
+
+이 개발 PC 자체에 원격 접속하려면, 관리자 PowerShell에서
+`./scripts/enable_tailscale_rdp.ps1`을 한 번 실행하세요. 이 스크립트는 Windows RDP를
+활성화하되 Tailscale 주소 범위에서만 3389/TCP를 허용합니다. 개인 노트북에서는 출력된
+`mstsc /v:100.x.y.z` 명령이나 MagicDNS 이름으로 접속합니다.
+
 ## Isaac Lab 빠른 시작
 
 현재 구성은 Isaac Sim 4.5.0과 호환되는 Isaac Lab 2.1.0/Python 3.10을 사용합니다. NVIDIA GPU와
