@@ -6,6 +6,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
 from .mg90s_env_cfg import MG90SWalkEnvCfg, MG90S_STALL_TORQUE
+from .mg90s_rewards import speed_tracking_reward
 from .wave_gait import foot_targets, inverse_kinematics
 
 
@@ -92,11 +93,14 @@ class MG90SWalkEnv(DirectRLEnv):
     def _get_rewards(self):
         vel = self._robot.data.root_lin_vel_b
         # Zero forward velocity gets zero tracking reward; moving to the command earns more.
-        track = torch.exp(-((vel[:, 0] - self._speed) / 0.01).square()) - torch.exp(-(self._speed / 0.01).square())
+        track = speed_tracking_reward(vel[:, 0], self._speed, self.cfg.speed_tracking_sigma)
         upright = (-self._robot.data.projected_gravity_b[:, 2]).clamp(0, 1)
         active = (self._age > self.cfg.settling_seconds + 1).float()
         progress = vel[:, 0].clamp(-0.03, 0.03)
-        reward = (2 * track + 60 * progress) * upright * active
+        reward = (
+            self.cfg.speed_tracking_reward_scale * track
+            + self.cfg.forward_progress_reward_scale * progress
+        ) * upright * active
         reward -= 60 * vel[:, 1].square() + 0.5 * self._robot.data.root_ang_vel_b.square().sum(-1)
         reward -= 2 * (1 - upright).square()
         reward -= 0.003 * (self._actions - self._previous_actions).square().sum(-1)
@@ -106,6 +110,7 @@ class MG90SWalkEnv(DirectRLEnv):
             "Metrics/forward_speed_mps": vel[:, 0].mean(),
             "Metrics/command_speed_mps": self._speed.mean(),
             "Metrics/speed_error_mps": (vel[:, 0] - self._speed).abs().mean(),
+            "Metrics/speed_tracking_reward": track.mean(),
             "Metrics/upright": upright.mean(),
             "Metrics/torque_limit_fraction": (self._robot.data.applied_torque.abs() > 0.70 * MG90S_STALL_TORQUE).float().mean(),
         })

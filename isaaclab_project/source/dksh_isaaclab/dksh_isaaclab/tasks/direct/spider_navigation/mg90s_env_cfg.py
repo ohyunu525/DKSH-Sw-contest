@@ -66,6 +66,9 @@ class MG90SWalkEnvCfg(DirectRLEnvCfg):
     action_smoothing = 0.2
     target_rate_limit = 1.5
     minimum_height = 0.15
+    speed_tracking_reward_scale = 2.0
+    speed_tracking_sigma = 0.010
+    forward_progress_reward_scale = 60.0
 
 
 @configclass

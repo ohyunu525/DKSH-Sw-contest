@@ -26,6 +26,9 @@ class MG90SCad6EnvCfg(MG90SWalkEnvCfg):
     gait_stride_limit = 0.012
     command_speed_min = 0.003
     command_speed_max = 0.006
+    tripod_transition_speed = 0.030
+    tripod_transition_width = 0.005
+    tripod_enabled = False
     mass_assumption = 'CAD6 link estimates retained: 2.31362 kg; hardware mass unmeasured'
 
 
@@ -38,12 +41,24 @@ class MG90SCad6RunnerCfg(MG90SWalkRunnerCfg):
 @configclass
 class MG90SCad6SprintEnvCfg(MG90SCad6EnvCfg):
     """A higher-cadence profile kept within the MG90S no-load speed envelope."""
-    gait_period = 1.5
+    # Explore a substantially faster command range without increasing the
+    # already reach-limited 25 mm stride. At 0.050 m/s the 0.6 s wave cycle
+    # produces exactly 25 mm of stance travel (speed * period * 5/6).
+    gait_period = 0.6
     gait_lift = 0.005
     gait_stride_limit = 0.025
     command_speed_min = 0.012
-    command_speed_max = 0.020
-    target_rate_limit = 6.0
+    command_speed_max = 0.050
+    # Leave a small margin below the modeled 10.47 rad/s no-load speed.
+    target_rate_limit = 10.0
+    # Low speeds retain wave gait stability. Blend to alternating tripods over
+    # 0.025--0.035 m/s to make the high command range physically meaningful.
+    tripod_enabled = True
+    # Sprint must follow the sampled command instead of maximizing forward
+    # velocity regardless of overshoot. Keep the safety penalties unchanged.
+    speed_tracking_reward_scale = 6.0
+    speed_tracking_sigma = 0.006
+    forward_progress_reward_scale = 30.0
 
 
 @configclass
@@ -62,10 +77,25 @@ class MG90SCad6Env(MG90SWalkEnv):
         self._viewer_visuals = None
 
     def _gait_joint_positions(self):
-        feet = gait.foot_targets(
-            self._phase(), self._speed, self.cfg.gait_period, self.cfg.gait_lift, self.cfg.gait_stride_limit
+        feet = gait.blended_foot_targets(
+            self._phase(), self._speed, self.cfg.gait_period, self.cfg.gait_lift,
+            self.cfg.gait_stride_limit, self._tripod_weight(),
         )
         return gait.inverse_kinematics(feet).flatten(1)
+
+    def _tripod_weight(self):
+        if not self.cfg.tripod_enabled:
+            return torch.zeros_like(self._speed)
+        width = self.cfg.tripod_transition_width
+        if width <= 0:
+            return (self._speed >= self.cfg.tripod_transition_speed).float()
+        blend = ((self._speed - (self.cfg.tripod_transition_speed - width)) / (2 * width)).clamp(0, 1)
+        return blend.square() * (3 - 2 * blend)
+
+    def _get_rewards(self):
+        reward = super()._get_rewards()
+        self.extras["log"]["Metrics/tripod_blend"] = self._tripod_weight().mean()
+        return reward
 
     def _get_observations(self):
         if self.sim.has_gui():

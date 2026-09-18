@@ -16,12 +16,20 @@ STANCE_RADIUS = HIP_X + L1 * math.cos(ALPHA1 + STANCE_FEMUR) + L2 * math.cos(ALP
 STANCE_Z = HIP_Z - L1 * math.sin(ALPHA1 + STANCE_FEMUR) - L2 * math.sin(ALPHA2 + STANCE_FEMUR + STANCE_TIBIA)
 
 
-def foot_targets(phase, speed, period=2.4, lift=0.004, stride_limit=0.012):
+WAVE_OFFSETS = (0, 3, 1, 4, 2, 5)
+TRIPOD_OFFSETS = (0, 3, 0, 3, 0, 3)
+
+
+def foot_targets(phase, speed, period=2.4, lift=0.004, stride_limit=0.012, *, offsets=WAVE_OFFSETS, duty=5 / 6):
+    """Return reachable CAD6 targets for one gait pattern.
+
+    ``offsets`` is expressed in sixths of a cycle so the default remains the
+    original wave gait.  Tripod uses alternating (0, 2, 4) and (1, 3, 5)
+    legs, with a shorter stance fraction for higher cadence locomotion.
+    """
     angles = torch.arange(6, device=phase.device, dtype=phase.dtype) * (math.pi / 3)
-    # Offsets distribute six non-overlapping swing windows over a wave cycle.
-    offsets = torch.tensor([0, 3, 1, 4, 2, 5], device=phase.device, dtype=phase.dtype) / 6
+    offsets = torch.tensor(offsets, device=phase.device, dtype=phase.dtype) / 6
     p = (phase[:, None] + offsets).remainder(1)
-    duty = 5 / 6
     swing = ((p - duty) / (1 - duty)).clamp(0, 1)
     travel = torch.where(p < duty, 0.5 - p / duty, -0.5 + swing.square() * (3 - 2 * swing))
     stride = (speed * period * duty).clamp(0, stride_limit)[:, None]
@@ -29,6 +37,15 @@ def foot_targets(phase, speed, period=2.4, lift=0.004, stride_limit=0.012):
     y = STANCE_RADIUS * torch.sin(angles)[None, :].expand_as(x)
     z = STANCE_Z + lift * torch.sin(math.pi * swing).square()
     return torch.stack((x, y, z), -1)
+
+
+def blended_foot_targets(phase, speed, period, lift, stride_limit, tripod_weight):
+    """Blend wave and tripod targets continuously during speed transitions."""
+    wave = foot_targets(phase, speed, period, lift, stride_limit)
+    tripod = foot_targets(
+        phase, speed, period, lift, stride_limit, offsets=TRIPOD_OFFSETS, duty=0.55
+    )
+    return torch.lerp(wave, tripod, tripod_weight[:, None, None])
 
 
 def inverse_kinematics(feet):
