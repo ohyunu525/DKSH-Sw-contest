@@ -116,7 +116,16 @@ class ScenarioRuntimeTests(unittest.TestCase):
             num_envs=count,
             device="cpu",
             physics_dt=0.02,
-            cfg=types.SimpleNamespace(debris_impact_threshold=2.0),
+            cfg=types.SimpleNamespace(
+                debris_impact_threshold=2.0,
+                lidar_min_range_m=0.05,
+                lidar_max_range_m=30.0,
+                lidar_horizontal_scan_frequency_hz=11.0,
+                lidar_measurement_accuracy_m=0.02,
+                lidar_measurement_resolution_m=0.008,
+                lidar_observation_bins=16,
+                lidar_noise_enabled=False,
+            ),
             scene=types.SimpleNamespace(env_origins=origins),
             _robot=types.SimpleNamespace(data=types.SimpleNamespace(
                 root_pos_w=robot_pos, root_quat_w=robot_quat,
@@ -312,6 +321,17 @@ class ScenarioRuntimeTests(unittest.TestCase):
                         torch.testing.assert_close(observation[:, 28:], torch.zeros((4, 4)))
                     if preset == "flat":
                         torch.testing.assert_close(observation[:, :16], torch.ones((4, 16)))
+
+    def test_lidar_scan_is_held_until_next_l1_rm_horizontal_frame(self):
+        runtime = self.make_runtime("narrow", count=1)
+        first = runtime.observations()[:, :16].clone()
+        runtime.env._robot.data.root_pos_w[:, 1] += 0.2
+        runtime.time[:] = 0.05
+        held = runtime.observations()[:, :16]
+        torch.testing.assert_close(held, first)
+        runtime.time[:] = 0.10
+        updated = runtime.observations()[:, :16]
+        self.assertFalse(torch.equal(updated, first))
 
 
 if __name__ == "__main__":

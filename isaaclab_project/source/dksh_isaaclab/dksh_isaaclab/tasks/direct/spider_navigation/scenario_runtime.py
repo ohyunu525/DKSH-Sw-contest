@@ -13,7 +13,7 @@ from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.utils.math import quat_rotate_inverse
 
 from .scenario_layout import build_layout
-from .scenario_sensing import planar_box_ranges, sample_box_heights
+from .scenario_sensing import apply_lidar_measurement_model, planar_box_ranges, sample_box_heights
 
 
 class ScenarioRuntime:
@@ -119,6 +119,10 @@ class ScenarioRuntime:
         self._contact_active = torch.zeros_like(self.impact)
         self.floor_height = torch.full_like(self.time, self.layout.spawn[2])
         self.floor_velocity = torch.zeros((env.num_envs, 3), device=env.device)
+        self._lidar_ranges = torch.ones(
+            (env.num_envs, env.cfg.lidar_observation_bins), device=env.device
+        )
+        self._lidar_next_update = torch.zeros(env.num_envs, device=env.device)
         self._centers = torch.tensor([b.position for b in self.layout.boxes], device=env.device).reshape(-1, 3)
         self._halves = torch.tensor([b.size for b in self.layout.boxes], device=env.device).reshape(-1, 3) / 2
         # Roof and walls are never interpreted as supporting terrain.
@@ -139,6 +143,8 @@ class ScenarioRuntime:
         )
         self.impact[env_ids] = False
         self._contact_active[env_ids] = False
+        self._lidar_ranges[env_ids] = 1.0
+        self._lidar_next_update[env_ids] = 0.0
         self.drop_count[env_ids] = 0
         interval = 1.7 - self.difficulty
         for slot, debris in enumerate(self.debris):
@@ -239,8 +245,37 @@ class ScenarioRuntime:
             default_height=floor,
         ).squeeze(1)
 
+    def _lidar_observations(self, positions_w, yaw, centers_w):
+        """Update and hold the compact L1 RM scan at its physical 11 Hz rate."""
+        cfg = self.env.cfg
+        due = (self.time >= self._lidar_next_update).nonzero(as_tuple=False).flatten()
+        if due.numel() == 0:
+            return self._lidar_ranges
+        ranges = planar_box_ranges(
+            positions_w[due],
+            yaw[due],
+            centers_w[due],
+            self._halves,
+            max_range=cfg.lidar_max_range_m,
+            ray_count=cfg.lidar_observation_bins,
+        )
+        noise = torch.zeros_like(ranges)
+        if cfg.lidar_noise_enabled:
+            noise.uniform_(-1.0, 1.0)
+        self._lidar_ranges[due] = apply_lidar_measurement_model(
+            ranges,
+            max_range=cfg.lidar_max_range_m,
+            min_range=cfg.lidar_min_range_m,
+            accuracy=cfg.lidar_measurement_accuracy_m,
+            resolution=cfg.lidar_measurement_resolution_m,
+            noise=noise,
+        )
+        period = 1.0 / cfg.lidar_horizontal_scan_frequency_hz
+        self._lidar_next_update[due] = self.time[due] + period
+        return self._lidar_ranges
+
     def observations(self):
-        """16 planar ranges, 9 terrain heights, 3 floor velocities, 4 debris cues.
+        """L1 RM planar ranges, 9 terrain heights, 3 floor velocities, 4 debris cues.
 
         These are privileged simulator measurements; real sensor noise and
         occlusion must be modeled before transfer to hardware.
@@ -251,7 +286,7 @@ class ScenarioRuntime:
         yaw = torch.atan2(2 * (quat[:, 0] * quat[:, 3] + quat[:, 1] * quat[:, 2]),
                           1 - 2 * (quat[:, 2].square() + quat[:, 3].square()))
         centers = self._centers.unsqueeze(0) + env.scene.env_origins.unsqueeze(1)
-        ranges = planar_box_ranges(pos, yaw, centers, self._halves)
+        ranges = self._lidar_observations(pos, yaw, centers)
         offsets = self._height_offsets.unsqueeze(0).expand(env.num_envs, -1, -1)
         cos, sin = yaw.cos().unsqueeze(1), yaw.sin().unsqueeze(1)
         points = torch.stack((cos * offsets[:, :, 0] - sin * offsets[:, :, 1],

@@ -55,6 +55,24 @@ class SpiderNavigationEnvCfg(DirectRLEnvCfg):
     debris_impact_penalty = -2.0
     debris_impact_threshold = 2.0  # Newtons, filtered contacts with the robot only.
 
+    # Unitree 4D LiDAR L1 RM.  The policy consumes a compact planar projection
+    # instead of the complete point cloud so many environments can train in
+    # parallel.  Hardware values are from the Unitree L1 user manual v1.1.
+    lidar_model = "Unitree 4D LiDAR L1 RM"
+    lidar_min_range_m = 0.05
+    lidar_max_range_m = 30.0  # 90% reflectivity; 10% reflectivity is 15 m.
+    lidar_low_reflectivity_range_m = 15.0
+    lidar_horizontal_fov_deg = 360.0
+    lidar_vertical_fov_deg = 90.0
+    lidar_sampling_frequency_hz = 43_200
+    lidar_effective_frequency_hz = 21_600
+    lidar_horizontal_scan_frequency_hz = 11.0
+    lidar_vertical_scan_frequency_hz = 180.0
+    lidar_measurement_accuracy_m = 0.02
+    lidar_measurement_resolution_m = 0.008
+    lidar_observation_bins = 16
+    lidar_noise_enabled = True
+
     # Keep early exploration inside a range the MG996R-powered stance can recover from.
     action_scale = 0.30
     joint_velocity_scale = 0.10

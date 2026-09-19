@@ -132,6 +132,32 @@ class ScenarioSensingTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             SENSING.planar_box_ranges(*args, ray_count=0)
 
+    def test_lidar_measurement_model_preserves_misses_and_models_rm_limits(self):
+        ranges = self.tensor([[0.0, 0.01, 0.5, 1.0]])
+        noise = self.tensor([[-1.0, 1.0, 0.5, -1.0]])
+        result = SENSING.apply_lidar_measurement_model(
+            ranges,
+            max_range=30.0,
+            min_range=0.05,
+            accuracy=0.02,
+            resolution=0.008,
+            noise=noise,
+        )
+        expected_meters = self.tensor([[0.048, 0.320, 15.008, 30.0]])
+        expected_meters[0, 0] = 0.05  # Blind-zone clamp follows quantization.
+        torch.testing.assert_close(result[:, :3] * 30.0, expected_meters[:, :3])
+        self.assertEqual(result[0, 3].item(), 1.0)
+
+    def test_lidar_measurement_model_rejects_invalid_parameters(self):
+        ranges = self.tensor([[0.5]])
+        valid = dict(max_range=30.0, min_range=0.05, accuracy=0.02, resolution=0.008)
+        for name, value in (
+            ("max_range", 0.0), ("min_range", -0.1), ("min_range", 30.0),
+            ("accuracy", -0.1), ("resolution", 0.0),
+        ):
+            with self.subTest(name=name, value=value), self.assertRaises(ValueError):
+                SENSING.apply_lidar_measurement_model(ranges, **(valid | {name: value}))
+
     @unittest.skipUnless(torch is not None and torch.cuda.is_available(), "CUDA is not available")
     def test_cuda_matches_cpu_and_preserves_device(self):
         args = (

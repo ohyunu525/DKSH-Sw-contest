@@ -84,6 +84,50 @@ def planar_box_ranges(
     return hits.amin(dim=-1).clamp(max=max_range) / max_range
 
 
+def apply_lidar_measurement_model(
+    normalized_ranges: torch.Tensor,
+    *,
+    max_range: float,
+    min_range: float,
+    accuracy: float,
+    resolution: float,
+    noise: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """Apply blind-zone, bounded accuracy, and resolution to normalized ranges.
+
+    Values equal to one represent no return and remain exactly one. ``noise``
+    is a unitless tensor in ``[-1, 1]``; callers may provide zeros for a
+    deterministic measurement or random values for domain randomization.
+    """
+    values = (max_range, min_range, accuracy, resolution)
+    if not all(math.isfinite(value) for value in values):
+        raise ValueError("LiDAR measurement parameters must be finite")
+    if max_range <= 0.0:
+        raise ValueError("max_range must be positive")
+    if min_range < 0.0 or min_range >= max_range:
+        raise ValueError("min_range must be nonnegative and less than max_range")
+    if accuracy < 0.0:
+        raise ValueError("accuracy must be nonnegative")
+    if resolution <= 0.0:
+        raise ValueError("resolution must be positive")
+    if noise is None:
+        noise = torch.zeros_like(normalized_ranges)
+    if noise.shape != normalized_ranges.shape:
+        raise ValueError("noise must have the same shape as normalized_ranges")
+    if not torch.isfinite(normalized_ranges).all() or not torch.isfinite(noise).all():
+        raise ValueError("ranges and noise must contain only finite values")
+    if (normalized_ranges < 0.0).any() or (normalized_ranges > 1.0).any():
+        raise ValueError("normalized_ranges must be between zero and one")
+    if (noise.abs() > 1.0).any():
+        raise ValueError("noise must be between -1 and one")
+
+    has_return = normalized_ranges < 1.0
+    distance = normalized_ranges * max_range + noise * accuracy
+    distance = torch.round(distance / resolution) * resolution
+    distance = distance.clamp(min=min_range, max=max_range)
+    return torch.where(has_return, distance / max_range, torch.ones_like(distance))
+
+
 def sample_box_heights(
     points_w: torch.Tensor,
     centers_w: torch.Tensor,

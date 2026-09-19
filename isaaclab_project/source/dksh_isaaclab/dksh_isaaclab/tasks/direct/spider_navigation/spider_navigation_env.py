@@ -28,7 +28,10 @@ class SpiderNavigationEnv(DirectRLEnv):
 
     def __init__(self, cfg: SpiderNavigationEnvCfg, render_mode: str | None = None, **kwargs):
         validate_environment(cfg.environment_preset, cfg.environment_difficulty)
-        cfg.observation_space = 12 + 3 * cfg.action_space + (32 if cfg.environment_preset != "flat" else 0)
+        scenario_observations = cfg.lidar_observation_bins + 16
+        cfg.observation_space = 12 + 3 * cfg.action_space + (
+            scenario_observations if cfg.environment_preset != "flat" else 0
+        )
         self._scenario = None
         self._viewer_visuals = None
         super().__init__(cfg, render_mode, **kwargs)
