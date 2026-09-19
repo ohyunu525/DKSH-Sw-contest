@@ -16,9 +16,10 @@ from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import quat_from_euler_xyz, quat_rotate_inverse
 
-from .spider_navigation_env_cfg import SpiderNavigationEnvCfg
+from .payload_mass import MassProperties, add_centered_box_payload
 from .scenario_layout import validate_environment
 from .scenario_runtime import ScenarioRuntime
+from .spider_navigation_env_cfg import SpiderNavigationEnvCfg
 
 
 class SpiderNavigationEnv(DirectRLEnv):
@@ -62,6 +63,7 @@ class SpiderNavigationEnv(DirectRLEnv):
 
     def _setup_scene(self) -> None:
         self._robot = Articulation(self.cfg.robot)
+        self._apply_lidar_payload_mass()
         spawn_ground_plane(
             prim_path="/World/ground",
             cfg=GroundPlaneCfg(
@@ -76,6 +78,45 @@ class SpiderNavigationEnv(DirectRLEnv):
         self.scene.articulations["robot"] = self._robot
         light_cfg = sim_utils.DomeLightCfg(intensity=2500.0, color=(0.85, 0.88, 1.0))
         light_cfg.func("/World/Light", light_cfg)
+
+    def _apply_lidar_payload_mass(self) -> None:
+        """Add the physical L1 enclosure to the base mass properties."""
+        import omni.usd
+        from pxr import Gf, UsdPhysics
+
+        stage = omni.usd.get_context().get_stage()
+        base_prim = stage.GetPrimAtPath("/World/envs/env_0/Robot/base")
+        mass_api = UsdPhysics.MassAPI(base_prim)
+        if not base_prim or not mass_api:
+            raise RuntimeError("Robot base is missing USD mass properties for the LiDAR payload")
+        mass = mass_api.GetMassAttr().Get()
+        center = mass_api.GetCenterOfMassAttr().Get()
+        inertia = mass_api.GetDiagonalInertiaAttr().Get()
+        axes = mass_api.GetPrincipalAxesAttr().Get()
+        if mass is None or center is None or inertia is None:
+            raise RuntimeError("Robot base mass, center of mass, and inertia must be authored")
+        if axes is not None:
+            imaginary = axes.GetImaginary()
+            if (
+                abs(abs(float(axes.GetReal())) - 1.0) > 1.0e-6
+                or max(abs(float(value)) for value in imaginary) > 1.0e-6
+            ):
+                raise RuntimeError("LiDAR payload requires base principal axes aligned with the body frame")
+
+        mount = self.cfg.lidar_mount_position_b
+        payload_center = (mount[0], mount[1], mount[2] + self.cfg.lidar_payload_size_m[2] / 2.0)
+        combined = add_centered_box_payload(
+            MassProperties(
+                float(mass), tuple(float(value) for value in center), tuple(float(value) for value in inertia)
+            ),
+            payload_mass=self.cfg.lidar_payload_mass_kg,
+            payload_size=self.cfg.lidar_payload_size_m,
+            payload_center=payload_center,
+        )
+        mass_api.GetMassAttr().Set(combined.mass)
+        mass_api.GetCenterOfMassAttr().Set(Gf.Vec3f(*combined.center_of_mass))
+        mass_api.GetDiagonalInertiaAttr().Set(Gf.Vec3f(*combined.diagonal_inertia))
+        self._base_mass_with_lidar = combined.mass
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         if self._scenario is not None:

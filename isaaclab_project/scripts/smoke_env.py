@@ -41,6 +41,11 @@ def main() -> None:
         assert policy_obs.shape == (args_cli.num_envs, cfg.observation_space), policy_obs.shape
         assert base_env._robot.num_joints == dof, base_env._robot.num_joints
         assert base_env._robot.num_bodies == dof + 1, base_env._robot.num_bodies
+        base_index = base_env._robot.body_names.index("base")
+        expected_base_mass = torch.full_like(
+            base_env._robot.data.default_mass[:, base_index], base_env._base_mass_with_lidar
+        )
+        torch.testing.assert_close(base_env._robot.data.default_mass[:, base_index], expected_base_mass)
         reset_count = 0
         reward_sum = 0.0
         scenario = base_env._scenario
@@ -89,7 +94,8 @@ def main() -> None:
             f"DKSH_ISAACLAB_SMOKE_PASS environment={args_cli.environment} difficulty={args_cli.difficulty} "
             f"envs={args_cli.num_envs} steps={args_cli.steps} drops={drops_seen} "
             f"obs={tuple(observation['policy'].shape)} joints={base_env._robot.num_joints} "
-            f"bodies={base_env._robot.num_bodies} resets={reset_count} "
+            f"bodies={base_env._robot.num_bodies} base_mass={base_env._base_mass_with_lidar:.3f}kg "
+            f"resets={reset_count} "
             f"mean_reward={reward_sum / (args_cli.num_envs * args_cli.steps):.6f}",
             flush=True,
         )

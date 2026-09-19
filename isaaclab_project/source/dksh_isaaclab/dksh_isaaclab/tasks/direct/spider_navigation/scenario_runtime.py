@@ -10,7 +10,7 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
-from isaaclab.utils.math import quat_rotate_inverse
+from isaaclab.utils.math import quat_rotate, quat_rotate_inverse
 
 from .scenario_layout import build_layout
 from .scenario_sensing import apply_lidar_measurement_model, planar_box_ranges, sample_box_heights
@@ -292,7 +292,9 @@ class ScenarioRuntime:
         yaw = torch.atan2(2 * (quat[:, 0] * quat[:, 3] + quat[:, 1] * quat[:, 2]),
                           1 - 2 * (quat[:, 2].square() + quat[:, 3].square()))
         centers = self._centers.unsqueeze(0) + env.scene.env_origins.unsqueeze(1)
-        ranges = self._lidar_observations(pos, yaw, centers)
+        mount_b = pos.new_tensor(env.cfg.lidar_mount_position_b).expand(env.num_envs, -1)
+        lidar_pos = pos + quat_rotate(quat, mount_b)
+        ranges = self._lidar_observations(lidar_pos, yaw, centers)
         offsets = self._height_offsets.unsqueeze(0).expand(env.num_envs, -1, -1)
         cos, sin = yaw.cos().unsqueeze(1), yaw.sin().unsqueeze(1)
         points = torch.stack((cos * offsets[:, :, 0] - sin * offsets[:, :, 1],

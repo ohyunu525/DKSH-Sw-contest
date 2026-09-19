@@ -68,10 +68,17 @@ class SpiderNavigationEnvCfg(DirectRLEnvCfg):
     lidar_effective_frequency_hz = 21_600
     lidar_horizontal_scan_frequency_hz = 11.0
     lidar_vertical_scan_frequency_hz = 180.0
+    lidar_imu_sampling_frequency_hz = 1_000.0
+    lidar_imu_reporting_frequency_hz = 250.0
     lidar_measurement_accuracy_m = 0.02
     lidar_measurement_resolution_m = 0.008
     lidar_observation_bins = 16
     lidar_noise_enabled = True
+    lidar_payload_mass_kg = 0.230
+    lidar_payload_size_m = (0.075, 0.075, 0.065)
+    # Point-cloud origin: bottom center of L1. The 30 mm bracket height is
+    # provisional until the physical mounting bracket is measured.
+    lidar_mount_position_b = (0.0, 0.0, 0.030)
 
     # Keep early exploration inside a range the MG996R-powered stance can recover from.
     action_scale = 0.30

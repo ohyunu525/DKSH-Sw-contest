@@ -49,6 +49,12 @@ def _load_runtime_with_unit_doubles():
         uv = 2.0 * torch.cross(xyz, vector, dim=-1)
         return vector - quat[:, :1] * uv + torch.cross(xyz, uv, dim=-1)
 
+    def forward_rotation(quat, vector):
+        xyz = quat[:, 1:]
+        uv = 2.0 * torch.cross(xyz, vector, dim=-1)
+        return vector + quat[:, :1] * uv + torch.cross(xyz, uv, dim=-1)
+
+    modules["isaaclab.utils.math"].quat_rotate = forward_rotation
     modules["isaaclab.utils.math"].quat_rotate_inverse = inverse_rotation
     with patch.dict(sys.modules, modules):
         loaded = {}
@@ -125,6 +131,7 @@ class ScenarioRuntimeTests(unittest.TestCase):
                 lidar_measurement_resolution_m=0.008,
                 lidar_observation_bins=16,
                 lidar_noise_enabled=False,
+                lidar_mount_position_b=(0.0, 0.0, 0.030),
             ),
             scene=types.SimpleNamespace(env_origins=origins),
             _robot=types.SimpleNamespace(data=types.SimpleNamespace(
