@@ -82,8 +82,11 @@ class RunnerConfigurationTests(unittest.TestCase):
                     self.assertEqual((agent.experiment_name, agent.seed), ("chosen_obstacles", 7))
                     self.assertIn("--task=Example", remaining)
                     self.assertIn("--num_envs=4", remaining)
-                    self.assertEqual("--seed=7" in remaining, training)
-                    self.assertEqual(any(arg.startswith("env.") for arg in remaining), training)
+                    # The lazy factories above own these values for both paths.
+                    # Re-injecting them makes Isaac Lab 2.1 reject the training
+                    # command before the registered environment config exists.
+                    self.assertNotIn("--seed=7", remaining)
+                    self.assertFalse(any(arg.startswith("env.") for arg in remaining))
 
     def test_config_is_lazy_and_unselected_tasks_are_untouched(self):
         selected, untouched = make_spec(), make_spec()
