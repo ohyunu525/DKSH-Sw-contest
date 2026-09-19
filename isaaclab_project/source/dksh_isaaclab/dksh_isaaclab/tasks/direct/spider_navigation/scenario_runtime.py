@@ -271,7 +271,13 @@ class ScenarioRuntime:
             noise=noise,
         )
         period = 1.0 / cfg.lidar_horizontal_scan_frequency_hz
-        self._lidar_next_update[due] = self.time[due] + period
+        # Advance from the ideal sensor clock instead of the policy clock.  At
+        # 50 Hz control, scheduling from ``time + period`` would turn 11 Hz into
+        # a drifting 10 Hz stream because scans can only be consumed on a step.
+        elapsed_periods = torch.floor(
+            (self.time[due] - self._lidar_next_update[due]) / period
+        ) + 1.0
+        self._lidar_next_update[due] += elapsed_periods * period
         return self._lidar_ranges
 
     def observations(self):
