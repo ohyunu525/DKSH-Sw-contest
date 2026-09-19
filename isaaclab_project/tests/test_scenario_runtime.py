@@ -332,6 +332,14 @@ class ScenarioRuntimeTests(unittest.TestCase):
         runtime.time[:] = 0.10
         updated = runtime.observations()[:, :16]
         self.assertFalse(torch.equal(updated, first))
+        self.assertAlmostEqual(runtime._lidar_next_update.item(), 2.0 / 11.0, places=6)
+
+        runtime.env._robot.data.root_pos_w[:, 1] += 0.2
+        runtime.time[:] = 0.18
+        torch.testing.assert_close(runtime.observations()[:, :16], updated)
+        runtime.time[:] = 0.19
+        self.assertFalse(torch.equal(runtime.observations()[:, :16], updated))
+        self.assertAlmostEqual(runtime._lidar_next_update.item(), 3.0 / 11.0, places=6)
 
 
 if __name__ == "__main__":
