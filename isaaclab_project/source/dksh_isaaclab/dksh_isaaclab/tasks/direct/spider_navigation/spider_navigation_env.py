@@ -29,13 +29,16 @@ class SpiderNavigationEnv(DirectRLEnv):
 
     def __init__(self, cfg: SpiderNavigationEnvCfg, render_mode: str | None = None, **kwargs):
         validate_environment(cfg.environment_preset, cfg.environment_difficulty)
-        scenario_observations = cfg.lidar_observation_bins + 16
-        cfg.observation_space = 12 + 3 * cfg.action_space + (
-            scenario_observations if cfg.environment_preset != "flat" else 0
-        )
+        # Actor: proprioception + L1 ranges + return-valid flags in every preset.
+        # Critic alone sees the simulator's terrain, floor and debris state.
+        cfg.observation_space = 12 + 3 * cfg.action_space + 2 * cfg.lidar_observation_bins
+        cfg.state_space = cfg.observation_space + 16
         self._scenario = None
         self._viewer_visuals = None
         super().__init__(cfg, render_mode, **kwargs)
+        # Isaac Lab 2.1's RSL-RL wrapper uses this attribute to detect the
+        # DirectRLEnv critic space, even when cfg.state_space is configured.
+        self.num_states = cfg.state_space
         if self._scenario is not None:
             self._scenario.initialize()
         action_dim = gym.spaces.flatdim(self.single_action_space)
@@ -180,8 +183,18 @@ class SpiderNavigationEnv(DirectRLEnv):
             dim=-1,
         )
         if self._scenario is not None:
-            observation = torch.cat((observation, self._scenario.observations()), dim=-1)
-        return {"policy": observation}
+            scenario = self._scenario.observations()
+            lidar = scenario[:, :2 * self.cfg.lidar_observation_bins]
+            privileged = scenario[:, 2 * self.cfg.lidar_observation_bins:]
+        else:
+            # A flat world still has a scan: all bins report no obstacle.
+            lidar = torch.cat((
+                observation.new_ones((self.num_envs, self.cfg.lidar_observation_bins)),
+                observation.new_zeros((self.num_envs, self.cfg.lidar_observation_bins)),
+            ), dim=-1)
+            privileged = observation.new_zeros((self.num_envs, 16))
+        policy = torch.cat((observation, lidar), dim=-1)
+        return {"policy": policy, "critic": torch.cat((policy, privileged), dim=-1)}
 
     def _get_rewards(self) -> torch.Tensor:
         distance, direction_w, direction_b = self._goal_data()

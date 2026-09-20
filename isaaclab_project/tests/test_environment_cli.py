@@ -113,11 +113,12 @@ class RunnerConfigurationTests(unittest.TestCase):
         self.assertEqual(CLI.experiment_for_environment("robot_obstacles", "mixed"), "robot_obstacles")
         self.assertEqual(CLI.experiment_for_environment("robot", "flat"), "robot")
 
-    def test_nonflat_rejects_published_flat_checkpoint(self):
+    def test_every_environment_rejects_published_legacy_checkpoint(self):
         fake_gym = types.SimpleNamespace(spec=Mock())
         with patch.dict(sys.modules, {"gymnasium": fake_gym}), contextlib.redirect_stderr(io.StringIO()):
-            with self.assertRaises(SystemExit):
-                CLI.configure_runner(["--environment=mixed", "--use_pretrained_checkpoint"], training=False)
+            for preset in CLI.ENVIRONMENTS:
+                with self.subTest(preset=preset), self.assertRaises(SystemExit):
+                    CLI.configure_runner([f"--environment={preset}", "--use_pretrained_checkpoint"], training=False)
         fake_gym.spec.assert_not_called()
 
 
@@ -133,27 +134,24 @@ class EvaluationCheckpointTests(unittest.TestCase):
         namespace = {"Path": Path, "__file__": str(path), "args_cli": self.args}
         exec(compile(ast.Module(body=[function], type_ignores=[]), str(path), "exec"), namespace)
         self.resolve = namespace["_resolve_checkpoint"]
-        self.cfg = types.SimpleNamespace(experiment_name="dksh_spider_navigation")
+        self.cfg = types.SimpleNamespace(experiment_name="dksh_spider_navigation_l1v2")
 
-    def test_only_baseline_flat_may_use_bundled_checkpoint(self):
+    def test_missing_checkpoint_requires_training_for_every_environment(self):
         with patch.object(Path, "glob", return_value=[]), patch.object(Path, "is_file", return_value=True):
-            self.assertEqual(self.resolve(self.cfg).name, "balance_baseline.pt")
-            for preset in CLI.ENVIRONMENTS[1:]:
+            for preset in CLI.ENVIRONMENTS:
                 with self.subTest(preset=preset):
                     self.args.environment = preset
-                    self.cfg.experiment_name = "dksh_spider_navigation_obstacles"
-                    with self.assertRaisesRegex(FileNotFoundError, "_obstacles"):
+                    self.cfg.experiment_name = "dksh_spider_navigation_l1v2" + (
+                        "_obstacles" if preset != "flat" else ""
+                    )
+                    with self.assertRaisesRegex(FileNotFoundError, "No compatible checkpoint"):
                         self.resolve(self.cfg)
-            self.args.environment = "flat"
-            self.args.task = "Isaac-DKSH-Spider-CAD6-Navigation-Direct-v0"
-            with self.assertRaises(FileNotFoundError):
-                self.resolve(self.cfg)
 
     def test_newest_checkpoint_is_searched_in_selected_experiment_only(self):
         older, newer = Mock(spec=Path), Mock(spec=Path)
         older.stat.return_value.st_mtime = 10
         newer.stat.return_value.st_mtime = 20
-        self.cfg.experiment_name = "dksh_spider_navigation_obstacles"
+        self.cfg.experiment_name = "dksh_spider_navigation_l1v2_obstacles"
         self.args.environment = "mixed"
         with patch.object(Path, "glob", autospec=True, return_value=[older, newer]) as glob:
             self.assertIs(self.resolve(self.cfg), newer)

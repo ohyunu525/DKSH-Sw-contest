@@ -122,6 +122,7 @@ class ScenarioRuntime:
         self._lidar_ranges = torch.ones(
             (env.num_envs, env.cfg.lidar_observation_bins), device=env.device
         )
+        self._lidar_valid = torch.zeros_like(self._lidar_ranges)
         self._lidar_next_update = torch.zeros(env.num_envs, device=env.device)
         self._centers = torch.tensor([b.position for b in self.layout.boxes], device=env.device).reshape(-1, 3)
         self._halves = torch.tensor([b.size for b in self.layout.boxes], device=env.device).reshape(-1, 3) / 2
@@ -144,6 +145,7 @@ class ScenarioRuntime:
         self.impact[env_ids] = False
         self._contact_active[env_ids] = False
         self._lidar_ranges[env_ids] = 1.0
+        self._lidar_valid[env_ids] = 0.0
         self._lidar_next_update[env_ids] = 0.0
         self.drop_count[env_ids] = 0
         interval = 1.7 - self.difficulty
@@ -249,34 +251,35 @@ class ScenarioRuntime:
         """Update and hold a 3-D-projected L1 RM scan at its physical 11 Hz rate."""
         cfg = self.env.cfg
         due = self.time >= self._lidar_next_update
-        sphere_centers = None
-        if self.debris:
-            sphere_centers = torch.stack([body.data.root_pos_w for body in self.debris], dim=1)
-        ranges = spatial_obstacle_ranges(
-            positions_w,
-            quaternion_w,
-            centers_w,
-            self._halves,
-            max_range=cfg.lidar_max_range_m,
-            horizontal_count=cfg.lidar_observation_bins,
-            vertical_fov_degrees=cfg.lidar_vertical_fov_deg,
-            vertical_count=cfg.lidar_vertical_projection_bins,
-            sphere_centers_w=sphere_centers,
-            sphere_radii=self.radius if sphere_centers is not None else None,
-        )
-        noise = torch.zeros_like(ranges)
-        if cfg.lidar_noise_enabled:
-            noise.uniform_(-1.0, 1.0)
-        measured = apply_lidar_measurement_model(
-            ranges,
-            max_range=cfg.lidar_max_range_m,
-            min_range=cfg.lidar_min_range_m,
-            accuracy=cfg.lidar_measurement_accuracy_m,
-            resolution=cfg.lidar_measurement_resolution_m,
-            noise=noise,
-            validate_tensors=False,
-        )
-        self._lidar_ranges.copy_(torch.where(due[:, None], measured, self._lidar_ranges))
+        due_ids = due.nonzero(as_tuple=True)[0]
+        if due_ids.numel():
+            sphere_centers = None
+            if self.debris:
+                sphere_centers = torch.stack([body.data.root_pos_w[due_ids] for body in self.debris], dim=1)
+            ranges = spatial_obstacle_ranges(
+                positions_w[due_ids], quaternion_w[due_ids], centers_w[due_ids], self._halves,
+                max_range=cfg.lidar_max_range_m,
+                horizontal_count=cfg.lidar_observation_bins,
+                azimuth_samples_per_bin=cfg.lidar_azimuth_samples_per_bin,
+                vertical_fov_degrees=cfg.lidar_vertical_fov_deg,
+                vertical_count=cfg.lidar_vertical_projection_bins,
+                sphere_centers_w=sphere_centers,
+                sphere_radii=self.radius if sphere_centers is not None else None,
+            )
+            noise = torch.zeros_like(ranges)
+            if cfg.lidar_noise_enabled:
+                noise.uniform_(-1.0, 1.0)
+            measured = apply_lidar_measurement_model(
+                ranges,
+                max_range=cfg.lidar_max_range_m,
+                min_range=cfg.lidar_min_range_m,
+                accuracy=cfg.lidar_measurement_accuracy_m,
+                resolution=cfg.lidar_measurement_resolution_m,
+                noise=noise,
+                validate_tensors=False,
+            )
+            self._lidar_ranges[due_ids] = measured
+            self._lidar_valid[due_ids] = (measured < 1.0).to(measured.dtype)
         period = 1.0 / cfg.lidar_horizontal_scan_frequency_hz
         # Advance from the ideal sensor clock instead of the policy clock.  At
         # 50 Hz control, scheduling from ``time + period`` would turn 11 Hz into
@@ -289,14 +292,10 @@ class ScenarioRuntime:
             self._lidar_next_update + elapsed_periods * period,
             self._lidar_next_update,
         ))
-        return self._lidar_ranges
+        return torch.cat((self._lidar_ranges, self._lidar_valid), dim=1)
 
     def observations(self):
-        """L1 RM planar ranges, 9 terrain heights, 3 floor velocities, 4 debris cues.
-
-        These are privileged simulator measurements; real sensor noise and
-        occlusion must be modeled before transfer to hardware.
-        """
+        """Return 32 L1 actor features followed by 16 privileged critic features."""
         env = self.env
         pos = env._robot.data.root_pos_w
         quat = env._robot.data.root_quat_w

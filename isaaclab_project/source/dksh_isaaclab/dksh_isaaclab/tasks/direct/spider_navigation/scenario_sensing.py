@@ -92,6 +92,7 @@ def spatial_obstacle_ranges(
     *,
     max_range: float,
     horizontal_count: int,
+    azimuth_samples_per_bin: int = 1,
     vertical_fov_degrees: float,
     vertical_count: int,
     sphere_centers_w: torch.Tensor | None = None,
@@ -108,6 +109,8 @@ def spatial_obstacle_ranges(
         raise ValueError("max_range must be positive and finite")
     if not isinstance(horizontal_count, int) or horizontal_count <= 0:
         raise ValueError("horizontal_count must be a positive integer")
+    if not isinstance(azimuth_samples_per_bin, int) or azimuth_samples_per_bin <= 0:
+        raise ValueError("azimuth_samples_per_bin must be a positive integer")
     if not isinstance(vertical_count, int) or vertical_count <= 0:
         raise ValueError("vertical_count must be a positive integer")
     if not math.isfinite(vertical_fov_degrees) or not 0.0 <= vertical_fov_degrees <= 180.0:
@@ -119,16 +122,18 @@ def spatial_obstacle_ranges(
         raise ValueError("quaternion_w must have shape (num_envs, 4)")
 
     dtype, device = positions_w.dtype, positions_w.device
-    horizontal = torch.arange(horizontal_count, dtype=dtype, device=device) * (
-        2.0 * math.pi / horizontal_count
-    )
+    sector_width = 2.0 * math.pi / horizontal_count
+    horizontal = torch.arange(horizontal_count, dtype=dtype, device=device)[:, None] * sector_width
+    offsets = (torch.arange(azimuth_samples_per_bin, dtype=dtype, device=device) + 0.5) / azimuth_samples_per_bin - 0.5
+    horizontal = (horizontal + offsets[None, :] * sector_width).reshape(-1)
+    horizontal_rays = horizontal_count * azimuth_samples_per_bin
     if vertical_count == 1:
         vertical = positions_w.new_zeros(1)
     else:
-        half_fov = math.radians(vertical_fov_degrees) / 2.0
-        vertical = torch.linspace(-half_fov, half_fov, vertical_count, dtype=dtype, device=device)
-    azimuth = horizontal[:, None].expand(horizontal_count, vertical_count)
-    elevation = vertical[None, :].expand(horizontal_count, vertical_count)
+        # The upright L1 scans the hemisphere above its mounting plane.
+        vertical = torch.linspace(0.0, math.radians(vertical_fov_degrees), vertical_count, dtype=dtype, device=device)
+    azimuth = horizontal[:, None].expand(horizontal_rays, vertical_count)
+    elevation = vertical[None, :].expand(horizontal_rays, vertical_count)
     cos_elevation = elevation.cos()
     local_directions = torch.stack(
         (
@@ -150,7 +155,7 @@ def spatial_obstacle_ranges(
         + torch.cross(quaternion_xyz, uv, dim=-1)
     )
 
-    ray_count = horizontal_count * vertical_count
+    ray_count = horizontal_rays * vertical_count
     nearest = positions_w.new_full((positions_w.shape[0], ray_count), max_range)
     if centers_w.shape[1] > 0:
         ray_directions = directions_w.unsqueeze(2)
@@ -193,9 +198,9 @@ def spatial_obstacle_ranges(
         nearest = torch.minimum(nearest, sphere_hits)
 
     nearest = nearest.clamp(max=max_range).reshape(
-        positions_w.shape[0], horizontal_count, vertical_count
+        positions_w.shape[0], horizontal_count, azimuth_samples_per_bin, vertical_count
     )
-    return nearest.amin(dim=-1) / max_range
+    return nearest.amin(dim=(-1, -2)) / max_range
 
 
 def apply_lidar_measurement_model(
@@ -237,7 +242,8 @@ def apply_lidar_measurement_model(
         if (noise.abs() > 1.0).any():
             raise ValueError("noise must be between -1 and one")
 
-    has_return = normalized_ranges < 1.0
+    # A geometric intersection inside the L1 near field cannot be measured.
+    has_return = (normalized_ranges < 1.0) & (normalized_ranges * max_range >= min_range)
     distance = normalized_ranges * max_range + noise * accuracy
     distance = torch.round(distance / resolution) * resolution
     distance = distance.clamp(min=min_range, max=max_range)

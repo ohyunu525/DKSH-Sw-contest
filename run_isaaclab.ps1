@@ -24,11 +24,11 @@ $Environment = $Environment.ToLowerInvariant()
 $isaacLabRoot = Join-Path $projectRoot "IsaacLab"
 $launcher = Join-Path $isaacLabRoot "isaaclab.bat"
 $taskName = "Isaac-DKSH-Spider-Navigation-Direct-v0"
-$experimentName = 'dksh_spider_navigation'
+$experimentName = 'dksh_spider_navigation_l1v2'
 if ($RobotModel -ne 'baseline') {
     $cadCount = $RobotModel.Substring(3)
     $taskName = "Isaac-DKSH-Spider-CAD$cadCount-Navigation-Direct-v0"
-    $experimentName = "dksh_spider_cad${cadCount}_navigation"
+    $experimentName = "dksh_spider_cad${cadCount}_navigation_l1v2"
 }
 if ($Environment -ne 'flat') {
     $experimentName += '_obstacles'
@@ -134,13 +134,7 @@ try {
             else {
                 $localCheckpoints = Get-ChildItem (Join-Path $projectRoot "logs\rsl_rl\$experimentName") `
                     -Recurse -Filter "model_*.pt" -ErrorAction SilentlyContinue
-                if (-not $localCheckpoints -and $RobotModel -eq 'baseline' -and $Environment -eq 'flat') {
-                    $bundledCheckpoint = Join-Path $projectRoot "isaaclab_project\checkpoints\balance_baseline.pt"
-                    if (Test-Path -LiteralPath $bundledCheckpoint) {
-                        $arguments += "--checkpoint=$bundledCheckpoint"
-                    }
-                }
-                elseif (-not $localCheckpoints) {
+                if (-not $localCheckpoints) {
                     throw "No compatible checkpoint for $RobotModel / $Environment. Use -Mode preview to inspect the environment, train first, or provide -Checkpoint."
                 }
             }

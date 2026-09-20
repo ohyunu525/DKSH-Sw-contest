@@ -11,7 +11,7 @@ class SpiderNavigationPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 48
     max_iterations = 2000
     save_interval = 50
-    experiment_name = "dksh_spider_navigation"
+    experiment_name = "dksh_spider_navigation_l1v2"
     empirical_normalization = True
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=0.35,
@@ -37,9 +37,9 @@ class SpiderNavigationPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 
 @configclass
 class SpiderCad8PPORunnerCfg(SpiderNavigationPPORunnerCfg):
-    experiment_name = 'dksh_spider_cad8_navigation'
+    experiment_name = 'dksh_spider_cad8_navigation_l1v2'
 
 
 @configclass
 class SpiderCad6PPORunnerCfg(SpiderNavigationPPORunnerCfg):
-    experiment_name = 'dksh_spider_cad6_navigation'
+    experiment_name = 'dksh_spider_cad6_navigation_l1v2'

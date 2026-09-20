@@ -143,10 +143,24 @@ class ScenarioSensingTests(unittest.TestCase):
             resolution=0.008,
             noise=noise,
         )
-        expected_meters = self.tensor([[0.048, 0.320, 15.008, 30.0]])
-        expected_meters[0, 0] = 0.05  # Blind-zone clamp follows quantization.
-        torch.testing.assert_close(result[:, :3] * 30.0, expected_meters[:, :3])
+        expected_meters = self.tensor([[0.320, 15.008]])
+        self.assertEqual(result[0, 0].item(), 1.0)  # Blind-zone hit is invalid.
+        torch.testing.assert_close(result[:, 1:3] * 30.0, expected_meters)
         self.assertEqual(result[0, 3].item(), 1.0)
+
+    def test_azimuth_sector_samples_catch_off_center_obstacle(self):
+        positions = self.tensor([[0.0, 0.0, 0.0]])
+        identity = self.tensor([[1.0, 0.0, 0.0, 0.0]])
+        angle = math.radians(8.0)
+        centers = self.tensor([[[math.cos(angle), math.sin(angle), 0.0]]])
+        sizes = self.tensor([[0.04, 0.04, 0.04]])
+        kwargs = dict(max_range=2.0, horizontal_count=16, vertical_fov_degrees=0.0, vertical_count=1)
+        center_only = SENSING.spatial_obstacle_ranges(positions, identity, centers, sizes, **kwargs)
+        sector = SENSING.spatial_obstacle_ranges(
+            positions, identity, centers, sizes, azimuth_samples_per_bin=5, **kwargs
+        )
+        self.assertEqual(center_only[0, 0].item(), 1.0)
+        self.assertLess(sector[0, 0].item(), 1.0)
 
     def test_lidar_measurement_model_rejects_invalid_parameters(self):
         ranges = self.tensor([[0.5]])
@@ -173,6 +187,17 @@ class ScenarioSensingTests(unittest.TestCase):
         )
         self.assertEqual(horizontal_only[0, 0].item(), 1.0)
         self.assertLess(projected[0, 0].item(), 1.0)
+
+    def test_upright_l1_projection_excludes_points_below_sensor_plane(self):
+        result = SENSING.spatial_obstacle_ranges(
+            self.tensor([[0.0, 0.0, 0.0]]),
+            self.tensor([[1.0, 0.0, 0.0, 0.0]]),
+            self.tensor([[[1.0, 0.0, -0.5]]]),
+            self.tensor([[0.1, 0.1, 0.1]]),
+            max_range=2.0, horizontal_count=16, azimuth_samples_per_bin=5,
+            vertical_fov_degrees=90.0, vertical_count=3,
+        )
+        self.assertTrue(torch.equal(result, torch.ones_like(result)))
 
     def test_spatial_projection_includes_dynamic_spheres_and_static_occlusion(self):
         positions = self.tensor([[0.0, 0.0, 0.0]])

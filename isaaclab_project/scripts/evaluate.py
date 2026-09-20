@@ -45,10 +45,6 @@ def _resolve_checkpoint(agent_cfg) -> Path:
     if candidates:
         return max(candidates, key=lambda path: path.stat().st_mtime)
 
-    bundled = Path(__file__).resolve().parents[1] / "checkpoints" / "balance_baseline.pt"
-    if (args_cli.environment == "flat" and args_cli.task == 'Isaac-DKSH-Spider-Navigation-Direct-v0'
-            and bundled.is_file()):
-        return bundled
     raise FileNotFoundError(f"No compatible checkpoint found below {log_root}. Train this task or pass --checkpoint.")
 
 

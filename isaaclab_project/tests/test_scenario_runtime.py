@@ -129,6 +129,7 @@ class ScenarioRuntimeTests(unittest.TestCase):
                 lidar_horizontal_scan_frequency_hz=11.0,
                 lidar_vertical_fov_deg=90.0,
                 lidar_vertical_projection_bins=3,
+                lidar_azimuth_samples_per_bin=5,
                 lidar_measurement_accuracy_m=0.02,
                 lidar_measurement_resolution_m=0.008,
                 lidar_observation_bins=16,
@@ -313,23 +314,26 @@ class ScenarioRuntimeTests(unittest.TestCase):
         expected[0] += vibrating.floor_height[0]
         torch.testing.assert_close(vibrating.ground_height(positions), expected)
 
-    def test_every_preset_returns_32_finite_bounded_observations(self):
+    def test_every_preset_returns_48_finite_bounded_observations(self):
         for preset in LAYOUT.ENVIRONMENT_PRESETS:
             for difficulty in (0.0, 0.5, 1.0):
                 with self.subTest(preset=preset, difficulty=difficulty):
                     runtime = self.make_runtime(preset, difficulty)
                     runtime.physics_step()
                     observation = runtime.observations()
-                    self.assertEqual(observation.shape, (4, 32))
+                    self.assertEqual(observation.shape, (4, 48))
                     self.assertTrue(torch.isfinite(observation).all())
                     self.assertTrue((observation.abs() <= 1.0).all())
                     self.assertTrue((observation[:, :16] >= 0.0).all())
+                    self.assertTrue(((observation[:, 16:32] == 0.0) | (observation[:, 16:32] == 1.0)).all())
+                    torch.testing.assert_close(observation[:, 16:32], (observation[:, :16] < 1.0).float())
                     if not runtime.layout.vibration_active:
-                        torch.testing.assert_close(observation[:, 25:28], torch.zeros((4, 3)))
+                        torch.testing.assert_close(observation[:, 41:44], torch.zeros((4, 3)))
                     if not runtime.layout.debris_active:
-                        torch.testing.assert_close(observation[:, 28:], torch.zeros((4, 4)))
+                        torch.testing.assert_close(observation[:, 44:], torch.zeros((4, 4)))
                     if preset == "flat":
                         torch.testing.assert_close(observation[:, :16], torch.ones((4, 16)))
+                        torch.testing.assert_close(observation[:, 16:32], torch.zeros((4, 16)))
 
     def test_lidar_scan_is_held_until_next_l1_rm_horizontal_frame(self):
         runtime = self.make_runtime("narrow", count=1)

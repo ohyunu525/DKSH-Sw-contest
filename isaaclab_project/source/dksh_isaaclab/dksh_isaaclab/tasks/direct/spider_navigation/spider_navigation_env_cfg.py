@@ -20,8 +20,8 @@ class SpiderNavigationEnvCfg(DirectRLEnvCfg):
     seed = 42
     episode_length_s = 20.0
     action_space = 24
-    observation_space = 84
-    state_space = 0
+    observation_space = 116
+    state_space = 132
     debug_vis = True
 
     sim: SimulationCfg = SimulationCfg(
@@ -48,8 +48,7 @@ class SpiderNavigationEnvCfg(DirectRLEnvCfg):
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=32, env_spacing=7.0, replicate_physics=True)
     robot = SPIDERBOT_CFG.replace(prim_path="/World/envs/env_.*/Robot")
 
-    # Flat retains the original observation/checkpoint contract. Other presets add
-    # the same 32 terrain/hazard observations so policies can transfer between them.
+    # The actor observation contract is identical in every environment preset.
     environment_preset = "flat"
     environment_difficulty = 0.5
     robot_width = 0.69
@@ -67,6 +66,7 @@ class SpiderNavigationEnvCfg(DirectRLEnvCfg):
     lidar_horizontal_fov_deg = 360.0
     lidar_vertical_fov_deg = 90.0
     lidar_vertical_projection_bins = 3
+    lidar_azimuth_samples_per_bin = 5
     lidar_sampling_frequency_hz = 43_200
     lidar_effective_frequency_hz = 21_600
     lidar_horizontal_scan_frequency_hz = 11.0
@@ -119,8 +119,9 @@ class SpiderCad8NavigationEnvCfg(SpiderNavigationEnvCfg):
 
 @configclass
 class SpiderCad6NavigationEnvCfg(SpiderCad8NavigationEnvCfg):
-    """Six-legged version, with 18 actions and 66 observations."""
+    """Six-legged version, with 18 actions and 98 actor observations."""
 
     action_space = 18
-    observation_space = 66
+    observation_space = 98
+    state_space = 114
     robot = cad_spiderbot_cfg(6).replace(prim_path='/World/envs/env_.*/Robot')

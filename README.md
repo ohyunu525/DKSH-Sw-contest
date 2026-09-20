@@ -81,7 +81,7 @@ git submodule update --init --recursive
 .\run_isaaclab.ps1 -Mode train -NumEnvs 32 -MaxIterations 1000
 ```
 
-학습 결과는 `logs/rsl_rl/dksh_spider_navigation` 아래에 저장됩니다.
+학습 결과는 `logs/rsl_rl/dksh_spider_navigation_l1v2` 아래에 저장됩니다.
 
 ## 학습 환경 선택
 
@@ -102,8 +102,9 @@ git submodule update --init --recursive
 .\run_isaaclab.ps1 -Mode evaluate -Environment falling_debris -NumEnvs 4 -Steps 1000
 ```
 
-평지 이외의 환경은 장애물 관측이 32차원 추가되어 별도 `*_obstacles` 로그 폴더를 사용합니다.
-같은 로봇 모델의 비평지 환경끼리는 정책을 공유할 수 있으며, 기존 평지 체크포인트는 호환되지 않습니다.
+모든 환경의 정책은 L1 RM 거리 16개와 유효값 16개를 입력받습니다. 비평지 환경은 별도
+`*_obstacles` 로그 폴더를 사용합니다. 기존 체크포인트는 새 관측 형식과 호환되지 않아 다시
+학습해야 합니다.
 `preview`는 기본 자세로 환경을 확인하는 모드입니다. 학습한 보행을 보려면 `play`를 사용합니다.
 환경별 동작과 실행 예시는 [학습 환경 안내](isaaclab_project/docs/training_environments.md)를 참고하세요.
 
@@ -121,8 +122,11 @@ git submodule update --init --recursive
 .\run_isaaclab.ps1 -Mode play -NumEnvs 1 -Checkpoint "C:\path\to\model.pt"
 ```
 
-기본 로봇의 평지에서 로그가 없는 새 체크아웃은 함께 제공되는 `balance_baseline.pt`를 자동 사용합니다. 이 모델은
-500회 PPO 학습으로 20초 자세 유지를 검증한 시작점이며, 목표 보행을 완성한 모델은 아닙니다.
+포함된 `balance_baseline.pt`는 이전 84차원 관측 정책이므로 새 환경에서 자동으로 사용하지 않습니다.
+새 체크아웃은 `train`을 실행한 뒤 `play` 또는 `evaluate`를 실행해야 합니다.
+
+L1 실측 점군을 정책 입력의 LiDAR 부분과 같은 32개 값으로 변환하는 예제와 실제 센서 적용 시
+필요한 좌표계·전처리 조건은 [학습 환경 안내](isaaclab_project/docs/training_environments.md#실제-l1-rm-점군-입력)에 있습니다.
 
 등록된 환경 ID는 `Isaac-DKSH-Spider-Navigation-Direct-v0`입니다. 로봇은 실제 설계값을 반영한
 8개 다리, 24개 MG996R 서보 articulation이며, 링크 길이(86.17/100/120 mm), 서보 토크
@@ -142,19 +146,19 @@ Isaac Sim 4.5는 변환 파일을 정상 기록한 뒤 종료 코드 1을 반환
 ## 검증 범위
 
 - 물리 주기 200 Hz, 정책 제어 주기 50 Hz
-- 기본 8족 로봇: 평지 관측 84차원, 비평지 관측 116차원, 연속 행동 24차원
-- CAD 6족 로봇: 평지 관측 66차원, 비평지 관측 98차원, 연속 행동 18차원
+- 기본 8족 로봇: 모든 환경의 정책 관측 116차원, 가치함수 관측 132차원, 연속 행동 24차원
+- CAD 6족 로봇: 모든 환경의 정책 관측 98차원, 가치함수 관측 114차원, 연속 행동 18차원
 - 무작위 방향/거리 목표, 목표 도달·낙상·영역 이탈·시간 제한 종료
 - PPO 보상 항목과 성공/낙상/시간초과를 TensorBoard 로그에 기록
 - 초록색 원판으로 각 병렬 환경의 목표 반경 표시
 
-URDF 구조만 빠르게 확인하는 테스트는 Isaac Sim을 시작하지 않아도 실행할 수 있습니다.
+전체 단위 테스트는 PyTorch가 설치된 Isaac Lab Python 환경에서 실행합니다. L1 점군 변환과 실행
+옵션 테스트만 확인할 때는 일반 Python으로도 실행할 수 있습니다.
 
 ```powershell
-python -m unittest discover -s .\isaaclab_project\tests -v
+.\IsaacLab\isaaclab.bat -p -m unittest discover -s .\isaaclab_project\tests -v
+python -m unittest discover -s .\isaaclab_project\tests -p test_l1_pointcloud_features.py -v
 ```
 
-이 저장소 구성은 RTX 3070에서 32개 병렬 환경 × 500 스텝 스모크 테스트, PPO 500회
-(384,000 samples), 체크포인트 32개 환경 × 1,000 스텝 평가를 통과했습니다. 포함된 기준 모델의
-평가 결과는 낙상 0회, 시간 제한 종료 32회였습니다. 재생 경로에서는 MP4 렌더링과 JIT/ONNX
-정책 내보내기도 확인했습니다.
+이전 관측 형식의 기준 모델은 RTX 3070에서 32개 병렬 환경 × 500 스텝 스모크 테스트와 PPO
+500회 학습을 통과했습니다. 이 결과는 새 L1 입력 형식의 실행·학습 검증으로 간주할 수 없습니다.

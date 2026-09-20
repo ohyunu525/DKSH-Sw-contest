@@ -39,6 +39,9 @@ def main() -> None:
         policy_obs = observation["policy"]
         dof = cfg.action_space
         assert policy_obs.shape == (args_cli.num_envs, cfg.observation_space), policy_obs.shape
+        assert observation["critic"].shape == (args_cli.num_envs, cfg.state_space)
+        assert base_env.num_states == cfg.state_space
+        torch.testing.assert_close(observation["critic"][:, :cfg.observation_space], policy_obs)
         assert base_env._robot.num_joints == dof, base_env._robot.num_joints
         assert base_env._robot.num_bodies == dof + 1, base_env._robot.num_bodies
         base_index = base_env._robot.body_names.index("base")
@@ -57,6 +60,10 @@ def main() -> None:
             actions = 0.1 * (2.0 * torch.rand((args_cli.num_envs, dof), device=env.unwrapped.device) - 1.0)
             observation, rewards, terminated, truncated, _ = env.step(actions)
             assert torch.isfinite(observation["policy"]).all()
+            assert torch.isfinite(observation["critic"]).all()
+            torch.testing.assert_close(
+                observation["critic"][:, :cfg.observation_space], observation["policy"]
+            )
             assert torch.isfinite(rewards).all()
             assert torch.isfinite(base_env._robot.data.root_state_w).all()
             assert torch.isfinite(base_env._robot.data.joint_pos).all()
@@ -65,7 +72,7 @@ def main() -> None:
             reset_count += torch.count_nonzero(terminated | truncated).item()
             reward_sum += rewards.sum().item()
             if scenario is not None:
-                assert scenario.observations().shape == (args_cli.num_envs, 32)
+                assert scenario.observations().shape == (args_cli.num_envs, 48)
                 floor_displacement = max(
                     floor_displacement, (scenario.floor_height - initial_floor).abs().max().item()
                 )
