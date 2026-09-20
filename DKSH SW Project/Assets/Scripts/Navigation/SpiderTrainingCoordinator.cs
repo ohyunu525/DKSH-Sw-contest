@@ -72,11 +72,11 @@ private void SpawnAgent(GeneratedTrainingEnvironment environment, int index)
 
             var lidar = agentObject.AddComponent<SimulatedLidarSensor>();
             var lidarSettings = LidarScanSettings.Default;
-            lidarSettings.horizontalResolution = 72;
-            lidarSettings.verticalResolution = 6;
-            lidarSettings.verticalFovDegrees = 45f;
-            lidarSettings.maxDistance = Mathf.Max(8f, environment.MapSize.magnitude * environment.CellSize);
-            lidarSettings.scanFrequencyHz = 10f;
+            lidarSettings.horizontalResolution = 180;
+            lidarSettings.verticalResolution = 11;
+            lidarSettings.verticalFovDegrees = 90f;
+            lidarSettings.maxDistance = 30f;
+            lidarSettings.scanFrequencyHz = 11f;
             lidar.Configure(lidarSettings, true);
 
             var locomotion = agentObject.AddComponent<SpiderProxyLocomotion>();

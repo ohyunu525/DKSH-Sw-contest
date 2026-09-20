@@ -7,6 +7,7 @@ from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
 from .mg90s_env_cfg import MG90SWalkEnvCfg, MG90S_STALL_TORQUE
 from .mg90s_rewards import speed_tracking_reward
+from .payload_mass import apply_l1_rm_payload_to_stage
 from .wave_gait import foot_targets, inverse_kinematics
 
 
@@ -33,6 +34,16 @@ class MG90SWalkEnv(DirectRLEnv):
 
     def _setup_scene(self):
         self._robot = Articulation(self.cfg.robot)
+        import omni.usd
+
+        combined = apply_l1_rm_payload_to_stage(
+            omni.usd.get_context().get_stage(),
+            "/World/envs/env_0/Robot/base",
+            payload_mass=self.cfg.lidar_payload_mass_kg,
+            payload_size=self.cfg.lidar_payload_size_m,
+            mount_position=self.cfg.lidar_mount_position_b,
+        )
+        self._base_mass_with_lidar = combined.mass
         sim_utils.spawn_ground_plane("/World/ground", sim_utils.GroundPlaneCfg())
         self.scene.clone_environments(copy_from_source=False)
         self.scene.filter_collisions(global_prim_paths=["/World/ground"])

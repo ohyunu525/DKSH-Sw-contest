@@ -14,6 +14,7 @@ from isaaclab.utils import configclass
 from .wave_gait import STANCE_DEPTH, STANCE_FEMUR, STANCE_TIBIA
 from dksh_isaaclab.assets import SPIDERBOT_CFG
 from .agents.rsl_rl_ppo_cfg import SpiderNavigationPPORunnerCfg
+from .payload_mass import L1_RM_MOUNT_POSITION_B, L1_RM_PAYLOAD_MASS_KG, L1_RM_PAYLOAD_SIZE_M
 
 MG90S_STALL_TORQUE = 1.8 * 0.0980665
 MG90S_NO_LOAD_SPEED = math.radians(60) / 0.10
@@ -56,7 +57,10 @@ class MG90SWalkEnvCfg(DirectRLEnvCfg):
     state_space = 0
     supply_voltage = 4.8
     servo_mass_kg = 0.0134
-    mass_assumption = "Existing primitive link masses retained: 2.91816 kg; hardware mass unmeasured"
+    mass_assumption = "Primitive links 2.91816 kg + L1 RM 0.230 kg; remaining hardware mass unmeasured"
+    lidar_payload_mass_kg = L1_RM_PAYLOAD_MASS_KG
+    lidar_payload_size_m = L1_RM_PAYLOAD_SIZE_M
+    lidar_mount_position_b = L1_RM_MOUNT_POSITION_B
     gait_period = 2.0
     gait_lift = 0.006
     settling_seconds = 1.0

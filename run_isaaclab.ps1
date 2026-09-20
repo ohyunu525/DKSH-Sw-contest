@@ -24,11 +24,11 @@ $Environment = $Environment.ToLowerInvariant()
 $isaacLabRoot = Join-Path $projectRoot "IsaacLab"
 $launcher = Join-Path $isaacLabRoot "isaaclab.bat"
 $taskName = "Isaac-DKSH-Spider-Navigation-Direct-v0"
-$experimentName = 'dksh_spider_navigation'
+$experimentName = 'dksh_spider_navigation_l1v2'
 if ($RobotModel -ne 'baseline') {
     $cadCount = $RobotModel.Substring(3)
     $taskName = "Isaac-DKSH-Spider-CAD$cadCount-Navigation-Direct-v0"
-    $experimentName = "dksh_spider_cad${cadCount}_navigation"
+    $experimentName = "dksh_spider_cad${cadCount}_navigation_l1v2"
 }
 if ($Environment -ne 'flat') {
     $experimentName += '_obstacles'
@@ -85,7 +85,13 @@ try {
                 "-p", $scriptPath, "--headless", "--task=$taskName",
                 "--num_envs=$NumEnvs", "--max_iterations=$MaxIterations"
             ) + $runnerEnvironmentArguments
-            & $launcher @arguments
+            $trainingCompleted = $false
+            & $launcher @arguments 2>&1 | ForEach-Object {
+                if ([string]$_ -match '^DKSH_ISAACLAB_TRAIN_COMPLETE\s*$') {
+                    $trainingCompleted = $true
+                }
+                Write-Output $_
+            }
             $nativeExitCode = $LASTEXITCODE
             $latestCheckpointAfter = Get-ChildItem $logRoot -Recurse -Filter "model_*.pt" -ErrorAction SilentlyContinue |
                 Sort-Object LastWriteTime -Descending | Select-Object -First 1
@@ -93,13 +99,12 @@ try {
                 $null -eq $latestCheckpointBefore -or
                 $latestCheckpointAfter.LastWriteTime -gt $latestCheckpointBefore.LastWriteTime
             )
-            if (-not $createdCheckpoint) {
-                throw "Training failed before producing a checkpoint (native exit code $nativeExitCode)."
+            if (-not $trainingCompleted -or -not $createdCheckpoint -or $nativeExitCode -notin @(0, 1)) {
+                throw "Training did not complete cleanly or produce a new checkpoint (native exit code $nativeExitCode, completion marker $trainingCompleted)."
             }
-            if ($createdCheckpoint) {
-                Write-Host "Training checkpoint: $($latestCheckpointAfter.FullName)"
-                cmd.exe /d /c exit 0
-            }
+            Write-Host "Training checkpoint: $($latestCheckpointAfter.FullName)"
+            # Isaac Sim 4.5 can return 1 after the completed trainer shuts Kit down.
+            cmd.exe /d /c exit 0
         }
         "evaluate" {
             $scriptPath = Join-Path $projectRoot "isaaclab_project\scripts\evaluate.py"
@@ -129,13 +134,7 @@ try {
             else {
                 $localCheckpoints = Get-ChildItem (Join-Path $projectRoot "logs\rsl_rl\$experimentName") `
                     -Recurse -Filter "model_*.pt" -ErrorAction SilentlyContinue
-                if (-not $localCheckpoints -and $RobotModel -eq 'baseline' -and $Environment -eq 'flat') {
-                    $bundledCheckpoint = Join-Path $projectRoot "isaaclab_project\checkpoints\balance_baseline.pt"
-                    if (Test-Path -LiteralPath $bundledCheckpoint) {
-                        $arguments += "--checkpoint=$bundledCheckpoint"
-                    }
-                }
-                elseif (-not $localCheckpoints) {
+                if (-not $localCheckpoints) {
                     throw "No compatible checkpoint for $RobotModel / $Environment. Use -Mode preview to inspect the environment, train first, or provide -Checkpoint."
                 }
             }

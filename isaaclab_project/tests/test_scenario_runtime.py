@@ -49,6 +49,12 @@ def _load_runtime_with_unit_doubles():
         uv = 2.0 * torch.cross(xyz, vector, dim=-1)
         return vector - quat[:, :1] * uv + torch.cross(xyz, uv, dim=-1)
 
+    def forward_rotation(quat, vector):
+        xyz = quat[:, 1:]
+        uv = 2.0 * torch.cross(xyz, vector, dim=-1)
+        return vector + quat[:, :1] * uv + torch.cross(xyz, uv, dim=-1)
+
+    modules["isaaclab.utils.math"].quat_rotate = forward_rotation
     modules["isaaclab.utils.math"].quat_rotate_inverse = inverse_rotation
     with patch.dict(sys.modules, modules):
         loaded = {}
@@ -116,7 +122,20 @@ class ScenarioRuntimeTests(unittest.TestCase):
             num_envs=count,
             device="cpu",
             physics_dt=0.02,
-            cfg=types.SimpleNamespace(debris_impact_threshold=2.0),
+            cfg=types.SimpleNamespace(
+                debris_impact_threshold=2.0,
+                lidar_min_range_m=0.05,
+                lidar_max_range_m=30.0,
+                lidar_horizontal_scan_frequency_hz=11.0,
+                lidar_vertical_fov_deg=90.0,
+                lidar_vertical_projection_bins=3,
+                lidar_azimuth_samples_per_bin=5,
+                lidar_measurement_accuracy_m=0.02,
+                lidar_measurement_resolution_m=0.008,
+                lidar_observation_bins=16,
+                lidar_noise_enabled=False,
+                lidar_mount_position_b=(0.0, 0.0, 0.030),
+            ),
             scene=types.SimpleNamespace(env_origins=origins),
             _robot=types.SimpleNamespace(data=types.SimpleNamespace(
                 root_pos_w=robot_pos, root_quat_w=robot_quat,
@@ -295,23 +314,45 @@ class ScenarioRuntimeTests(unittest.TestCase):
         expected[0] += vibrating.floor_height[0]
         torch.testing.assert_close(vibrating.ground_height(positions), expected)
 
-    def test_every_preset_returns_32_finite_bounded_observations(self):
+    def test_every_preset_returns_48_finite_bounded_observations(self):
         for preset in LAYOUT.ENVIRONMENT_PRESETS:
             for difficulty in (0.0, 0.5, 1.0):
                 with self.subTest(preset=preset, difficulty=difficulty):
                     runtime = self.make_runtime(preset, difficulty)
                     runtime.physics_step()
                     observation = runtime.observations()
-                    self.assertEqual(observation.shape, (4, 32))
+                    self.assertEqual(observation.shape, (4, 48))
                     self.assertTrue(torch.isfinite(observation).all())
                     self.assertTrue((observation.abs() <= 1.0).all())
                     self.assertTrue((observation[:, :16] >= 0.0).all())
+                    self.assertTrue(((observation[:, 16:32] == 0.0) | (observation[:, 16:32] == 1.0)).all())
+                    torch.testing.assert_close(observation[:, 16:32], (observation[:, :16] < 1.0).float())
                     if not runtime.layout.vibration_active:
-                        torch.testing.assert_close(observation[:, 25:28], torch.zeros((4, 3)))
+                        torch.testing.assert_close(observation[:, 41:44], torch.zeros((4, 3)))
                     if not runtime.layout.debris_active:
-                        torch.testing.assert_close(observation[:, 28:], torch.zeros((4, 4)))
+                        torch.testing.assert_close(observation[:, 44:], torch.zeros((4, 4)))
                     if preset == "flat":
                         torch.testing.assert_close(observation[:, :16], torch.ones((4, 16)))
+                        torch.testing.assert_close(observation[:, 16:32], torch.zeros((4, 16)))
+
+    def test_lidar_scan_is_held_until_next_l1_rm_horizontal_frame(self):
+        runtime = self.make_runtime("narrow", count=1)
+        first = runtime.observations()[:, :16].clone()
+        runtime.env._robot.data.root_pos_w[:, 1] += 0.2
+        runtime.time[:] = 0.05
+        held = runtime.observations()[:, :16]
+        torch.testing.assert_close(held, first)
+        runtime.time[:] = 0.10
+        updated = runtime.observations()[:, :16]
+        self.assertFalse(torch.equal(updated, first))
+        self.assertAlmostEqual(runtime._lidar_next_update.item(), 2.0 / 11.0, places=6)
+
+        runtime.env._robot.data.root_pos_w[:, 1] += 0.2
+        runtime.time[:] = 0.18
+        torch.testing.assert_close(runtime.observations()[:, :16], updated)
+        runtime.time[:] = 0.19
+        self.assertFalse(torch.equal(runtime.observations()[:, :16], updated))
+        self.assertAlmostEqual(runtime._lidar_next_update.item(), 3.0 / 11.0, places=6)
 
 
 if __name__ == "__main__":

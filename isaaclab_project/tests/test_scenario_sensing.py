@@ -132,6 +132,92 @@ class ScenarioSensingTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             SENSING.planar_box_ranges(*args, ray_count=0)
 
+    def test_lidar_measurement_model_preserves_misses_and_models_rm_limits(self):
+        ranges = self.tensor([[0.0, 0.01, 0.5, 1.0]])
+        noise = self.tensor([[-1.0, 1.0, 0.5, -1.0]])
+        result = SENSING.apply_lidar_measurement_model(
+            ranges,
+            max_range=30.0,
+            min_range=0.05,
+            accuracy=0.02,
+            resolution=0.008,
+            noise=noise,
+        )
+        expected_meters = self.tensor([[0.320, 15.008]])
+        self.assertEqual(result[0, 0].item(), 1.0)  # Blind-zone hit is invalid.
+        torch.testing.assert_close(result[:, 1:3] * 30.0, expected_meters)
+        self.assertEqual(result[0, 3].item(), 1.0)
+
+    def test_azimuth_sector_samples_catch_off_center_obstacle(self):
+        positions = self.tensor([[0.0, 0.0, 0.0]])
+        identity = self.tensor([[1.0, 0.0, 0.0, 0.0]])
+        angle = math.radians(8.0)
+        centers = self.tensor([[[math.cos(angle), math.sin(angle), 0.0]]])
+        sizes = self.tensor([[0.04, 0.04, 0.04]])
+        kwargs = dict(max_range=2.0, horizontal_count=16, vertical_fov_degrees=0.0, vertical_count=1)
+        center_only = SENSING.spatial_obstacle_ranges(positions, identity, centers, sizes, **kwargs)
+        sector = SENSING.spatial_obstacle_ranges(
+            positions, identity, centers, sizes, azimuth_samples_per_bin=5, **kwargs
+        )
+        self.assertEqual(center_only[0, 0].item(), 1.0)
+        self.assertLess(sector[0, 0].item(), 1.0)
+
+    def test_lidar_measurement_model_rejects_invalid_parameters(self):
+        ranges = self.tensor([[0.5]])
+        valid = dict(max_range=30.0, min_range=0.05, accuracy=0.02, resolution=0.008)
+        for name, value in (
+            ("max_range", 0.0), ("min_range", -0.1), ("min_range", 30.0),
+            ("accuracy", -0.1), ("resolution", 0.0),
+        ):
+            with self.subTest(name=name, value=value), self.assertRaises(ValueError):
+                SENSING.apply_lidar_measurement_model(ranges, **(valid | {name: value}))
+
+    def test_spatial_projection_rotates_with_body_and_detects_ceiling(self):
+        positions = self.tensor([[0.0, 0.0, 0.0]])
+        identity = self.tensor([[1.0, 0.0, 0.0, 0.0]])
+        centers = self.tensor([[[1.0, 0.0, 0.6]]])
+        sizes = self.tensor([[0.2, 0.2, 0.2]])
+        horizontal_only = SENSING.spatial_obstacle_ranges(
+            positions, identity, centers, sizes,
+            max_range=2.0, horizontal_count=4, vertical_fov_degrees=90.0, vertical_count=1,
+        )
+        projected = SENSING.spatial_obstacle_ranges(
+            positions, identity, centers, sizes,
+            max_range=2.0, horizontal_count=4, vertical_fov_degrees=90.0, vertical_count=3,
+        )
+        self.assertEqual(horizontal_only[0, 0].item(), 1.0)
+        self.assertLess(projected[0, 0].item(), 1.0)
+
+    def test_upright_l1_projection_excludes_points_below_sensor_plane(self):
+        result = SENSING.spatial_obstacle_ranges(
+            self.tensor([[0.0, 0.0, 0.0]]),
+            self.tensor([[1.0, 0.0, 0.0, 0.0]]),
+            self.tensor([[[1.0, 0.0, -0.5]]]),
+            self.tensor([[0.1, 0.1, 0.1]]),
+            max_range=2.0, horizontal_count=16, azimuth_samples_per_bin=5,
+            vertical_fov_degrees=90.0, vertical_count=3,
+        )
+        self.assertTrue(torch.equal(result, torch.ones_like(result)))
+
+    def test_spatial_projection_includes_dynamic_spheres_and_static_occlusion(self):
+        positions = self.tensor([[0.0, 0.0, 0.0]])
+        identity = self.tensor([[1.0, 0.0, 0.0, 0.0]])
+        spheres = self.tensor([[[0.5, 0.0, 0.0]]])
+        clear = SENSING.spatial_obstacle_ranges(
+            positions, identity, self.tensor([]).reshape(1, 0, 3), self.tensor([]).reshape(0, 3),
+            max_range=2.0, horizontal_count=4, vertical_fov_degrees=0.0, vertical_count=1,
+            sphere_centers_w=spheres, sphere_radii=0.1,
+        )
+        self.assertAlmostEqual(clear[0, 0].item(), 0.2, places=6)
+        self.assertEqual(clear[0, 1].item(), 1.0)
+
+        occluded = SENSING.spatial_obstacle_ranges(
+            positions, identity, self.tensor([[[0.25, 0.0, 0.0]]]), self.tensor([[0.05, 0.2, 0.2]]),
+            max_range=2.0, horizontal_count=4, vertical_fov_degrees=0.0, vertical_count=1,
+            sphere_centers_w=spheres, sphere_radii=0.1,
+        )
+        self.assertAlmostEqual(occluded[0, 0].item(), 0.1, places=6)
+
     @unittest.skipUnless(torch is not None and torch.cuda.is_available(), "CUDA is not available")
     def test_cuda_matches_cpu_and_preserves_device(self):
         args = (

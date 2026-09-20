@@ -16,9 +16,10 @@ from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import quat_from_euler_xyz, quat_rotate_inverse
 
-from .spider_navigation_env_cfg import SpiderNavigationEnvCfg
+from .payload_mass import apply_l1_rm_payload_to_stage
 from .scenario_layout import validate_environment
 from .scenario_runtime import ScenarioRuntime
+from .spider_navigation_env_cfg import SpiderNavigationEnvCfg
 
 
 class SpiderNavigationEnv(DirectRLEnv):
@@ -28,10 +29,16 @@ class SpiderNavigationEnv(DirectRLEnv):
 
     def __init__(self, cfg: SpiderNavigationEnvCfg, render_mode: str | None = None, **kwargs):
         validate_environment(cfg.environment_preset, cfg.environment_difficulty)
-        cfg.observation_space = 12 + 3 * cfg.action_space + (32 if cfg.environment_preset != "flat" else 0)
+        # Actor: proprioception + L1 ranges + return-valid flags in every preset.
+        # Critic alone sees the simulator's terrain, floor and debris state.
+        cfg.observation_space = 12 + 3 * cfg.action_space + 2 * cfg.lidar_observation_bins
+        cfg.state_space = cfg.observation_space + 16
         self._scenario = None
         self._viewer_visuals = None
         super().__init__(cfg, render_mode, **kwargs)
+        # Isaac Lab 2.1's RSL-RL wrapper uses this attribute to detect the
+        # DirectRLEnv critic space, even when cfg.state_space is configured.
+        self.num_states = cfg.state_space
         if self._scenario is not None:
             self._scenario.initialize()
         action_dim = gym.spaces.flatdim(self.single_action_space)
@@ -59,6 +66,7 @@ class SpiderNavigationEnv(DirectRLEnv):
 
     def _setup_scene(self) -> None:
         self._robot = Articulation(self.cfg.robot)
+        self._apply_lidar_payload_mass()
         spawn_ground_plane(
             prim_path="/World/ground",
             cfg=GroundPlaneCfg(
@@ -73,6 +81,20 @@ class SpiderNavigationEnv(DirectRLEnv):
         self.scene.articulations["robot"] = self._robot
         light_cfg = sim_utils.DomeLightCfg(intensity=2500.0, color=(0.85, 0.88, 1.0))
         light_cfg.func("/World/Light", light_cfg)
+
+    def _apply_lidar_payload_mass(self) -> None:
+        """Add the physical L1 enclosure and collision shape to the base."""
+        import omni.usd
+
+        stage = omni.usd.get_context().get_stage()
+        combined = apply_l1_rm_payload_to_stage(
+            stage,
+            "/World/envs/env_0/Robot/base",
+            payload_mass=self.cfg.lidar_payload_mass_kg,
+            payload_size=self.cfg.lidar_payload_size_m,
+            mount_position=self.cfg.lidar_mount_position_b,
+        )
+        self._base_mass_with_lidar = combined.mass
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         if self._scenario is not None:
@@ -161,8 +183,18 @@ class SpiderNavigationEnv(DirectRLEnv):
             dim=-1,
         )
         if self._scenario is not None:
-            observation = torch.cat((observation, self._scenario.observations()), dim=-1)
-        return {"policy": observation}
+            scenario = self._scenario.observations()
+            lidar = scenario[:, :2 * self.cfg.lidar_observation_bins]
+            privileged = scenario[:, 2 * self.cfg.lidar_observation_bins:]
+        else:
+            # A flat world still has a scan: all bins report no obstacle.
+            lidar = torch.cat((
+                observation.new_ones((self.num_envs, self.cfg.lidar_observation_bins)),
+                observation.new_zeros((self.num_envs, self.cfg.lidar_observation_bins)),
+            ), dim=-1)
+            privileged = observation.new_zeros((self.num_envs, 16))
+        policy = torch.cat((observation, lidar), dim=-1)
+        return {"policy": policy, "critic": torch.cat((policy, privileged), dim=-1)}
 
     def _get_rewards(self) -> torch.Tensor:
         distance, direction_w, direction_b = self._goal_data()

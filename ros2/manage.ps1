@@ -1,12 +1,13 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('Build', 'Start', 'Stop', 'Status', 'Validate', 'Shell')]
+    [ValidateSet('Build', 'Start', 'StartLidar', 'Stop', 'Status', 'Validate', 'Shell')]
     [string]$Action = 'Status'
 )
 
 $ErrorActionPreference = 'Stop'
 $composeFile = Join-Path $PSScriptRoot 'compose.yaml'
+$lidarComposeFile = Join-Path $PSScriptRoot 'compose.lidar.yaml'
 $minimumBuildFreeGB = 25.0
 
 function Assert-DockerReady {
@@ -36,6 +37,12 @@ switch ($Action) {
         docker compose --file $composeFile up --detach
         if ($LASTEXITCODE -ne 0) { throw 'ROS2 container start failed.' }
     }
+    'StartLidar' {
+        docker compose --file $composeFile --file $lidarComposeFile up --detach
+        if ($LASTEXITCODE -ne 0) {
+            throw 'ROS2 Unitree L1 container start failed. Check UNITREE_LIDAR_DEVICE and USB access.'
+        }
+    }
     'Stop' {
         docker compose --file $composeFile stop
         if ($LASTEXITCODE -ne 0) { throw 'ROS2 container stop failed.' }
@@ -52,6 +59,8 @@ source /opt/ros/jazzy/setup.bash
 source /opt/dksh_ros2/install/setup.bash
 ros2 pkg prefix ros_tcp_endpoint
 ros2 pkg prefix frontier_exploration_ros2
+ros2 pkg prefix unitree_lidar_ros2
+ros2 pkg prefix pointcloud_to_laserscan
 ros2 pkg prefix nav2_bt_navigator
 ros2 pkg prefix nav2_mppi_controller
 ros2 pkg prefix nav2_smac_planner

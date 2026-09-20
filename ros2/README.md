@@ -19,7 +19,8 @@ The build helper refuses a new image build when less than 25 GB remains on `C:`.
 
 Measured after the first complete build on this machine:
 
-- final project image: 686,709,619 bytes (about 655 MiB)
+- pre-LiDAR project image: 686,709,619 bytes (about 655 MiB); the current image also includes PCL,
+  `pointcloud_to_laserscan`, and the pinned Unitree L1 driver, so remeasure after rebuilding
 - endpoint-only idle: about 106.5 MiB RAM and 0.29% Docker CPU
 - all SLAM/Nav2 lifecycle nodes active against a synthetic 6 m map: about 307.3 MiB RAM and 32% Docker CPU (roughly 0.32 of one logical core)
 - `C:` free after the build: about 29.3 GB
@@ -32,6 +33,7 @@ These are configuration smoke-test snapshots, not worst-case figures with a grow
 - Explicit Nav2 runtime servers and `slam_toolbox` from Jazzy binary packages
 - Unity ROS-TCP-Endpoint `ROS2v0.7.0`
 - `frontier_exploration_ros2` `v1.6.1`
+- Unitree `unilidar_sdk` commit `1bd7d95d8ab7ce7a22058d2bb07e39fd62612aa6`
 
 The `navigation2` and `nav2_bringup` metapackages are intentionally not installed: Jazzy's bringup package depends on Gazebo simulation packages. Only controller, planner, BT navigator, behavior, velocity smoother, collision monitor and lifecycle packages are installed. RViz and Gazebo are never launched locally.
 
@@ -44,6 +46,42 @@ Run these from PowerShell:
 .\ros2\manage.ps1 Start
 .\ros2\manage.ps1 Status
 .\ros2\manage.ps1 Validate
+```
+
+## Unitree L1 RM hardware
+
+The image pins Unitree's official `unilidar_sdk` at commit
+`1bd7d95d8ab7ce7a22058d2bb07e39fd62612aa6`. The driver publishes
+`/unilidar/cloud` (`sensor_msgs/PointCloud2`) and `/unilidar/imu`; the hardware launch projects the
+central ±0.10 m height band into `/scan` at 0.5° resolution for SLAM Toolbox and Nav2. It also
+publishes the provisional 30 mm base-to-LiDAR transform and Unitree's documented LiDAR-to-IMU
+offset. Hardware mode uses wall time, not Unity's `/clock`.
+
+On Linux, connect the L1 over USB and start the driver, projection, and static TF publishers with:
+
+```powershell
+$env:UNITREE_LIDAR_DEVICE = '/dev/ttyUSB0'
+.\ros2\manage.ps1 Build
+.\ros2\manage.ps1 StartLidar
+```
+
+If the device appears under another path, set `UNITREE_LIDAR_DEVICE` to that host path; it is
+mapped to `/dev/ttyUSB0` inside the container. The container must have permission to open the
+device. Docker Desktop on Windows does not pass USB serial devices directly: attach the device to
+WSL2 first (for example with `usbipd-win`) and run Docker from a backend where the device is visible.
+The official L1 ROS2 package was originally verified by Unitree on Foxy/Ubuntu 20.04; this project
+builds the pinned source against Jazzy and the container build is the compatibility gate.
+
+Hardware launch deliberately leaves SLAM/Nav2 off because the L1 supplies point cloud and IMU,
+not the required `odom -> base_footprint` transform. After a hardware odometry source publishes
+`/odom` and that TF, set `$env:L1_START_NAVIGATION = 'true'` before `StartLidar`.
+Do not use command-only dead reckoning as a substitute for measured odometry on the walking robot.
+
+Useful checks after startup:
+
+```powershell
+docker exec dksh-ros2-bridge bash -c "source /opt/ros/jazzy/setup.bash && source /opt/dksh_ros2/install/setup.bash && ros2 topic hz /unilidar/cloud"
+docker exec dksh-ros2-bridge bash -c "source /opt/ros/jazzy/setup.bash && source /opt/dksh_ros2/install/setup.bash && ros2 topic echo --once /scan"
 ```
 
 Stop only this project's container with:

@@ -10,10 +10,10 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
-from isaaclab.utils.math import quat_rotate_inverse
+from isaaclab.utils.math import quat_rotate, quat_rotate_inverse
 
 from .scenario_layout import build_layout
-from .scenario_sensing import planar_box_ranges, sample_box_heights
+from .scenario_sensing import apply_lidar_measurement_model, sample_box_heights, spatial_obstacle_ranges
 
 
 class ScenarioRuntime:
@@ -119,6 +119,11 @@ class ScenarioRuntime:
         self._contact_active = torch.zeros_like(self.impact)
         self.floor_height = torch.full_like(self.time, self.layout.spawn[2])
         self.floor_velocity = torch.zeros((env.num_envs, 3), device=env.device)
+        self._lidar_ranges = torch.ones(
+            (env.num_envs, env.cfg.lidar_observation_bins), device=env.device
+        )
+        self._lidar_valid = torch.zeros_like(self._lidar_ranges)
+        self._lidar_next_update = torch.zeros(env.num_envs, device=env.device)
         self._centers = torch.tensor([b.position for b in self.layout.boxes], device=env.device).reshape(-1, 3)
         self._halves = torch.tensor([b.size for b in self.layout.boxes], device=env.device).reshape(-1, 3) / 2
         # Roof and walls are never interpreted as supporting terrain.
@@ -139,6 +144,9 @@ class ScenarioRuntime:
         )
         self.impact[env_ids] = False
         self._contact_active[env_ids] = False
+        self._lidar_ranges[env_ids] = 1.0
+        self._lidar_valid[env_ids] = 0.0
+        self._lidar_next_update[env_ids] = 0.0
         self.drop_count[env_ids] = 0
         interval = 1.7 - self.difficulty
         for slot, debris in enumerate(self.debris):
@@ -239,19 +247,64 @@ class ScenarioRuntime:
             default_height=floor,
         ).squeeze(1)
 
-    def observations(self):
-        """16 planar ranges, 9 terrain heights, 3 floor velocities, 4 debris cues.
+    def _lidar_observations(self, positions_w, quaternion_w, centers_w):
+        """Update and hold a 3-D-projected L1 RM scan at its physical 11 Hz rate."""
+        cfg = self.env.cfg
+        due = self.time >= self._lidar_next_update
+        due_ids = due.nonzero(as_tuple=True)[0]
+        if due_ids.numel():
+            sphere_centers = None
+            if self.debris:
+                sphere_centers = torch.stack([body.data.root_pos_w[due_ids] for body in self.debris], dim=1)
+            ranges = spatial_obstacle_ranges(
+                positions_w[due_ids], quaternion_w[due_ids], centers_w[due_ids], self._halves,
+                max_range=cfg.lidar_max_range_m,
+                horizontal_count=cfg.lidar_observation_bins,
+                azimuth_samples_per_bin=cfg.lidar_azimuth_samples_per_bin,
+                vertical_fov_degrees=cfg.lidar_vertical_fov_deg,
+                vertical_count=cfg.lidar_vertical_projection_bins,
+                sphere_centers_w=sphere_centers,
+                sphere_radii=self.radius if sphere_centers is not None else None,
+            )
+            noise = torch.zeros_like(ranges)
+            if cfg.lidar_noise_enabled:
+                noise.uniform_(-1.0, 1.0)
+            measured = apply_lidar_measurement_model(
+                ranges,
+                max_range=cfg.lidar_max_range_m,
+                min_range=cfg.lidar_min_range_m,
+                accuracy=cfg.lidar_measurement_accuracy_m,
+                resolution=cfg.lidar_measurement_resolution_m,
+                noise=noise,
+                validate_tensors=False,
+            )
+            self._lidar_ranges[due_ids] = measured
+            self._lidar_valid[due_ids] = (measured < 1.0).to(measured.dtype)
+        period = 1.0 / cfg.lidar_horizontal_scan_frequency_hz
+        # Advance from the ideal sensor clock instead of the policy clock.  At
+        # 50 Hz control, scheduling from ``time + period`` would turn 11 Hz into
+        # a drifting 10 Hz stream because scans can only be consumed on a step.
+        elapsed_periods = torch.floor(
+            (self.time - self._lidar_next_update).clamp_min(0.0) / period
+        ) + 1.0
+        self._lidar_next_update.copy_(torch.where(
+            due,
+            self._lidar_next_update + elapsed_periods * period,
+            self._lidar_next_update,
+        ))
+        return torch.cat((self._lidar_ranges, self._lidar_valid), dim=1)
 
-        These are privileged simulator measurements; real sensor noise and
-        occlusion must be modeled before transfer to hardware.
-        """
+    def observations(self):
+        """Return 32 L1 actor features followed by 16 privileged critic features."""
         env = self.env
         pos = env._robot.data.root_pos_w
         quat = env._robot.data.root_quat_w
         yaw = torch.atan2(2 * (quat[:, 0] * quat[:, 3] + quat[:, 1] * quat[:, 2]),
                           1 - 2 * (quat[:, 2].square() + quat[:, 3].square()))
         centers = self._centers.unsqueeze(0) + env.scene.env_origins.unsqueeze(1)
-        ranges = planar_box_ranges(pos, yaw, centers, self._halves)
+        mount_b = pos.new_tensor(env.cfg.lidar_mount_position_b).expand(env.num_envs, -1)
+        lidar_pos = pos + quat_rotate(quat, mount_b)
+        ranges = self._lidar_observations(lidar_pos, quat, centers)
         offsets = self._height_offsets.unsqueeze(0).expand(env.num_envs, -1, -1)
         cos, sin = yaw.cos().unsqueeze(1), yaw.sin().unsqueeze(1)
         points = torch.stack((cos * offsets[:, :, 0] - sin * offsets[:, :, 1],
