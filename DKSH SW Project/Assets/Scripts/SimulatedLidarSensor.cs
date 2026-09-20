@@ -187,7 +187,7 @@ namespace DKSH.Spiderbot.Sensors
                         vertical,
                         origin,
                         direction,
-                        activeSettings.maxDistance,
+                        activeSettings,
                         didHit,
                         hitInfo);
                     sampleCount++;
@@ -217,13 +217,30 @@ namespace DKSH.Spiderbot.Sensors
             int vertical,
             Vector3 origin,
             Vector3 direction,
-            float maxDistance,
+            LidarScanSettings activeSettings,
             bool didHit,
             RaycastHit hitInfo)
         {
-            var point = didHit ? hitInfo.point : origin + direction * maxDistance;
+            var rawDistance = didHit ? hitInfo.distance : activeSettings.maxDistance;
+            if (didHit && rawDistance < activeSettings.minDistance)
+            {
+                // The L1 RM has no valid return inside its 5 cm blind zone.
+                didHit = false;
+                rawDistance = activeSettings.maxDistance;
+            }
+            if (didHit && activeSettings.measurementAccuracy > 0f)
+            {
+                rawDistance += UnityEngine.Random.Range(
+                    -activeSettings.measurementAccuracy,
+                    activeSettings.measurementAccuracy);
+            }
+            var distance = Mathf.Clamp(
+                Mathf.Round(rawDistance / activeSettings.measurementResolution) *
+                activeSettings.measurementResolution,
+                activeSettings.minDistance,
+                activeSettings.maxDistance);
+            var point = origin + direction * distance;
             var normal = didHit ? hitInfo.normal : Vector3.zero;
-            var distance = didHit ? hitInfo.distance : maxDistance;
             var colliderInstanceId = didHit && hitInfo.collider != null ? hitInfo.collider.GetHashCode() : 0;
 
             return new LidarSample(

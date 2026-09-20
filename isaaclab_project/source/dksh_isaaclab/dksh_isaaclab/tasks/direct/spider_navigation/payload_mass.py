@@ -1,9 +1,15 @@
-"""Pure helpers for adding a centered box payload to a rigid body."""
+"""Mass and USD helpers for the Unitree L1 RM payload."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 import math
+
+
+L1_RM_PAYLOAD_MASS_KG = 0.230
+L1_RM_PAYLOAD_SIZE_M = (0.075, 0.075, 0.065)
+L1_RM_MOUNT_POSITION_B = (0.0, 0.0, 0.030)
+L1_RM_PRIM_NAME = "LidarPayload"
 
 
 @dataclass(frozen=True)
@@ -67,3 +73,71 @@ def add_centered_box_payload(
         base.diagonal_inertia[2] + payload_inertia[2],
     )
     return MassProperties(total_mass, center, inertia)
+
+
+def apply_l1_rm_payload_to_stage(
+    stage,
+    base_prim_path: str,
+    *,
+    payload_mass: float = L1_RM_PAYLOAD_MASS_KG,
+    payload_size: tuple[float, float, float] = L1_RM_PAYLOAD_SIZE_M,
+    mount_position: tuple[float, float, float] = L1_RM_MOUNT_POSITION_B,
+) -> MassProperties:
+    """Apply L1 RM mass properties and a collidable enclosure to one USD base.
+
+    Imports USD lazily so the pure mass helper remains usable in normal Python
+    unit tests without an Isaac Sim runtime.
+    """
+    from pxr import Gf, UsdGeom, UsdPhysics
+
+    base_prim = stage.GetPrimAtPath(base_prim_path)
+    mass_api = UsdPhysics.MassAPI(base_prim)
+    if not base_prim or not mass_api:
+        raise RuntimeError("Robot base is missing USD mass properties for the LiDAR payload")
+
+    mass = mass_api.GetMassAttr().Get()
+    center = mass_api.GetCenterOfMassAttr().Get()
+    inertia = mass_api.GetDiagonalInertiaAttr().Get()
+    axes = mass_api.GetPrincipalAxesAttr().Get()
+    if mass is None or center is None or inertia is None:
+        raise RuntimeError("Robot base mass, center of mass, and inertia must be authored")
+    if axes is not None:
+        imaginary = axes.GetImaginary()
+        if (
+            abs(abs(float(axes.GetReal())) - 1.0) > 1.0e-6
+            or max(abs(float(value)) for value in imaginary) > 1.0e-6
+        ):
+            raise RuntimeError("LiDAR payload requires base principal axes aligned with the body frame")
+
+    payload_center = (
+        mount_position[0],
+        mount_position[1],
+        mount_position[2] + payload_size[2] / 2.0,
+    )
+    combined = add_centered_box_payload(
+        MassProperties(
+            float(mass),
+            tuple(float(value) for value in center),
+            tuple(float(value) for value in inertia),
+        ),
+        payload_mass=payload_mass,
+        payload_size=payload_size,
+        payload_center=payload_center,
+    )
+    mass_api.GetMassAttr().Set(combined.mass)
+    mass_api.GetCenterOfMassAttr().Set(Gf.Vec3f(*combined.center_of_mass))
+    mass_api.GetDiagonalInertiaAttr().Set(Gf.Vec3f(*combined.diagonal_inertia))
+
+    # A child collision shape belongs to the base rigid body.  This makes low
+    # ceilings and falling debris interact with the real enclosure dimensions
+    # without introducing an extra joint or rigid body into the articulation.
+    payload_path = f"{base_prim_path}/{L1_RM_PRIM_NAME}"
+    payload = UsdGeom.Cube.Define(stage, payload_path)
+    payload.CreateSizeAttr(1.0)
+    xform = UsdGeom.Xformable(payload.GetPrim())
+    xform.ClearXformOpOrder()
+    xform.AddTranslateOp().Set(Gf.Vec3d(*payload_center))
+    xform.AddScaleOp().Set(Gf.Vec3d(*payload_size))
+    payload.CreateDisplayColorAttr([Gf.Vec3f(0.08, 0.10, 0.12)])
+    UsdPhysics.CollisionAPI.Apply(payload.GetPrim())
+    return combined

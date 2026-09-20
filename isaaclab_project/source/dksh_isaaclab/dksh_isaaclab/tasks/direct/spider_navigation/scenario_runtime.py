@@ -13,7 +13,7 @@ from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.utils.math import quat_rotate, quat_rotate_inverse
 
 from .scenario_layout import build_layout
-from .scenario_sensing import apply_lidar_measurement_model, planar_box_ranges, sample_box_heights
+from .scenario_sensing import apply_lidar_measurement_model, sample_box_heights, spatial_obstacle_ranges
 
 
 class ScenarioRuntime:
@@ -245,39 +245,50 @@ class ScenarioRuntime:
             default_height=floor,
         ).squeeze(1)
 
-    def _lidar_observations(self, positions_w, yaw, centers_w):
-        """Update and hold the compact L1 RM scan at its physical 11 Hz rate."""
+    def _lidar_observations(self, positions_w, quaternion_w, centers_w):
+        """Update and hold a 3-D-projected L1 RM scan at its physical 11 Hz rate."""
         cfg = self.env.cfg
-        due = (self.time >= self._lidar_next_update).nonzero(as_tuple=False).flatten()
-        if due.numel() == 0:
-            return self._lidar_ranges
-        ranges = planar_box_ranges(
-            positions_w[due],
-            yaw[due],
-            centers_w[due],
+        due = self.time >= self._lidar_next_update
+        sphere_centers = None
+        if self.debris:
+            sphere_centers = torch.stack([body.data.root_pos_w for body in self.debris], dim=1)
+        ranges = spatial_obstacle_ranges(
+            positions_w,
+            quaternion_w,
+            centers_w,
             self._halves,
             max_range=cfg.lidar_max_range_m,
-            ray_count=cfg.lidar_observation_bins,
+            horizontal_count=cfg.lidar_observation_bins,
+            vertical_fov_degrees=cfg.lidar_vertical_fov_deg,
+            vertical_count=cfg.lidar_vertical_projection_bins,
+            sphere_centers_w=sphere_centers,
+            sphere_radii=self.radius if sphere_centers is not None else None,
         )
         noise = torch.zeros_like(ranges)
         if cfg.lidar_noise_enabled:
             noise.uniform_(-1.0, 1.0)
-        self._lidar_ranges[due] = apply_lidar_measurement_model(
+        measured = apply_lidar_measurement_model(
             ranges,
             max_range=cfg.lidar_max_range_m,
             min_range=cfg.lidar_min_range_m,
             accuracy=cfg.lidar_measurement_accuracy_m,
             resolution=cfg.lidar_measurement_resolution_m,
             noise=noise,
+            validate_tensors=False,
         )
+        self._lidar_ranges.copy_(torch.where(due[:, None], measured, self._lidar_ranges))
         period = 1.0 / cfg.lidar_horizontal_scan_frequency_hz
         # Advance from the ideal sensor clock instead of the policy clock.  At
         # 50 Hz control, scheduling from ``time + period`` would turn 11 Hz into
         # a drifting 10 Hz stream because scans can only be consumed on a step.
         elapsed_periods = torch.floor(
-            (self.time[due] - self._lidar_next_update[due]) / period
+            (self.time - self._lidar_next_update).clamp_min(0.0) / period
         ) + 1.0
-        self._lidar_next_update[due] += elapsed_periods * period
+        self._lidar_next_update.copy_(torch.where(
+            due,
+            self._lidar_next_update + elapsed_periods * period,
+            self._lidar_next_update,
+        ))
         return self._lidar_ranges
 
     def observations(self):
@@ -294,7 +305,7 @@ class ScenarioRuntime:
         centers = self._centers.unsqueeze(0) + env.scene.env_origins.unsqueeze(1)
         mount_b = pos.new_tensor(env.cfg.lidar_mount_position_b).expand(env.num_envs, -1)
         lidar_pos = pos + quat_rotate(quat, mount_b)
-        ranges = self._lidar_observations(lidar_pos, yaw, centers)
+        ranges = self._lidar_observations(lidar_pos, quat, centers)
         offsets = self._height_offsets.unsqueeze(0).expand(env.num_envs, -1, -1)
         cos, sin = yaw.cos().unsqueeze(1), yaw.sin().unsqueeze(1)
         points = torch.stack((cos * offsets[:, :, 0] - sin * offsets[:, :, 1],

@@ -9,6 +9,8 @@ from isaaclab.utils import configclass
 from dksh_isaaclab.assets import SPIDERBOT_CFG
 from dksh_isaaclab.assets.spiderbot import cad_spiderbot_cfg
 
+from .payload_mass import L1_RM_MOUNT_POSITION_B, L1_RM_PAYLOAD_MASS_KG, L1_RM_PAYLOAD_SIZE_M
+
 
 @configclass
 class SpiderNavigationEnvCfg(DirectRLEnvCfg):
@@ -64,6 +66,7 @@ class SpiderNavigationEnvCfg(DirectRLEnvCfg):
     lidar_low_reflectivity_range_m = 15.0
     lidar_horizontal_fov_deg = 360.0
     lidar_vertical_fov_deg = 90.0
+    lidar_vertical_projection_bins = 3
     lidar_sampling_frequency_hz = 43_200
     lidar_effective_frequency_hz = 21_600
     lidar_horizontal_scan_frequency_hz = 11.0
@@ -74,11 +77,11 @@ class SpiderNavigationEnvCfg(DirectRLEnvCfg):
     lidar_measurement_resolution_m = 0.008
     lidar_observation_bins = 16
     lidar_noise_enabled = True
-    lidar_payload_mass_kg = 0.230
-    lidar_payload_size_m = (0.075, 0.075, 0.065)
+    lidar_payload_mass_kg = L1_RM_PAYLOAD_MASS_KG
+    lidar_payload_size_m = L1_RM_PAYLOAD_SIZE_M
     # Point-cloud origin: bottom center of L1. The 30 mm bracket height is
     # provisional until the physical mounting bracket is measured.
-    lidar_mount_position_b = (0.0, 0.0, 0.030)
+    lidar_mount_position_b = L1_RM_MOUNT_POSITION_B
 
     # Keep early exploration inside a range the MG996R-powered stance can recover from.
     action_scale = 0.30

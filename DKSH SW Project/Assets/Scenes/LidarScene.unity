@@ -1619,11 +1619,14 @@ MonoBehaviour:
   profile: {fileID: 0}
   settings:
     horizontalResolution: 180
-    verticalResolution: 8
+    verticalResolution: 11
     horizontalFovDegrees: 360
-    verticalFovDegrees: 30
-    maxDistance: 12
-    scanFrequencyHz: 10
+    verticalFovDegrees: 90
+    maxDistance: 30
+    minDistance: 0.05
+    measurementAccuracy: 0.02
+    measurementResolution: 0.008
+    scanFrequencyHz: 11
     detectionMask:
       serializedVersion: 2
       m_Bits: 4294967039

@@ -48,7 +48,7 @@ def main() -> None:
         torch.testing.assert_close(base_env._robot.data.default_mass[:, base_index], expected_base_mass)
         reset_count = 0
         reward_sum = 0.0
-        scenario = base_env._scenario
+        scenario = getattr(base_env, "_scenario", None)
         initial_floor = scenario.floor_height.clone() if scenario is not None else None
         floor_displacement = 0.0
         drops_seen = 0

@@ -158,6 +158,41 @@ class ScenarioSensingTests(unittest.TestCase):
             with self.subTest(name=name, value=value), self.assertRaises(ValueError):
                 SENSING.apply_lidar_measurement_model(ranges, **(valid | {name: value}))
 
+    def test_spatial_projection_rotates_with_body_and_detects_ceiling(self):
+        positions = self.tensor([[0.0, 0.0, 0.0]])
+        identity = self.tensor([[1.0, 0.0, 0.0, 0.0]])
+        centers = self.tensor([[[1.0, 0.0, 0.6]]])
+        sizes = self.tensor([[0.2, 0.2, 0.2]])
+        horizontal_only = SENSING.spatial_obstacle_ranges(
+            positions, identity, centers, sizes,
+            max_range=2.0, horizontal_count=4, vertical_fov_degrees=90.0, vertical_count=1,
+        )
+        projected = SENSING.spatial_obstacle_ranges(
+            positions, identity, centers, sizes,
+            max_range=2.0, horizontal_count=4, vertical_fov_degrees=90.0, vertical_count=3,
+        )
+        self.assertEqual(horizontal_only[0, 0].item(), 1.0)
+        self.assertLess(projected[0, 0].item(), 1.0)
+
+    def test_spatial_projection_includes_dynamic_spheres_and_static_occlusion(self):
+        positions = self.tensor([[0.0, 0.0, 0.0]])
+        identity = self.tensor([[1.0, 0.0, 0.0, 0.0]])
+        spheres = self.tensor([[[0.5, 0.0, 0.0]]])
+        clear = SENSING.spatial_obstacle_ranges(
+            positions, identity, self.tensor([]).reshape(1, 0, 3), self.tensor([]).reshape(0, 3),
+            max_range=2.0, horizontal_count=4, vertical_fov_degrees=0.0, vertical_count=1,
+            sphere_centers_w=spheres, sphere_radii=0.1,
+        )
+        self.assertAlmostEqual(clear[0, 0].item(), 0.2, places=6)
+        self.assertEqual(clear[0, 1].item(), 1.0)
+
+        occluded = SENSING.spatial_obstacle_ranges(
+            positions, identity, self.tensor([[[0.25, 0.0, 0.0]]]), self.tensor([[0.05, 0.2, 0.2]]),
+            max_range=2.0, horizontal_count=4, vertical_fov_degrees=0.0, vertical_count=1,
+            sphere_centers_w=spheres, sphere_radii=0.1,
+        )
+        self.assertAlmostEqual(occluded[0, 0].item(), 0.1, places=6)
+
     @unittest.skipUnless(torch is not None and torch.cuda.is_available(), "CUDA is not available")
     def test_cuda_matches_cpu_and_preserves_device(self):
         args = (

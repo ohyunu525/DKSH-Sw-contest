@@ -1,4 +1,6 @@
 """MG90S locomotion on the actual six-leg CAD asset: 18 joints / 68 observations."""
+import torch
+
 from isaaclab.utils import configclass
 from dksh_isaaclab.assets.spiderbot import cad_spiderbot_cfg
 from .mg90s_env import MG90SWalkEnv
@@ -29,7 +31,7 @@ class MG90SCad6EnvCfg(MG90SWalkEnvCfg):
     tripod_transition_speed = 0.030
     tripod_transition_width = 0.005
     tripod_enabled = False
-    mass_assumption = 'CAD6 link estimates retained: 2.31362 kg; hardware mass unmeasured'
+    mass_assumption = 'CAD6 links 2.31362 kg + L1 RM 0.230 kg; remaining hardware mass unmeasured'
 
 
 @configclass

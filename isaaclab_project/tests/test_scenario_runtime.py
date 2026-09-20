@@ -127,6 +127,8 @@ class ScenarioRuntimeTests(unittest.TestCase):
                 lidar_min_range_m=0.05,
                 lidar_max_range_m=30.0,
                 lidar_horizontal_scan_frequency_hz=11.0,
+                lidar_vertical_fov_deg=90.0,
+                lidar_vertical_projection_bins=3,
                 lidar_measurement_accuracy_m=0.02,
                 lidar_measurement_resolution_m=0.008,
                 lidar_observation_bins=16,
