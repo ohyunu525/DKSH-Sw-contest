@@ -1,10 +1,13 @@
 # CORE: Raspberry Pi 보행 정책 입력·추론
 
-`CORE.py`는 센서/ESP32가 없어도 **가상 상태 → 68개 관측값 → ONNX 정책의 18개 출력 → 화면/JSONL 기록**을 한 번 실행합니다. 모터 명령은 만들거나 전송하지 않습니다.
+`CORE.py`는 센서/ESP32가 없어도 **가상 상태 → 68개 관측값 → ONNX 정책의 18개 출력 → 학습과 같은 행동 보정 → 화면/JSONL 기록**을 한 번 실행합니다. 모터 명령은 만들거나 전송하지 않습니다.
 
-현재 대응하는 학습 작업은 `Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0`입니다. 이 저수준 보행 정책의
+대응하는 학습 작업은 6족 MG90S Walk와 Sprint입니다. 이 저수준 보행 정책의
 관측에는 LiDAR·카메라·목표 위치가 들어 있지 않습니다. LiDAR는 ROS2 SLAM/Nav2가 `/cmd_vel`을
 생성하는 상위 계층에서 사용하고, 보행 정책은 그 속도 명령을 `command` 관측으로 받는 구조입니다.
+학습 저장소의 목표 탐색 정책은 LiDAR를 포함한 98개 관측값과 다른 관절 행동 규칙을 사용합니다.
+그 정책 파일을 이 68개 관측값 보행 코드에 연결할 수 없습니다. L1 RM 장치의 질량과 장착 위치는
+보행 학습의 **물리 설정**에 반영되지만, LiDAR 점군 자체는 이 보행 정책의 입력에 들어가지 않습니다.
 
 ## 먼저 가상 입력 확인
 
@@ -15,6 +18,12 @@ python3 CORE.py --state sample_state.json --log core_log.jsonl
 ```
 
 `--state`를 생략하면 내장 가상 상태를 사용합니다. 모델 없이 실행한 결과는 `status: observation_only`, `action_raw: null`입니다. `observation` 배열은 68개입니다. `--log`를 지정하면 실행마다 JSON 한 줄을 추가합니다.
+
+`--profile walk`는 기본 보행 작업의 학습 범위인 **0.003~0.006 m/s**를 검사합니다.
+빠른 보행 작업은 별도 정책이므로 `--profile sprint`를 지정하며 학습 범위는 **0.012~0.050 m/s**입니다.
+가상 상태를 쓰는 빠른 보행 형식 확인은 `python3 CORE.py --profile sprint`로 할 수 있습니다.
+`sample_state.json`의 0.0045 m/s는 walk 전용 예시입니다.
+코드와 학습 설정의 일치 여부는 `python3 -m unittest test_CORE.py`로 확인할 수 있습니다.
 
 ## 학습 모델 연결
 
@@ -35,7 +44,13 @@ python3 CORE.py --state sample_state.json --model ./policy.onnx --log core_log.j
 
 ONNX Runtime의 CPU 패키지는 Linux ARM64를 지원하므로, Raspberry Pi에서는 64비트 OS와 해당 Python용 패키지를 사용하세요. 32비트 OS의 패키지 설치 가능 여부는 별도 확인이 필요합니다. [ONNX Runtime Python 설치 문서](https://onnxruntime.ai/docs/get-started/with-python.html)
 
-모델이 있으면 `status: inferred`와 `action_raw` 18개가 표시됩니다. 프로그램은 ONNX의 입출력 차원과 `run_metadata.json`의 작업 ID, 6족, 68관측, 18행동, 학습 완료 상태를 검사합니다. 다른 위치의 메타데이터는 `--metadata /path/to/run_metadata.json`으로 지정할 수 있습니다. 현재 저장소에 포함된 공개 모델 파일은 8족용이므로 이 프로그램의 6족 추론에 사용할 수 없습니다.
+모델이 있으면 `status: inferred`와 `action_raw` 18개가 표시됩니다. 프로그램은 ONNX의 입출력 차원과 `run_metadata.json`의 작업 ID, 6족, 68관측, 18행동, 학습 완료 상태, L1 RM을 포함한 학습 질량 약 2.54362 kg을 검사합니다. 따라서 LiDAR 질량이 반영되기 전의 같은 작업 모델도 거부합니다. Sprint 모델은 `--profile sprint`와 함께 실행해야 합니다. 다른 위치의 메타데이터는 `--metadata /path/to/run_metadata.json`으로 지정할 수 있습니다. 현재 저장소에 포함된 공개 모델 파일은 8족용이므로 이 프로그램의 6족 추론에 사용할 수 없습니다.
+
+추론 후 표시하는 `action_clipped`는 모델 출력을 `[-1,1]`로 제한한 값입니다.
+`filtered_actions_next = filtered_actions + 0.2 × (action_clipped − filtered_actions)`이고,
+`joint_residual_rad = 0.035 × filtered_actions_next`입니다. 이는 학습 환경의
+`_pre_physics_step()`와 같은 **보정분** 계산이며, 기준 보행 관절값을 합친 최종 목표는 아닙니다.
+다음 정책 호출의 관측값에는 `filtered_actions_next`를 넣어야 합니다.
 
 ## 관측값이란?
 
@@ -54,7 +69,7 @@ ONNX Runtime의 CPU 패키지는 Linux ARM64를 지원하므로, Raspberry Pi에
 | `root_lin_vel_b` | 3 | 몸체 좌표계 선속도, m/s |
 | `root_ang_vel_b` | 3 | 몸체 좌표계 각속도, rad/s |
 | `projected_gravity_b` | 3 | 몸체 좌표계 중력 방향, 직립 시 `[0,0,-1]` |
-| `command` | 3 | 몸체 기준 목표 `[전진속도, 횡속도, 회전속도]`; 이 학습에서는 전진속도만 사용 |
+| `command` | 3 | 몸체 기준 `[전진속도, 0, 0]`; 학습 범위 밖의 속도, 횡이동, 회전은 거부 |
 | `joint_pos` | 18 | 관절 현재 각도, rad; 관측에는 기본 각도를 뺀 값 사용 |
 | `default_joint_pos` | 18 | 학습 환경의 기본 관절 각도, rad; 관측 배열에는 별도 항목으로 들어가지 않음 |
 | `joint_vel` | 18 | 관절 각속도, rad/s; 관측 시 0.1배 |
@@ -63,6 +78,6 @@ ONNX Runtime의 CPU 패키지는 Linux ARM64를 지원하므로, Raspberry Pi에
 
 관측 배열의 실제 묶음은 **몸체 선속도 3 + 각속도 3 + 중력 방향 3 + 목표 명령 3 + 관절 위치 차이 18 + 관절 속도 18 + 평활화 행동 18 + 보행 위상 2 = 68개**입니다.
 
-18개 관절 배열은 **학습 환경의 `robot.joint_names` 순서**와 일치해야 합니다. 가상 예제의 순서는 설명용이며 실제 Isaac Lab 관절 순서를 검증한 값은 아닙니다. 현재 코드는 한 번의 추론만 하므로 `filtered_actions`를 자동 갱신하지 않습니다. 반복 제어를 연결할 때는 학습 환경과 같은 평활화 계수 0.2, 위상, 명령 범위를 적용해야 합니다. IMU만으로 몸체 선속도와 관절 위치/속도를 알 수 없으므로, 실제 센서 연결 전까지 가상 입력을 실측값으로 해석하지 마세요.
+18개 관절 배열은 **학습 환경의 `robot.joint_names` 순서**와 일치해야 합니다. 가상 예제의 순서는 설명용이며 실제 Isaac Lab 관절 순서를 검증한 값은 아닙니다. 현재 코드는 한 번의 추론만 하므로 다음 호출의 `filtered_actions`와 보행 위상은 호출자가 이어서 공급해야 합니다. 정지, 후진, 횡이동, 회전 명령은 이 학습 정책이 다루지 않으므로 별도 제어 상태로 처리해야 합니다. IMU만으로 몸체 선속도와 관절 위치/속도를 알 수 없으므로, 실제 센서 연결 전까지 가상 입력을 실측값으로 해석하지 마세요.
 
-출력 `action_raw`는 정규화된 관절 **보정 행동**입니다. 최종 관절 목표나 서보 PWM이 아니며, 실제 구동에는 기준 보행, 보정 크기 0.035 rad, 관절 한계·속도 제한, 이상 상태 정지, 통신 검사 등이 더 필요합니다.
+출력 `action_raw`는 정규화된 관절 **보정 행동**입니다. 최종 관절 목표나 서보 PWM이 아니며, 실제 구동에는 기준 보행, 관절 한계·목표 변화율 제한, 이상 상태 정지, 통신 검사 등이 더 필요합니다.
