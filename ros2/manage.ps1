@@ -60,6 +60,7 @@ source /opt/dksh_ros2/install/setup.bash
 ros2 pkg prefix ros_tcp_endpoint
 ros2 pkg prefix frontier_exploration_ros2
 ros2 pkg prefix unitree_lidar_ros2
+ros2 pkg prefix dksh_l1_features
 ros2 pkg prefix pointcloud_to_laserscan
 ros2 pkg prefix nav2_bt_navigator
 ros2 pkg prefix nav2_mppi_controller

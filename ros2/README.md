@@ -54,6 +54,10 @@ The image pins Unitree's official `unilidar_sdk` at commit
 `1bd7d95d8ab7ce7a22058d2bb07e39fd62612aa6`. The driver publishes
 `/unilidar/cloud` (`sensor_msgs/PointCloud2`) and `/unilidar/imu`; the hardware launch projects the
 central ±0.10 m height band into `/scan` at 0.5° resolution for SLAM Toolbox and Nav2. It also
+encodes each complete cloud with the shared policy contract and publishes 16 normalized nearest
+ranges plus 16 return-valid flags on `/policy/l1_features` (`std_msgs/Float32MultiArray`). The
+encoder rejects clouds whose frame is not `unilidar_lidar`; measured self/ground masking is still
+required before these features are used by an end-to-end navigation policy. The launch also
 publishes the provisional 30 mm base-to-LiDAR transform and Unitree's documented LiDAR-to-IMU
 offset. Hardware mode uses wall time, not Unity's `/clock`.
 
@@ -82,6 +86,7 @@ Useful checks after startup:
 ```powershell
 docker exec dksh-ros2-bridge bash -c "source /opt/ros/jazzy/setup.bash && source /opt/dksh_ros2/install/setup.bash && ros2 topic hz /unilidar/cloud"
 docker exec dksh-ros2-bridge bash -c "source /opt/ros/jazzy/setup.bash && source /opt/dksh_ros2/install/setup.bash && ros2 topic echo --once /scan"
+docker exec dksh-ros2-bridge bash -c "source /opt/ros/jazzy/setup.bash && source /opt/dksh_ros2/install/setup.bash && ros2 topic echo --once /policy/l1_features"
 ```
 
 Stop only this project's container with:

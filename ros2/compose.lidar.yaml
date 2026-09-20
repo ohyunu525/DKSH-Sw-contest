@@ -17,7 +17,8 @@ services:
           source /opt/ros/jazzy/setup.bash &&
           source /opt/dksh_ros2/install/setup.bash &&
           ros2 node list 2>/dev/null | grep -qx /unitree_lidar_ros2_node &&
-          ros2 node list 2>/dev/null | grep -qx /l1_cloud_to_scan
+          ros2 node list 2>/dev/null | grep -qx /l1_cloud_to_scan &&
+          ros2 node list 2>/dev/null | grep -qx /l1_policy_features
       interval: 15s
       timeout: 5s
       retries: 4

@@ -23,6 +23,16 @@ gym.register(
 )
 
 gym.register(
+    id="Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0",
+    entry_point=f"{__name__}.mg90s_cad6:MG90SCad6VelocityEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.mg90s_cad6:MG90SCad6VelocityEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{__name__}.mg90s_cad6:MG90SCad6VelocityRunnerCfg",
+    },
+)
+
+gym.register(
     id="Isaac-DKSH-MG90S-Walk-Direct-v0",
     entry_point=f"{__name__}.mg90s_env:MG90SWalkEnv",
     disable_env_checker=True,

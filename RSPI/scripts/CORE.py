@@ -13,7 +13,7 @@ from pathlib import Path
 import sys
 
 
-TASK = "Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0"
+TASK = "Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0"
 OBSERVATIONS = 68
 ACTIONS = 18
 

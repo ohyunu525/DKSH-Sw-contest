@@ -9,7 +9,11 @@ import shutil
 from mg90s_checkpoint import validate_checkpoint
 from isaaclab.app import AppLauncher
 
-TASKS = ('Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0', 'Isaac-DKSH-MG90S-CAD6-Sprint-Direct-v0')
+TASKS = (
+    'Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0',
+    'Isaac-DKSH-MG90S-CAD6-Sprint-Direct-v0',
+    'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0',
+)
 ROOT = Path(__file__).resolve().parents[2]
 parser = argparse.ArgumentParser()
 parser.add_argument('--num_envs', type=int, default=32)

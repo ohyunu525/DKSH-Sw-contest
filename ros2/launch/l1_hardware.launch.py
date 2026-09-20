@@ -96,6 +96,20 @@ def generate_launch_description():
         ],
     )
 
+    policy_features = Node(
+        package="dksh_l1_features",
+        executable="l1_policy_features",
+        name="l1_policy_features",
+        output="screen",
+        parameters=[
+            {
+                "input_topic": cloud_topic,
+                "output_topic": "/policy/l1_features",
+                "expected_frame": lidar_frame,
+            }
+        ],
+    )
+
     base_to_lidar = Node(
         package="tf2_ros",
         executable="static_transform_publisher",
@@ -137,5 +151,5 @@ def generate_launch_description():
     )
     return LaunchDescription(
         declarations
-        + [lidar_driver, cloud_to_scan, base_to_lidar, lidar_to_imu, navigation]
+        + [lidar_driver, cloud_to_scan, policy_features, base_to_lidar, lidar_to_imu, navigation]
     )

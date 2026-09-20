@@ -125,6 +125,12 @@ python .\isaaclab_project\scripts\l1_pointcloud_features.py .\points.json
 실기 입력 일치를 확인할 수 있습니다. 현재는 기하 근사와 입력 형식까지만 구현됐으며 실측 검증은
 아직 하지 않았습니다.
 
+하드웨어 launch는 같은 인코더를 사용하는 ROS2 `dksh_l1_features` 노드를 함께 시작하고,
+완성된 `/unilidar/cloud` 프레임마다 `/policy/l1_features` (`Float32MultiArray`, 32개)를 발행합니다.
+프레임 ID가 `unilidar_lidar`가 아니면 좌표계 혼용을 막기 위해 해당 프레임을 거부합니다. 현재 노드는
+학습 모델과 동일하게 센서 상반구만 사용하므로 수평 장착 상태의 바닥점은 제외되지만, 로봇이 기울어진
+상태의 바닥 제거와 로봇 자체 마스크는 장착 실측 후 별도 전처리로 추가해야 합니다.
+
 ## 스모크 검사와 Python 실행
 
 스모크 검사는 학습 없이 환경 생성, 스텝 진행, 리셋 등을 확인합니다.

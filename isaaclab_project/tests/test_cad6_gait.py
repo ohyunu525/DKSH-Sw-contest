@@ -50,3 +50,36 @@ class Cad6GaitTests(unittest.TestCase):
         q = gait.inverse_kinematics(feet)
         torch.testing.assert_close(gait.forward_kinematics(q), feet, atol=1e-8, rtol=1e-7)
         self.assertLess(float(q.abs().max()) + 0.035, math.pi / 2 * 0.95)
+
+    def test_directional_commands_remain_reachable_and_stride_limited(self):
+        phase = torch.linspace(0, 1, 2401, dtype=torch.float64)
+        commands = (
+            (0.012, 0.0, 0.0), (-0.006, 0.006, 0.0),
+            (0.0, 0.0, 0.08), (0.012, -0.006, -0.08),
+        )
+        angles = torch.arange(6, dtype=torch.float64) * (math.pi / 3)
+        rest = torch.stack((gait.STANCE_RADIUS * torch.cos(angles), gait.STANCE_RADIUS * torch.sin(angles)), -1)
+        for command in commands:
+            with self.subTest(command=command):
+                values = torch.tensor(command, dtype=torch.float64).expand(len(phase), -1)
+                feet = gait.directional_foot_targets(phase, values)
+                q = gait.inverse_kinematics(feet)
+                torch.testing.assert_close(gait.forward_kinematics(q), feet, atol=1e-8, rtol=1e-7)
+                displacement = (feet[:, :, :2] - rest).norm(dim=-1)
+                self.assertLessEqual(float(displacement.max()), 0.0060001)
+                self.assertLess(float(q.abs().max()) + 0.035, math.pi / 2 * 0.95)
+
+    def test_zero_twist_holds_the_stance_without_lifting(self):
+        phase = torch.linspace(0, 1, 61, dtype=torch.float64)
+        feet = gait.directional_foot_targets(phase, torch.zeros((len(phase), 3), dtype=torch.float64))
+        expected = feet[0].expand_as(feet)
+        torch.testing.assert_close(feet, expected)
+
+    def test_yaw_command_moves_opposite_sides_in_opposite_directions(self):
+        phase = torch.zeros(1, dtype=torch.float64)
+        command = torch.tensor([[0.0, 0.0, 0.08]], dtype=torch.float64)
+        feet = gait.directional_foot_targets(phase, command, offsets=(0, 0, 0, 0, 0, 0))
+        # At phase zero, positive yaw gives the front and rear feet opposing
+        # lateral components around the robot centre.
+        self.assertLess(float(feet[0, 0, 1]), 0.0)
+        self.assertGreater(float(feet[0, 3, 1]), 0.0)

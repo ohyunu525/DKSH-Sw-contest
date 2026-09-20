@@ -1,5 +1,25 @@
 # 6족 CAD · MG90S 보행 학습
 
+## Nav2 속도 명령 작업 (권장)
+
+실기 계층은 `L1 RM → ROS2 SLAM/Nav2 → /cmd_vel → 저수준 보행 정책`으로 고정한다.
+`Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0`는 68개 관측의 `command` 세 값을
+몸체 기준 `[vx, vy, wz]`로 모두 사용하며, 기존 직진 정책과 체크포인트를 공유하지 않는다.
+학습 폴더는 `dksh_mg90s_cad6_velocity_l1v1`이다. 명령 범위는 전진
+`-0.006~0.012 m/s`, 횡이동 `±0.006 m/s`, 회전 `±0.08 rad/s`이고 리셋의 15%는
+정지 명령이다. 발 궤적은 각 발의 병진·회전 합성 이동량을 기존 12 mm 도달 범위로 제한한다.
+
+루트 실행기의 기본 프로필은 `velocity`이다. 이전 직진 또는 sprint 정책을 다룰 때만
+각각 `-SpeedProfile normal`, `-SpeedProfile sprint`를 명시한다.
+
+```powershell
+.\run_mg90s.ps1 -Mode check -SpeedProfile velocity -NumEnvs 4
+.\run_mg90s.ps1 -Mode train -SpeedProfile velocity -NumEnvs 32 -MaxIterations 2000
+```
+
+물리 사전 검사는 정지·전진·횡이동·회전 기준 궤적을 각각 20초 확인한다. 장시간 학습 전
+4→8→16개 환경 검사를 통과하고, 새 작업에서 생성된 `run_metadata.json`과 체크포인트만 사용한다.
+
 ## 체크포인트 조사 (2026-09-16)
 
 현재 작업 폴더의 `.pt` 160개를 텐서 차원으로 검사했다. 113개는 84관측/24행동,
@@ -13,7 +33,7 @@
 
 ## 모델과 조건
 
-- 작업: `Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0`.
+- 기존 직진 작업: `Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0`.
 - 실제 로드 자산: `assets/spiderbot_variants/spiderbot_6leg/spiderbot_6leg.usd`.
 - 6개 다리, 18관절, 19강체, 18행동, 68관측.
 - CAD URDF의 짧은 링크와 조립 영점을 사용한 6족 wave gait + ±0.035 rad 관절 보정.
@@ -35,20 +55,20 @@
 
 ## 실행
 
-루트 PowerShell에서 `run_mg90s.ps1`의 기본 로봇은 이제 **cad6**이다.
+아래는 기존 직진 정책을 재현하는 명령이므로 `-SpeedProfile normal`을 명시한다.
 
 ```powershell
 # 장면/관측 변경 시 4 → 8 → 16 순으로 통과 후 32개 학습
-.\run_mg90s.ps1 -Mode check -NumEnvs 4
-.\run_mg90s.ps1 -Mode check -NumEnvs 8
-.\run_mg90s.ps1 -Mode check -NumEnvs 16
-.\run_mg90s.ps1 -Mode train -NumEnvs 32 -MaxIterations 2000
+.\run_mg90s.ps1 -Mode check -SpeedProfile normal -NumEnvs 4
+.\run_mg90s.ps1 -Mode check -SpeedProfile normal -NumEnvs 8
+.\run_mg90s.ps1 -Mode check -SpeedProfile normal -NumEnvs 16
+.\run_mg90s.ps1 -Mode train -SpeedProfile normal -NumEnvs 32 -MaxIterations 2000
 
 # 동일 CAD6 작업의 체크포인트에서 추가 학습
-.\run_mg90s.ps1 -Mode train -NumEnvs 32 -MaxIterations 2000 -Checkpoint '.\logs\rsl_rl\dksh_mg90s_cad6_walk\<run>\model_1999.pt'
+.\run_mg90s.ps1 -Mode train -SpeedProfile normal -NumEnvs 32 -MaxIterations 2000 -Checkpoint '.\logs\rsl_rl\dksh_mg90s_cad6_walk\<run>\model_1999.pt'
 
 # 학습된 6족 정책 GUI
-.\run_mg90s.ps1 -Mode play -NumEnvs 1 -Checkpoint '.\logs\rsl_rl\dksh_mg90s_cad6_walk\<run>\model_1999.pt'
+.\run_mg90s.ps1 -Mode play -SpeedProfile normal -NumEnvs 1 -Checkpoint '.\logs\rsl_rl\dksh_mg90s_cad6_walk\<run>\model_1999.pt'
 ```
 
 로그/체크포인트는 `logs/rsl_rl/dksh_mg90s_cad6_walk/<run>/`에 저장된다.

@@ -5,6 +5,7 @@ from isaaclab.utils import configclass
 from dksh_isaaclab.assets.spiderbot import cad_spiderbot_cfg
 from .mg90s_env import MG90SWalkEnv
 from .mg90s_env_cfg import MG90SWalkEnvCfg, MG90SWalkRunnerCfg, mg90s_robot_cfg
+from .mg90s_rewards import velocity_tracking_reward
 from . import cad6_wave_gait as gait
 
 
@@ -69,6 +70,28 @@ class MG90SCad6SprintRunnerCfg(MG90SCad6RunnerCfg):
     run_name = 'cad6_4v8_sprint'
 
 
+@configclass
+class MG90SCad6VelocityEnvCfg(MG90SCad6EnvCfg):
+    """Low-level body-twist tracking for the ROS2/Nav2 ``cmd_vel`` contract."""
+    command_forward_min = -0.006
+    command_forward_max = 0.012
+    command_lateral_min = -0.006
+    command_lateral_max = 0.006
+    command_yaw_min = -0.08
+    command_yaw_max = 0.08
+    command_stand_probability = 0.15
+    planar_tracking_reward_scale = 3.0
+    planar_tracking_sigma = 0.010
+    yaw_tracking_reward_scale = 2.0
+    yaw_tracking_sigma = 0.08
+
+
+@configclass
+class MG90SCad6VelocityRunnerCfg(MG90SCad6RunnerCfg):
+    experiment_name = 'dksh_mg90s_cad6_velocity_l1v1'
+    run_name = 'cad6_4v8_velocity'
+
+
 class MG90SCad6Env(MG90SWalkEnv):
     cfg: MG90SCad6EnvCfg
 
@@ -104,3 +127,78 @@ class MG90SCad6Env(MG90SWalkEnv):
             from .spider_navigation_env import SpiderNavigationEnv
             SpiderNavigationEnv._sync_cad_visual_for_gui(self)
         return super()._get_observations()
+
+
+class MG90SCad6VelocityEnv(MG90SCad6Env):
+    """Track planar velocity and yaw-rate commands without consuming LiDAR."""
+    cfg: MG90SCad6VelocityEnvCfg
+
+    def _sample_commands(self, env_ids):
+        count = len(env_ids)
+        random = torch.rand((count, 4), device=self.device)
+        self._commands[env_ids, 0] = self.cfg.command_forward_min + (
+            self.cfg.command_forward_max - self.cfg.command_forward_min
+        ) * random[:, 0]
+        self._commands[env_ids, 1] = self.cfg.command_lateral_min + (
+            self.cfg.command_lateral_max - self.cfg.command_lateral_min
+        ) * random[:, 1]
+        self._commands[env_ids, 2] = self.cfg.command_yaw_min + (
+            self.cfg.command_yaw_max - self.cfg.command_yaw_min
+        ) * random[:, 2]
+        self._commands[env_ids[random[:, 3] < self.cfg.command_stand_probability]] = 0
+
+    def _gait_joint_positions(self):
+        feet = gait.blended_directional_foot_targets(
+            self._phase(), self._commands, self.cfg.gait_period, self.cfg.gait_lift,
+            self.cfg.gait_stride_limit, self._tripod_weight(),
+        )
+        return gait.inverse_kinematics(feet).flatten(1)
+
+    def _tripod_weight(self):
+        if not self.cfg.tripod_enabled:
+            return torch.zeros_like(self._speed)
+        equivalent_speed = torch.linalg.vector_norm(self._commands[:, :2], dim=-1)
+        equivalent_speed += self._commands[:, 2].abs() * gait.STANCE_RADIUS
+        width = self.cfg.tripod_transition_width
+        if width <= 0:
+            return (equivalent_speed >= self.cfg.tripod_transition_speed).float()
+        blend = ((equivalent_speed - (self.cfg.tripod_transition_speed - width)) / (2 * width)).clamp(0, 1)
+        return blend.square() * (3 - 2 * blend)
+
+    def _get_rewards(self):
+        linear_velocity = self._robot.data.root_lin_vel_b
+        angular_velocity = self._robot.data.root_ang_vel_b
+        planar_track = velocity_tracking_reward(
+            linear_velocity[:, :2], self._commands[:, :2], self.cfg.planar_tracking_sigma
+        )
+        yaw_track = velocity_tracking_reward(
+            angular_velocity[:, 2, None], self._commands[:, 2, None], self.cfg.yaw_tracking_sigma
+        )
+        upright = (-self._robot.data.projected_gravity_b[:, 2]).clamp(0, 1)
+        active = (self._age > self.cfg.settling_seconds + 1).float()
+        reward = (
+            self.cfg.planar_tracking_reward_scale * planar_track
+            + self.cfg.yaw_tracking_reward_scale * yaw_track
+        ) * upright * active
+        reward -= 2.0 * linear_velocity[:, 2].square()
+        reward -= 0.5 * angular_velocity[:, :2].square().sum(-1)
+        reward -= 2.0 * (1 - upright).square()
+        reward -= 0.003 * (self._actions - self._previous_actions).square().sum(-1)
+        reward -= 0.01 * self._filtered_actions.square().sum(-1)
+        reward = reward * self.step_dt - 5 * (self._fallen | self._escaped).float()
+        self.extras["log"].update({
+            "Metrics/command_forward_mps": self._commands[:, 0].mean(),
+            "Metrics/command_lateral_mps": self._commands[:, 1].mean(),
+            "Metrics/command_yaw_rps": self._commands[:, 2].mean(),
+            "Metrics/planar_error_mps": torch.linalg.vector_norm(
+                linear_velocity[:, :2] - self._commands[:, :2], dim=-1
+            ).mean(),
+            "Metrics/yaw_error_rps": (angular_velocity[:, 2] - self._commands[:, 2]).abs().mean(),
+            "Metrics/planar_tracking_reward": planar_track.mean(),
+            "Metrics/yaw_tracking_reward": yaw_track.mean(),
+            "Metrics/upright": upright.mean(),
+            "Metrics/torque_limit_fraction": (
+                self._robot.data.applied_torque.abs() > 0.70 * self.cfg.robot.actuators["mg90s_4v8"].saturation_effort
+            ).float().mean(),
+        })
+        return reward

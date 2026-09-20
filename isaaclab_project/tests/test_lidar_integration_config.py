@@ -25,6 +25,8 @@ class LidarIntegrationConfigTests(unittest.TestCase):
             '"scan_time": 1.0 / 11.0',
             'DeclareLaunchArgument("start_navigation", default_value="false")',
             'condition=IfCondition(LaunchConfiguration("start_navigation"))',
+            'package="dksh_l1_features"',
+            '"output_topic": "/policy/l1_features"',
         ):
             with self.subTest(value=value):
                 self.assertIn(value, source)
@@ -56,6 +58,15 @@ class LidarIntegrationConfigTests(unittest.TestCase):
     def test_hardware_compose_keeps_navigation_opt_in(self):
         compose = (ROOT / "ros2/compose.lidar.yaml").read_text(encoding="utf-8")
         self.assertIn('start_navigation:=${L1_START_NAVIGATION:-false}', compose)
+        self.assertIn('/l1_policy_features', compose)
+
+    def test_policy_feature_encoder_is_built_into_ros_image(self):
+        dockerfile = (ROOT / "ros2/Dockerfile").read_text(encoding="utf-8")
+        package = ROOT / "ros2/dksh_l1_features/package.xml"
+        setup = ROOT / "ros2/dksh_l1_features/setup.py"
+        self.assertTrue(package.is_file() and setup.is_file())
+        self.assertIn("COPY dksh_l1_features", dockerfile)
+        self.assertIn("unitree_lidar_ros2 dksh_l1_features", dockerfile)
 
     def test_training_requires_completion_marker_and_new_checkpoint(self):
         trainer = (ROOT / "isaaclab_project/scripts/train.py").read_text(encoding="utf-8")

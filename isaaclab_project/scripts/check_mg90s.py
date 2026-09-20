@@ -10,7 +10,8 @@ parser.add_argument("--steps", type=int, default=1000)
 parser.add_argument("--output", default="")
 parser.add_argument("--task", default="Isaac-DKSH-MG90S-Walk-Direct-v0",
                     choices=["Isaac-DKSH-MG90S-Walk-Direct-v0", "Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0",
-                             "Isaac-DKSH-MG90S-CAD6-Sprint-Direct-v0"])
+                             "Isaac-DKSH-MG90S-CAD6-Sprint-Direct-v0",
+                             "Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0"])
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 if args.steps < 1000 or args.num_envs < 1:
@@ -42,17 +43,37 @@ def main():
             "effort_cap_nm": float(robot.actuators["mg90s_4v8"].effort_limit.max()),
             "no_load_speed_rad_s": MG90S_NO_LOAD_SPEED,
         }, flush=True)
-        wave_parameters = (cfg.command_speed_min, cfg.command_speed_max, cfg.gait_lift)
-        for label, speed_min, speed_max, lift in (("stand", 0., 0., 0.), ("wave", *wave_parameters)):
-            robot_env.cfg.command_speed_min = speed_min
-            robot_env.cfg.command_speed_max = speed_max
+        gait_lift = cfg.gait_lift
+        if hasattr(cfg, "command_forward_min"):
+            phases = (
+                ("stand", 0.0, 0.0, 0.0, 0.0),
+                ("forward", cfg.command_speed_min, 0.0, 0.0, gait_lift),
+                ("lateral", 0.0, cfg.command_speed_min, 0.0, gait_lift),
+                ("yaw", 0.0, 0.0, 0.04, gait_lift),
+            )
+        else:
+            phases = (
+                ("stand", 0.0, 0.0, 0.0, 0.0),
+                ("wave", cfg.command_speed_min, 0.0, 0.0, gait_lift),
+            )
+        for label, forward, lateral, yaw, lift in phases:
+            robot_env.cfg.command_speed_min = forward
+            robot_env.cfg.command_speed_max = forward
             robot_env.cfg.gait_lift = lift
+            if hasattr(robot_env.cfg, "command_forward_min"):
+                robot_env.cfg.command_forward_min = forward
+                robot_env.cfg.command_forward_max = forward
+                robot_env.cfg.command_lateral_min = lateral
+                robot_env.cfg.command_lateral_max = lateral
+                robot_env.cfg.command_yaw_min = yaw
+                robot_env.cfg.command_yaw_max = yaw
+                robot_env.cfg.command_stand_probability = 0.0
             obs, _ = env.reset()
             initial = robot.data.root_pos_w.clone()
             counts_before = robot_env.completed.copy()
             min_height = 10.
             max_torque = 0.
-            speed_sum = 0.
+            forward_speed_sum = lateral_speed_sum = yaw_rate_sum = 0.
             saturated_sum = 0.
             for step in range(args.steps):
                 obs, reward, terminated, truncated, info = env.step(torch.zeros((args.num_envs, cfg.action_space), device=robot_env.device))
@@ -61,22 +82,32 @@ def main():
                 assert obs["policy"].shape == (args.num_envs, cfg.observation_space)
                 min_height = min(min_height, float(robot.data.root_pos_w[:, 2].min()))
                 max_torque = max(max_torque, float(robot.data.applied_torque.abs().max()))
-                speed_sum += float(robot.data.root_lin_vel_b[:, 0].mean())
+                forward_speed_sum += float(robot.data.root_lin_vel_b[:, 0].mean())
+                lateral_speed_sum += float(robot.data.root_lin_vel_b[:, 1].mean())
+                yaw_rate_sum += float(robot.data.root_ang_vel_b[:, 2].mean())
                 saturated_sum += float((robot.data.applied_torque.abs() > 0.70 * MG90S_STALL_TORQUE).float().mean())
             result = {
                 "steps": args.steps, "envs": args.num_envs,
                 "falls": robot_env.completed["fallen"] - counts_before["fallen"],
                 "out_of_bounds": robot_env.completed["out_of_bounds"] - counts_before["out_of_bounds"],
                 "min_height_m": min_height, "max_abs_torque_nm": max_torque,
-                "mean_forward_speed_mps": speed_sum / args.steps,
+                "mean_forward_speed_mps": forward_speed_sum / args.steps,
+                "mean_lateral_speed_mps": lateral_speed_sum / args.steps,
+                "mean_yaw_rate_rps": yaw_rate_sum / args.steps,
                 "mean_displacement_x_m": float((robot.data.root_pos_w[:, 0] - initial[:, 0]).mean()),
+                "mean_displacement_y_m": float((robot.data.root_pos_w[:, 1] - initial[:, 1]).mean()),
                 "near_torque_cap_fraction": saturated_sum / args.steps,
             }
             results[label] = result
             print("MG90S_PREFLIGHT_PHASE " + json.dumps({label: result}), flush=True)
         # Viability gate, not a claim of learned gait success.
         passed = all(r["falls"] == 0 and r["out_of_bounds"] == 0 for r in results.values())
-        passed &= results["wave"]["mean_displacement_x_m"] > 0.005
+        if "wave" in results:
+            passed &= results["wave"]["mean_displacement_x_m"] > 0.005
+        else:
+            passed &= results["forward"]["mean_displacement_x_m"] > 0.005
+            passed &= results["lateral"]["mean_displacement_y_m"] > 0.002
+            passed &= results["yaw"]["mean_yaw_rate_rps"] > 0.005
         passed &= all(r["max_abs_torque_nm"] <= 0.75 * MG90S_STALL_TORQUE + 1e-5 for r in results.values())
         results["passed"] = passed
         if args.output:

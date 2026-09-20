@@ -5,7 +5,7 @@ param(
     [ValidateRange(1, 100000)][int]$MaxIterations = 2000,
     [string]$Checkpoint = '',
     [ValidateSet('cad6', 'legacy8')][string]$RobotModel = 'cad6',
-    [ValidateSet('normal', 'sprint')][string]$SpeedProfile = 'normal',
+    [ValidateSet('normal', 'sprint', 'velocity')][string]$SpeedProfile = 'velocity',
     [switch]$Gui
 )
 
@@ -21,6 +21,12 @@ if ($RobotModel -eq 'cad6') {
 }
 if ($RobotModel -eq 'cad6' -and $SpeedProfile -eq 'sprint') {
     $taskName = 'Isaac-DKSH-MG90S-CAD6-Sprint-Direct-v0'
+}
+if ($RobotModel -eq 'cad6' -and $SpeedProfile -eq 'velocity') {
+    $taskName = 'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0'
+}
+if ($RobotModel -eq 'legacy8' -and $SpeedProfile -eq 'velocity') {
+    throw 'The velocity command profile is available only for the CAD6 robot.'
 }
 Push-Location $PSScriptRoot
 try {

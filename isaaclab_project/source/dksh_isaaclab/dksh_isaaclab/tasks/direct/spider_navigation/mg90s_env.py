@@ -27,7 +27,9 @@ class MG90SWalkEnv(DirectRLEnv):
         self._reference = self._targets.clone()
         self._age = torch.zeros(self.num_envs, device=self.device)
         self._phase_offset = torch.zeros_like(self._age)
-        self._speed = torch.zeros_like(self._age)
+        self._commands = torch.zeros((self.num_envs, 3), device=self.device)
+        # Keep the established scalar name as a view for forward-only tasks.
+        self._speed = self._commands[:, 0]
         self._fallen = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self._escaped = self._fallen.clone()
         self.completed = {name: 0 for name in ("episodes", "fallen", "time_out", "out_of_bounds")}
@@ -80,14 +82,12 @@ class MG90SWalkEnv(DirectRLEnv):
         self._robot.set_joint_position_target(self._targets)
 
     def _get_observations(self):
-        command = torch.zeros((self.num_envs, 3), device=self.device)
-        command[:, 0] = self._speed
         phase = 2 * math.pi * self._phase()
         obs = torch.cat((
             self._robot.data.root_lin_vel_b,
             self._robot.data.root_ang_vel_b,
             self._robot.data.projected_gravity_b,
-            command,
+            self._commands,
             self._robot.data.joint_pos - self._robot.data.default_joint_pos,
             self._robot.data.joint_vel * 0.1,
             self._filtered_actions,
@@ -127,6 +127,12 @@ class MG90SWalkEnv(DirectRLEnv):
         })
         return reward
 
+    def _sample_commands(self, env_ids):
+        self._commands[env_ids] = 0
+        self._commands[env_ids, 0] = self.cfg.command_speed_min + (
+            self.cfg.command_speed_max - self.cfg.command_speed_min
+        ) * torch.rand(len(env_ids), device=self.device)
+
     def _reset_idx(self, env_ids):
         if env_ids is None:
             env_ids = self._robot._ALL_INDICES
@@ -148,7 +154,7 @@ class MG90SWalkEnv(DirectRLEnv):
         self._previous_actions[env_ids] = 0
         self._filtered_actions[env_ids] = 0
         self._phase_offset[env_ids] = torch.rand(len(env_ids), device=self.device)
-        self._speed[env_ids] = self.cfg.command_speed_min + (self.cfg.command_speed_max - self.cfg.command_speed_min) * torch.rand(len(env_ids), device=self.device)
+        self._sample_commands(env_ids)
         state = self._robot.data.default_root_state[env_ids].clone()
         state[:, :3] += self.scene.env_origins[env_ids]
         pos = self._robot.data.default_joint_pos[env_ids].clone()
