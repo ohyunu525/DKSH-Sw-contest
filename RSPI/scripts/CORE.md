@@ -5,6 +5,7 @@
 현재 대응하는 학습 작업은 `Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0`입니다. 이 저수준 보행 정책의
 관측에는 LiDAR·카메라·목표 위치가 들어 있지 않습니다. LiDAR는 ROS2 SLAM/Nav2가 `/cmd_vel`을
 생성하는 상위 계층에서 사용하고, 보행 정책은 그 속도 명령을 `command` 관측으로 받는 구조입니다.
+검증된 선택 정책과 ONNX 파일은 `isaaclab_project/policies/mg90s_cad6_velocity_l1v1`에 있습니다.
 
 ## 먼저 가상 입력 확인
 

@@ -1,0 +1,17 @@
+{
+  "task": "Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0",
+  "checkpoint": "model_1999.pt",
+  "steps": 3000,
+  "envs": 4,
+  "mean_forward_speed_mps": 0.0011868093117736861,
+  "mean_speed_error_mps": 0.005987429688451812,
+  "mean_yaw_error_rps": 0.03981886904096852,
+  "min_base_height_m": 0.1290322244167328,
+  "max_abs_torque_nm": 0.13238976895809174,
+  "near_torque_cap_fraction": 0.030703704371427495,
+  "episodes": 12,
+  "falls": 0,
+  "out_of_bounds": 0,
+  "timeouts": 12,
+  "passed": true
+}
