@@ -1,8 +1,10 @@
 """Servo specifications used by the spiderbot actuator models.
 
-Torque and speed values are no-load/stall data supplied for the named
-reference voltage.  The 75% effort limit used by the simulator is a separate
-provisional derating, not a manufacturer continuous-torque rating.
+Torque and speed values are provisional seller-supplied no-load/stall data for
+the named reference voltage.  RC920DMG does not yet have a version-controlled
+manufacturer datasheet or bench curve in this repository.  The 75% effort
+limit used by the simulator is a separate provisional derating, not a
+manufacturer continuous-torque rating.
 """
 
 import math
@@ -28,6 +30,7 @@ RC920DMG_MASS_KG = 0.060
 RC920DMG_SIZE_M = (0.040, 0.0205, 0.0405)
 RC920DMG_BEARING_COUNT = 2
 RC920DMG_CABLE_LENGTH_M = 0.32
+RC920DMG_SPEC_VERIFICATION_STATUS = "provisional_unverified"
 RC920DMG_STALL_TORQUE_NM_5V = RC920DMG_STALL_TORQUE_KGF_CM_5V * KGF_CM_TO_NM
 RC920DMG_STALL_TORQUE_NM_7V4 = RC920DMG_STALL_TORQUE_KGF_CM_7V4 * KGF_CM_TO_NM
 RC920DMG_NO_LOAD_SPEED_RAD_S_5V = (

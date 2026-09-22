@@ -6,6 +6,7 @@ param(
     [string]$Checkpoint = '',
     [ValidateSet('cad6', 'legacy8')][string]$RobotModel = 'cad6',
     [ValidateSet('normal', 'sprint', 'velocity')][string]$SpeedProfile = 'velocity',
+    [switch]$AllowProvisionalCad,
     [switch]$Gui
 )
 
@@ -54,6 +55,7 @@ try {
             $script = Join-Path $PSScriptRoot 'isaaclab_project\scripts\train_mg90s_cad6.py'
             $arguments = @('-p', $script, "--task=$taskName", "--num_envs=$NumEnvs", "--max_iterations=$MaxIterations", '--seed=42')
             if ($Checkpoint) { $arguments += "--checkpoint=$checkpointPath" }
+            if ($AllowProvisionalCad) { $arguments += '--allow_provisional_cad' }
         }
         else {
             if ($Checkpoint) { throw 'The legacy eight-leg launcher only supports fresh training.' }

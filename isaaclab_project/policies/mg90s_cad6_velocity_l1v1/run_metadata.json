@@ -22,5 +22,12 @@
     "time_out": 3072,
     "out_of_bounds": 0
   },
+  "cad_source": {
+    "training_geometry": "DKSH SW Project/Assets/Prefabs/spiderbot/completeLEG.fbx",
+    "training_geometry_sha256": "208dcdee9c9d47adc933e12fa8a74612a2d9eaaa24f8443706d5102654170ac3",
+    "onshape_release_used": false,
+    "geometry_status": "legacy_provisional",
+    "provenance_added_at": "2026-09-22"
+  },
   "finished_at": "2026-09-22T13:27:30.374901+09:00"
 }

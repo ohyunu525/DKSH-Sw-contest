@@ -26,6 +26,7 @@ class ServoSpecificationTests(unittest.TestCase):
         self.assertEqual(SERVO.RC920DMG_SIZE_M, (0.040, 0.0205, 0.0405))
         self.assertEqual(SERVO.RC920DMG_BEARING_COUNT, 2)
         self.assertEqual(SERVO.RC920DMG_CABLE_LENGTH_M, 0.32)
+        self.assertEqual(SERVO.RC920DMG_SPEC_VERIFICATION_STATUS, "provisional_unverified")
 
     def test_rc920dmg_5v_actuator_conversions(self) -> None:
         self.assertAlmostEqual(

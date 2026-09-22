@@ -1,5 +1,10 @@
 # CAD Spiderbot: 8족 / 6족
 
+> **현재 Onshape 설계와 다른 예비 자산입니다.** 이 디렉터리의 모델은
+> `completeLEG.fbx`에서 관절 축·질량·무게중심·관성·충돌체를 추정해 만든 과거 모델입니다.
+> 최신 설계 출처와 미완료 항목은 `cad_source.json`, 갱신 절차는
+> `../../docs/cad_update_workflow.md`를 기준으로 확인합니다.
+
 `DKSH SW Project/Assets/Prefabs/spiderbot/completeLEG.fbx`의 실제 다리 외형을
 사용한 두 조립 모델입니다. 다리마다 3개의 회전 관절이 있으며, 조립 자세가 관절 0도입니다.
 

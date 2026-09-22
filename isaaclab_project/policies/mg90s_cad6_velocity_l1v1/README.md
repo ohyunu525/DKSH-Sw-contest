@@ -1,5 +1,10 @@
 # MG90S CAD6 velocity policy with L1 RM payload
 
+> **Legacy/provisional CAD policy.** 이 정책은 최신 Onshape 조립이 아니라
+> `completeLEG.fbx` 기반의 추정 형상·관절·질량으로 학습했습니다. RC920DMG 12개의
+> 토크/속도 사양은 반영했지만 최신 링크 치수, Mate 축/영점/한계, 질량/COM을 반영한
+> 정책은 아닙니다. 실물 배포 또는 최신 CAD 대응 정책으로 취급하지 마십시오.
+
 Selected low-level locomotion policy for the hierarchical deployment path:
 
 `Unitree L1 RM -> ROS2 SLAM/Nav2 -> /cmd_vel -> CAD6 velocity policy`

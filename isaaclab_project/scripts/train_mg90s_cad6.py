@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import shutil
 
+from cad_readiness import DEFAULT_MANIFEST, CadNotReadyError, assert_cad_ready
 from mg90s_checkpoint import validate_checkpoint
 from isaaclab.app import AppLauncher
 
@@ -21,10 +22,19 @@ parser.add_argument('--max_iterations', type=int, default=2000, help='Additional
 parser.add_argument('--checkpoint', default='')
 parser.add_argument('--seed', type=int, default=42)
 parser.add_argument('--task', choices=TASKS, default=TASKS[0])
+parser.add_argument(
+    '--allow_provisional_cad',
+    action='store_true',
+    help='Allow training against the legacy provisional asset and record the override',
+)
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 if args.num_envs < 1 or args.max_iterations < 1:
     parser.error('Environment and iteration counts must be positive')
+try:
+    cad_report = assert_cad_ready(allow_provisional=args.allow_provisional_cad)
+except (CadNotReadyError, ValueError, KeyError, json.JSONDecodeError) as exc:
+    parser.error(str(exc))
 checkpoint = Path(args.checkpoint).resolve() if args.checkpoint else None
 if checkpoint:
     validate_checkpoint(checkpoint, task=args.task)
@@ -56,7 +66,8 @@ def main():
                 'environments': args.num_envs, 'additional_iterations': args.max_iterations,
                 'started_at': datetime.now().astimezone().isoformat(), 'status': 'initializing',
                 'source_checkpoint': str(checkpoint) if checkpoint else None,
-                'source_sha256': hashlib.sha256(checkpoint.read_bytes()).hexdigest() if checkpoint else None}
+                'source_sha256': hashlib.sha256(checkpoint.read_bytes()).hexdigest() if checkpoint else None,
+                'cad_source': cad_report}
     metadata_path = log / 'run_metadata.json'
     env = None
     try:
@@ -79,7 +90,9 @@ def main():
         snapshot.mkdir()
         task_dir = ROOT / 'isaaclab_project/source/dksh_isaaclab/dksh_isaaclab/tasks/direct/spider_navigation'
         for source in [*task_dir.glob('mg90s*.py'), task_dir / 'cad6_wave_gait.py',
-                       Path(__file__), Path(__file__).with_name('mg90s_checkpoint.py'), ROOT / 'run_mg90s.ps1']:
+                       Path(__file__), Path(__file__).with_name('mg90s_checkpoint.py'),
+                       Path(__file__).with_name('cad_readiness.py'), DEFAULT_MANIFEST,
+                       ROOT / 'run_mg90s.ps1']:
             shutil.copy2(source, snapshot / source.name)
         print('CAD6_TRAINING_STARTED ' + json.dumps({'log': str(log), **metadata}), flush=True)
         runner.learn(num_learning_iterations=agent.max_iterations, init_at_random_ep_len=False)

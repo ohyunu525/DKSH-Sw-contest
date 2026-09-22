@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "source": {
+    "system": "Onshape",
+    "document_name": "HEXAPOD",
+    "document_id": "f646c0fde8bd91cfa43cbae7",
+    "workspace_name": "Main",
+    "workspace_id": "279609403375cff4404c6eae",
+    "element_id": "0eb274ad4063ff0fbe1ac353",
+    "url": "https://cad.onshape.com/documents/f646c0fde8bd91cfa43cbae7/w/279609403375cff4404c6eae/e/0eb274ad4063ff0fbe1ac353",
+    "access": "link_shared_view_only",
+    "observed_at": "2026-09-22",
+    "lifecycle": "in_progress"
+  },
+  "observed_structure": {
+    "hexapod_assembly": {
+      "body_instances": 1,
+      "leg_instances": 6,
+      "fixed_mates": 6
+    },
+    "leg_assembly": {
+      "part_instances": 9,
+      "revolute_mates": 3,
+      "fixed_mates": 5,
+      "revolute_limits_defined": false,
+      "component_names_are_release_ready": false
+    }
+  },
+  "target_hardware": {
+    "legs": 6,
+    "actuators": {
+      "body_coxa": {
+        "model": "MG90S",
+        "count": 6
+      },
+      "coxa_femur": {
+        "model": "RC920DMG",
+        "count": 6
+      },
+      "femur_tibia": {
+        "model": "RC920DMG",
+        "count": 6
+      }
+    },
+    "lidar": {
+      "model": "Unitree LiDAR L1 RM",
+      "count": 1
+    }
+  },
+  "release_evidence": {
+    "step_export": {
+      "path": null,
+      "sha256": null,
+      "parts_preserved": false
+    },
+    "joint_spec": {
+      "path": null,
+      "axes_and_centers_complete": false,
+      "zero_pose_complete": false,
+      "limits_complete": false
+    },
+    "mass_properties": {
+      "path": null,
+      "complete": false,
+      "motor_inclusion_labeled": false
+    },
+    "servo_layout": {
+      "verified_in_cad": false,
+      "performance_source": null,
+      "operating_point_verified": false
+    }
+  },
+  "current_simulation_asset": {
+    "source": "DKSH SW Project/Assets/Prefabs/spiderbot/completeLEG.fbx",
+    "source_sha256": "208dcdee9c9d47adc933e12fa8a74612a2d9eaaa24f8443706d5102654170ac3",
+    "geometry_status": "legacy_provisional",
+    "matches_onshape_release": false,
+    "notes": "Axes, link masses, centers of mass, inertias, collision boxes, and joint limits are estimates from the legacy FBX and must not be presented as the current Onshape design."
+  }
+}

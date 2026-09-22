@@ -1,8 +1,14 @@
 # 6족 CAD · MG90S/RC920DMG 혼합 서보 보행 학습
 
+> **CAD 준비 상태:** 최신 Onshape 다리는 수정 중이며 기존 `spiderbot_6leg` 자산과
+> 일치하지 않는다. 아래 2026-09-22 학습은 혼합 서보 가능성을 보는 예비 실험이다.
+> 새 장시간 학습은 `cad_source.json`의 STEP·관절·질량 증빙이 완성될 때까지 기본 차단된다.
+> 상태 확인: `python isaaclab_project/scripts/cad_readiness.py --json`
+
 > 2026-09-22 변경: body-coxa(`hip_joint`)는 MG90S를 유지하고,
 > coxa-femur(`femur_joint`)와 femur-tibia(`tibia_joint`)는 RC920DMG로 교체했다.
 > RC920DMG는 보수적인 5 V 사양인 19 kgf·cm, 0.16 s/60°, 60 g을 사용한다.
+> 이 수치는 저장소에 제조사 데이터시트나 벤치 곡선이 없는 예비 판매처 사양이다.
 > 이 혼합 서보 구성으로 2026-09-22 사전 검사, 2,000 iteration 재학습,
 > 4개 환경·3,000 step 평가를 통과했다.
 
@@ -22,6 +28,9 @@
 .\run_mg90s.ps1 -Mode check -SpeedProfile velocity -NumEnvs 4
 .\run_mg90s.ps1 -Mode train -SpeedProfile velocity -NumEnvs 32 -MaxIterations 2000
 ```
+
+미완성 CAD로 비교 실험이 꼭 필요한 경우에만 `-AllowProvisionalCad`를 명시한다.
+override 여부와 manifest 해시는 새 학습의 `run_metadata.json`에 기록된다.
 
 물리 사전 검사는 정지·전진·횡이동·회전 기준 궤적을 각각 20초 확인한다. 장시간 학습 전
 4→8→16개 환경 검사를 통과하고, 새 작업에서 생성된 `run_metadata.json`과 체크포인트만 사용한다.
