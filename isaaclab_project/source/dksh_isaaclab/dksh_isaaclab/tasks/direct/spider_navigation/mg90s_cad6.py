@@ -1,17 +1,17 @@
-"""MG90S locomotion on the actual six-leg CAD asset: 18 joints / 68 observations."""
+"""Mixed-servo locomotion on the six-leg CAD asset: 18 joints / 68 observations."""
 import torch
 
 from isaaclab.utils import configclass
 from dksh_isaaclab.assets.spiderbot import cad_spiderbot_cfg
 from .mg90s_env import MG90SWalkEnv
-from .mg90s_env_cfg import MG90SWalkEnvCfg, MG90SWalkRunnerCfg, mg90s_robot_cfg
+from .mg90s_env_cfg import MG90SWalkEnvCfg, MG90SWalkRunnerCfg, mixed_servo_robot_cfg
 from .mg90s_rewards import velocity_tracking_reward
 from . import cad6_wave_gait as gait
 
 
 def robot_cfg():
     robot = cad_spiderbot_cfg(6)
-    robot.actuators = mg90s_robot_cfg().actuators
+    robot.actuators = mixed_servo_robot_cfg().actuators
     robot.init_state.pos = (0, 0, -gait.STANCE_Z + 0.016)
     robot.init_state.joint_pos = {'.*_hip_joint': 0., '.*_femur_joint': gait.STANCE_FEMUR,
                                   '.*_tibia_joint': gait.STANCE_TIBIA}
@@ -32,7 +32,10 @@ class MG90SCad6EnvCfg(MG90SWalkEnvCfg):
     tripod_transition_speed = 0.030
     tripod_transition_width = 0.005
     tripod_enabled = False
-    mass_assumption = 'CAD6 links 2.31362 kg + L1 RM 0.230 kg; remaining hardware mass unmeasured'
+    mass_assumption = (
+        'CAD6 links 2.31362 kg + L1 RM 0.230 kg; known mixed-servo masses '
+        'are recorded but not redistributed across provisional link inertias'
+    )
 
 
 @configclass
@@ -43,7 +46,7 @@ class MG90SCad6RunnerCfg(MG90SWalkRunnerCfg):
 
 @configclass
 class MG90SCad6SprintEnvCfg(MG90SCad6EnvCfg):
-    """A higher-cadence profile kept within the MG90S no-load speed envelope."""
+    """A higher-cadence profile kept within the slower leg-servo envelope."""
     # Explore a substantially faster command range without increasing the
     # already reach-limited 25 mm stride. At 0.050 m/s the 0.6 s wave cycle
     # produces exactly 25 mm of stance travel (speed * period * 5/6).
@@ -52,8 +55,8 @@ class MG90SCad6SprintEnvCfg(MG90SCad6EnvCfg):
     gait_stride_limit = 0.025
     command_speed_min = 0.012
     command_speed_max = 0.050
-    # Leave a small margin below the modeled 10.47 rad/s no-load speed.
-    target_rate_limit = 10.0
+    # Leave a margin below the RC920DMG 5 V no-load speed (6.545 rad/s).
+    target_rate_limit = 6.25
     # Low speeds retain wave gait stability. Blend to alternating tripods over
     # 0.025--0.035 m/s to make the high command range physically meaningful.
     tripod_enabled = True
@@ -198,7 +201,8 @@ class MG90SCad6VelocityEnv(MG90SCad6Env):
             "Metrics/yaw_tracking_reward": yaw_track.mean(),
             "Metrics/upright": upright.mean(),
             "Metrics/torque_limit_fraction": (
-                self._robot.data.applied_torque.abs() > 0.70 * self.cfg.robot.actuators["mg90s_4v8"].saturation_effort
+                self._robot.data.applied_torque.abs()
+                > 0.70 * self._robot.data.joint_effort_limits
             ).float().mean(),
         })
         return reward

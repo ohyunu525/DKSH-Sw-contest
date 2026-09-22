@@ -5,7 +5,7 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
-from .mg90s_env_cfg import MG90SWalkEnvCfg, MG90S_STALL_TORQUE
+from .mg90s_env_cfg import MG90SWalkEnvCfg
 from .mg90s_rewards import speed_tracking_reward
 from .payload_mass import apply_l1_rm_payload_to_stage
 from .wave_gait import foot_targets, inverse_kinematics
@@ -123,7 +123,10 @@ class MG90SWalkEnv(DirectRLEnv):
             "Metrics/speed_error_mps": (vel[:, 0] - self._speed).abs().mean(),
             "Metrics/speed_tracking_reward": track.mean(),
             "Metrics/upright": upright.mean(),
-            "Metrics/torque_limit_fraction": (self._robot.data.applied_torque.abs() > 0.70 * MG90S_STALL_TORQUE).float().mean(),
+            "Metrics/torque_limit_fraction": (
+                self._robot.data.applied_torque.abs()
+                > 0.70 * self._robot.data.joint_effort_limits
+            ).float().mean(),
         })
         return reward
 

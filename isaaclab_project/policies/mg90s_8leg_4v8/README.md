@@ -1,5 +1,9 @@
 # MG90S 8-leg 4.8 V selected policy
 
+> Superseded physical configuration: this policy predates the 2026-09-22
+> RC920DMG replacement at the coxa-femur and femur-tibia joints. Retrain and
+> revalidate it before use with the mixed-servo model.
+
 **Historical eight-leg experiment; not compatible with the user's six-leg robot.**
 The default launcher now selects CAD6 and rejects this checkpoint unless
 `-RobotModel legacy8` is explicitly selected.

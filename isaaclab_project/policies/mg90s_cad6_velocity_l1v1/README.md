@@ -1,5 +1,10 @@
 # MG90S CAD6 velocity policy with L1 RM payload
 
+> Superseded physical configuration: this policy was trained before the
+> coxa-femur and femur-tibia servos changed to RC920DMG on 2026-09-22.
+> Its tensor dimensions remain compatible, but its performance is not validated
+> under the mixed MG90S/RC920DMG actuator model. Retrain before deployment.
+
 Selected low-level locomotion policy for the hierarchical deployment path:
 
 `Unitree L1 RM -> ROS2 SLAM/Nav2 -> /cmd_vel -> CAD6 velocity policy`

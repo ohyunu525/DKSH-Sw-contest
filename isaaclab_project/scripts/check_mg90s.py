@@ -22,7 +22,10 @@ import gymnasium as gym
 import torch
 import dksh_isaaclab
 from isaaclab_tasks.utils import parse_env_cfg
-from dksh_isaaclab.tasks.direct.spider_navigation.mg90s_env_cfg import MG90S_STALL_TORQUE, MG90S_NO_LOAD_SPEED
+from dksh_isaaclab.tasks.direct.spider_navigation.mg90s_env_cfg import (
+    MG90S_NO_LOAD_SPEED,
+    RC920DMG_NO_LOAD_SPEED,
+)
 
 
 def main():
@@ -40,8 +43,14 @@ def main():
             "task": args.task, "usd": cfg.robot.spawn.usd_path,
             "joints": robot.num_joints, "bodies": robot.num_bodies,
             "mass_kg": float(robot.root_physx_view.get_masses()[0].sum()),
-            "effort_cap_nm": float(robot.actuators["mg90s_4v8"].effort_limit.max()),
-            "no_load_speed_rad_s": MG90S_NO_LOAD_SPEED,
+            "effort_caps_nm": {
+                name: float(actuator.effort_limit.max())
+                for name, actuator in robot.actuators.items()
+            },
+            "no_load_speeds_rad_s": {
+                "mg90s_4v8_hip": MG90S_NO_LOAD_SPEED,
+                "rc920dmg_5v_leg": RC920DMG_NO_LOAD_SPEED,
+            },
         }, flush=True)
         gait_lift = cfg.gait_lift
         if hasattr(cfg, "command_forward_min"):
@@ -73,6 +82,7 @@ def main():
             counts_before = robot_env.completed.copy()
             min_height = 10.
             max_torque = 0.
+            max_effort_ratio = 0.
             forward_speed_sum = lateral_speed_sum = yaw_rate_sum = 0.
             saturated_sum = 0.
             for step in range(args.steps):
@@ -82,15 +92,18 @@ def main():
                 assert obs["policy"].shape == (args.num_envs, cfg.observation_space)
                 min_height = min(min_height, float(robot.data.root_pos_w[:, 2].min()))
                 max_torque = max(max_torque, float(robot.data.applied_torque.abs().max()))
+                effort_ratio = robot.data.applied_torque.abs() / robot.data.joint_effort_limits
+                max_effort_ratio = max(max_effort_ratio, float(effort_ratio.max()))
                 forward_speed_sum += float(robot.data.root_lin_vel_b[:, 0].mean())
                 lateral_speed_sum += float(robot.data.root_lin_vel_b[:, 1].mean())
                 yaw_rate_sum += float(robot.data.root_ang_vel_b[:, 2].mean())
-                saturated_sum += float((robot.data.applied_torque.abs() > 0.70 * MG90S_STALL_TORQUE).float().mean())
+                saturated_sum += float((effort_ratio > 0.70).float().mean())
             result = {
                 "steps": args.steps, "envs": args.num_envs,
                 "falls": robot_env.completed["fallen"] - counts_before["fallen"],
                 "out_of_bounds": robot_env.completed["out_of_bounds"] - counts_before["out_of_bounds"],
                 "min_height_m": min_height, "max_abs_torque_nm": max_torque,
+                "max_effort_ratio": max_effort_ratio,
                 "mean_forward_speed_mps": forward_speed_sum / args.steps,
                 "mean_lateral_speed_mps": lateral_speed_sum / args.steps,
                 "mean_yaw_rate_rps": yaw_rate_sum / args.steps,
@@ -108,7 +121,7 @@ def main():
             passed &= results["forward"]["mean_displacement_x_m"] > 0.005
             passed &= results["lateral"]["mean_displacement_y_m"] > 0.002
             passed &= results["yaw"]["mean_yaw_rate_rps"] > 0.005
-        passed &= all(r["max_abs_torque_nm"] <= 0.75 * MG90S_STALL_TORQUE + 1e-5 for r in results.values())
+        passed &= all(r["max_effort_ratio"] <= 1.0001 for r in results.values())
         results["passed"] = passed
         if args.output:
             output = Path(args.output).resolve()
