@@ -6,7 +6,7 @@
   "seed": 42,
   "environments": 32,
   "additional_iterations": 2000,
-  "started_at": "2026-09-20T21:17:57.106689+09:00",
+  "started_at": "2026-09-22T12:59:06.475088+09:00",
   "status": "completed",
   "source_checkpoint": null,
   "source_sha256": null,
@@ -15,12 +15,12 @@
   "start_iteration": 0,
   "final_checkpoint": "model_1999.pt",
   "final_iteration": 1999,
-  "final_sha256": "c660a23ce256bc79ea5739684ee24dd4fca9dbeee5c16ea7e9b73e83d695b03b",
+  "final_sha256": "d6604a43fe5957c8d2d479aa9fe38a4c5d2070b449d1b5544fc36aebb961d184",
   "completed_episodes": {
     "episodes": 3072,
     "fallen": 0,
     "time_out": 3072,
     "out_of_bounds": 0
   },
-  "finished_at": "2026-09-20T21:44:21.021529+09:00"
+  "finished_at": "2026-09-22T13:27:30.374901+09:00"
 }
