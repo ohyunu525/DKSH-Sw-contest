@@ -136,6 +136,9 @@ class MG90SWalkEnv(DirectRLEnv):
             self.cfg.command_speed_max - self.cfg.command_speed_min
         ) * torch.rand(len(env_ids), device=self.device)
 
+    def _on_reset(self, env_ids, root_state):
+        """Allow specialized tasks to capture their episode start state."""
+
     def _reset_idx(self, env_ids):
         if env_ids is None:
             env_ids = self._robot._ALL_INDICES
@@ -166,3 +169,4 @@ class MG90SWalkEnv(DirectRLEnv):
         self._robot.write_root_pose_to_sim(state[:, :7], env_ids)
         self._robot.write_root_velocity_to_sim(state[:, 7:], env_ids)
         self._robot.write_joint_state_to_sim(pos, torch.zeros_like(pos), None, env_ids)
+        self._on_reset(env_ids, state)

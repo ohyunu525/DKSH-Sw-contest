@@ -14,6 +14,7 @@ TASKS = (
     'Isaac-DKSH-MG90S-CAD6-Sprint-Direct-v0',
     'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0',
     'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v1',
+    'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v2',
 )
 ROOT = Path(__file__).resolve().parents[2]
 parser = argparse.ArgumentParser()
@@ -53,7 +54,8 @@ def main():
         agent.load_checkpoint = str(checkpoint)
     log = ROOT / 'logs/rsl_rl' / agent.experiment_name / datetime.now().strftime('%Y-%m-%d_%H-%M-%S_%f_cad6_4v8')
     log.mkdir(parents=True, exist_ok=False)
-    metadata = {'task': args.task, 'legs': 6, 'actions': 18, 'observations': 68, 'seed': args.seed,
+    metadata = {'task': args.task, 'legs': 6, 'actions': int(cfg.action_space),
+                'observations': int(cfg.observation_space), 'seed': args.seed,
                 'environments': args.num_envs, 'additional_iterations': args.max_iterations,
                 'started_at': datetime.now().astimezone().isoformat(), 'status': 'initializing',
                 'source_checkpoint': str(checkpoint) if checkpoint else None,

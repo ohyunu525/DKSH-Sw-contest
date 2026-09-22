@@ -65,5 +65,51 @@ class VelocityTrackingRewardTests(unittest.TestCase):
             REWARDS.velocity_tracking_reward(torch.zeros((1, 2)), torch.zeros((1, 2)), 0.0)
 
 
+class ArrivalTimingRewardTests(unittest.TestCase):
+    def test_exact_scheduled_progress_has_no_arrival_penalty(self):
+        target = torch.tensor([1.0, 2.0])
+        scheduled = torch.tensor([0.25, 1.50])
+        penalty, undershoot, overshoot = REWARDS.proportional_arrival_penalty(
+            scheduled, scheduled, target, minimum_total_progress=0.01
+        )
+        torch.testing.assert_close(penalty, torch.zeros_like(target))
+        torch.testing.assert_close(undershoot, torch.zeros_like(target))
+        torch.testing.assert_close(overshoot, torch.zeros_like(target))
+
+    def test_arriving_early_and_late_are_both_penalized(self):
+        target = torch.tensor([1.0, 1.0])
+        scheduled = torch.tensor([0.50, 0.50])
+        achieved = torch.tensor([0.25, 0.75])
+        penalty, undershoot, overshoot = REWARDS.proportional_arrival_penalty(
+            achieved, scheduled, target, minimum_total_progress=0.01
+        )
+        torch.testing.assert_close(undershoot, torch.tensor([0.0625, 0.0]))
+        torch.testing.assert_close(overshoot, torch.tensor([0.0, 0.0625]))
+        torch.testing.assert_close(penalty, torch.tensor([0.0625, 0.0625]))
+
+    def test_near_stationary_goal_does_not_create_an_arrival_penalty(self):
+        target = torch.tensor([0.005])
+        penalty, undershoot, overshoot = REWARDS.proportional_arrival_penalty(
+            torch.tensor([0.050]), torch.tensor([0.002]), target, minimum_total_progress=0.010
+        )
+        torch.testing.assert_close(penalty, torch.zeros(1))
+        torch.testing.assert_close(undershoot, torch.zeros(1))
+        torch.testing.assert_close(overshoot, torch.zeros(1))
+
+    def test_straight_body_twist_integrates_to_linear_schedule(self):
+        position, tangent = REWARDS.body_twist_reference_trajectory(
+            torch.tensor([[0.10, -0.04]]), torch.tensor([0.0]), torch.tensor([3.0])
+        )
+        torch.testing.assert_close(position, torch.tensor([[0.30, -0.12]]))
+        torch.testing.assert_close(tangent, torch.tensor([[0.10, -0.04]]))
+
+    def test_yawed_body_twist_curves_its_scheduled_path(self):
+        position, tangent = REWARDS.body_twist_reference_trajectory(
+            torch.tensor([[1.0, 0.0]]), torch.tensor([1.0]), torch.tensor([torch.pi / 2])
+        )
+        torch.testing.assert_close(position, torch.tensor([[1.0, 1.0]]), atol=1e-6, rtol=1e-6)
+        torch.testing.assert_close(tangent, torch.tensor([[0.0, 1.0]]), atol=1e-6, rtol=1e-6)
+
+
 if __name__ == "__main__":
     unittest.main()

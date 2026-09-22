@@ -11,7 +11,7 @@ def validate_checkpoint(path, observations=68, actions=18, task='Isaac-DKSH-MG90
     actual = (layers[0][1].shape[1], layers[-1][1].shape[0])
     if actual != (observations, actions):
         raise ValueError(f'Incompatible checkpoint: observations/actions={actual}; expected {(observations, actions)}. Do not reuse an eight-leg policy on CAD6.')
-    if observations == 68:
+    if actions == 18:
         metadata = Path(path).parent / 'run_metadata.json'
         import json
         if not metadata.is_file() or json.loads(metadata.read_text(encoding='utf-8')).get('task') != task:

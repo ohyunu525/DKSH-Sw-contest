@@ -11,6 +11,7 @@ TASKS = (
     'Isaac-DKSH-MG90S-CAD6-Sprint-Direct-v0',
     'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0',
     'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v1',
+    'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v2',
 )
 parser = argparse.ArgumentParser()
 parser.add_argument('--checkpoint', required=True)

@@ -12,7 +12,8 @@ parser.add_argument("--task", default="Isaac-DKSH-MG90S-Walk-Direct-v0",
                     choices=["Isaac-DKSH-MG90S-Walk-Direct-v0", "Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0",
                              "Isaac-DKSH-MG90S-CAD6-Sprint-Direct-v0",
                              "Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0",
-                             "Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v1"])
+                             "Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v1",
+                             "Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v2"])
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 if args.steps < 1000 or args.num_envs < 1:
