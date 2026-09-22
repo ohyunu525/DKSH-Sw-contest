@@ -10,11 +10,13 @@ TASKS = (
     'Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0',
     'Isaac-DKSH-MG90S-CAD6-Sprint-Direct-v0',
     'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0',
+    'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v1',
 )
 parser = argparse.ArgumentParser()
 parser.add_argument('--checkpoint', required=True)
 parser.add_argument('--num_envs', type=int, default=4)
 parser.add_argument('--steps', type=int, default=3000)
+parser.add_argument('--seed', type=int, default=43, help='Evaluation seed, distinct from training seed 42')
 parser.add_argument('--output', default='')
 parser.add_argument('--task', choices=TASKS, default=TASKS[0])
 AppLauncher.add_app_launcher_args(parser)
@@ -36,6 +38,7 @@ from rsl_rl.runners import OnPolicyRunner
 
 def main():
     cfg = parse_env_cfg(args.task, device=args.device, num_envs=args.num_envs)
+    cfg.seed = args.seed
     agent = load_cfg_from_registry(args.task, 'rsl_rl_cfg_entry_point')
     agent.device = cfg.sim.device
     env = RslRlVecEnvWrapper(gym.make(args.task, cfg=cfg), clip_actions=agent.clip_actions)
@@ -59,7 +62,7 @@ def main():
                     raise RuntimeError('Non-finite observation or reward')
                 velocity = base._robot.data.root_lin_vel_b
                 speed_sum += float(velocity[:, 0].mean())
-                if args.task.endswith('-Velocity-Direct-v0'):
+                if '-Velocity-Direct-' in args.task:
                     error_sum += float(torch.linalg.vector_norm(velocity[:, :2] - base._commands[:, :2], dim=-1).mean())
                     yaw_error_sum += float((base._robot.data.root_ang_vel_b[:, 2] - base._commands[:, 2]).abs().mean())
                 else:
@@ -72,6 +75,7 @@ def main():
                 torque_near_sum += float((effort_ratio > 0.70).float().mean())
         result = {
             'task': args.task, 'checkpoint': str(checkpoint), 'steps': args.steps, 'envs': args.num_envs,
+            'seed': args.seed,
             'mean_forward_speed_mps': speed_sum / args.steps,
             'mean_speed_error_mps': error_sum / args.steps,
             'mean_yaw_error_rps': yaw_error_sum / args.steps,
@@ -83,7 +87,7 @@ def main():
             'out_of_bounds': base.completed['out_of_bounds'] - counts['out_of_bounds'],
             'timeouts': base.completed['time_out'] - counts['time_out'],
         }
-        if args.task.endswith('-Velocity-Direct-v0'):
+        if '-Velocity-Direct-' in args.task:
             result['passed'] = (result['falls'] == 0 and result['out_of_bounds'] == 0
                                 and result['mean_speed_error_mps'] <= 0.008
                                 and result['mean_yaw_error_rps'] <= 0.08

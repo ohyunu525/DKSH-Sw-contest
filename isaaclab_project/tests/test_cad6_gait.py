@@ -13,6 +13,32 @@ spec.loader.exec_module(gait)
 
 
 class Cad6GaitTests(unittest.TestCase):
+    def test_velocity_v1_commands_fit_without_hidden_stride_clipping(self):
+        commands = torch.cartesian_prod(
+            torch.tensor([-0.025, 0., 0.025, 0.050], dtype=torch.float64),
+            torch.tensor([-0.025, 0., 0.025], dtype=torch.float64),
+            torch.tensor([-0.20, 0., 0.20], dtype=torch.float64),
+        )
+        projected = gait.feasible_velocity_command(commands, 0.6, 0.025)
+        torch.testing.assert_close(gait.feasible_velocity_command(projected, 0.6, 0.025), projected)
+        straight = torch.tensor([[0.050, 0., 0.], [0., 0., 0.]], dtype=torch.float64)
+        torch.testing.assert_close(gait.feasible_velocity_command(straight, 0.6, 0.025), straight)
+        phase = torch.linspace(0, 1, 301, dtype=torch.float64)
+        for command in projected:
+            values = command.expand(len(phase), -1)
+            # A larger cap must produce identical targets: no per-foot clipping.
+            torch.testing.assert_close(
+                gait.directional_foot_targets(phase, values, 0.6, 0.005, 0.025),
+                gait.directional_foot_targets(phase, values, 0.6, 0.005, 1.0),
+            )
+            speed = command[:2].norm() + command[2].abs() * gait.STANCE_RADIUS
+            blend = ((speed - 0.025) / 0.01).clamp(0, 1)
+            weight = (blend.square() * (3 - 2 * blend)).expand_as(phase)
+            feet = gait.blended_directional_foot_targets(phase, values, 0.6, 0.005, 0.025, weight)
+            q = gait.inverse_kinematics(feet)
+            torch.testing.assert_close(gait.forward_kinematics(q), feet, atol=1e-8, rtol=1e-7)
+            self.assertLess(float(q.abs().max()) + 0.035, math.pi / 2 * 0.95)
+
     def test_cycle_reachable_and_limited_with_residual_margin(self):
         phase = torch.linspace(0, 1, 2401, dtype=torch.float64)
         for speed, period, stride_limit in ((0., 2.4, 0.012), (0.006, 2.4, 0.012), (0.050, 0.6, 0.025)):

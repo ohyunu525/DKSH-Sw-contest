@@ -48,6 +48,21 @@ def blended_foot_targets(phase, speed, period, lift, stride_limit, tripod_weight
     return torch.lerp(wave, tripod, tripod_weight[:, None, None])
 
 
+def feasible_velocity_command(command, period, stride_limit):
+    """Scale the whole twist to fit every foot's wave-stance travel budget.
+
+    Uniform scaling preserves the requested translation/rotation ratio. Wave
+    duty is conservative for both endpoints of the wave/tripod blend.
+    """
+    angles = torch.arange(6, device=command.device, dtype=command.dtype) * (math.pi / 3)
+    vx, vy, yaw = command.unbind(-1)
+    foot_x = vx[:, None] + yaw[:, None] * STANCE_RADIUS * torch.sin(angles)
+    foot_y = vy[:, None] - yaw[:, None] * STANCE_RADIUS * torch.cos(angles)
+    travel = torch.stack((foot_x, foot_y), -1).norm(dim=-1).amax(dim=-1) * period * (5 / 6)
+    scale = (stride_limit / travel.clamp_min(1e-12)).clamp(max=1.0)
+    return command * scale[:, None]
+
+
 def directional_foot_targets(
     phase, command, period=2.4, lift=0.004, stride_limit=0.012, *, offsets=WAVE_OFFSETS, duty=5 / 6
 ):

@@ -11,7 +11,8 @@ parser.add_argument("--output", default="")
 parser.add_argument("--task", default="Isaac-DKSH-MG90S-Walk-Direct-v0",
                     choices=["Isaac-DKSH-MG90S-Walk-Direct-v0", "Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0",
                              "Isaac-DKSH-MG90S-CAD6-Sprint-Direct-v0",
-                             "Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0"])
+                             "Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0",
+                             "Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v1"])
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 if args.steps < 1000 or args.num_envs < 1:
@@ -56,9 +57,11 @@ def main():
         if hasattr(cfg, "command_forward_min"):
             phases = (
                 ("stand", 0.0, 0.0, 0.0, 0.0),
-                ("forward", cfg.command_speed_min, 0.0, 0.0, gait_lift),
-                ("lateral", 0.0, cfg.command_speed_min, 0.0, gait_lift),
-                ("yaw", 0.0, 0.0, 0.04, gait_lift),
+                ("forward", cfg.command_forward_max, 0.0, 0.0, gait_lift),
+                ("lateral", 0.0, cfg.command_lateral_max, 0.0, gait_lift),
+                ("yaw", 0.0, 0.0, cfg.command_yaw_max, gait_lift),
+                ("reverse", cfg.command_forward_min, 0.0, 0.0, gait_lift),
+                ("combined", cfg.command_forward_max, cfg.command_lateral_min, cfg.command_yaw_max, gait_lift),
             )
         else:
             phases = (
@@ -78,6 +81,7 @@ def main():
                 robot_env.cfg.command_yaw_max = yaw
                 robot_env.cfg.command_stand_probability = 0.0
             obs, _ = env.reset()
+            effective_command = robot_env._commands.mean(dim=0).tolist()
             initial = robot.data.root_pos_w.clone()
             counts_before = robot_env.completed.copy()
             min_height = 10.
@@ -99,6 +103,8 @@ def main():
                 yaw_rate_sum += float(robot.data.root_ang_vel_b[:, 2].mean())
                 saturated_sum += float((effort_ratio > 0.70).float().mean())
             result = {
+                "requested_command": [forward, lateral, yaw],
+                "effective_command": effective_command,
                 "steps": args.steps, "envs": args.num_envs,
                 "falls": robot_env.completed["fallen"] - counts_before["fallen"],
                 "out_of_bounds": robot_env.completed["out_of_bounds"] - counts_before["out_of_bounds"],
@@ -121,6 +127,7 @@ def main():
             passed &= results["forward"]["mean_displacement_x_m"] > 0.005
             passed &= results["lateral"]["mean_displacement_y_m"] > 0.002
             passed &= results["yaw"]["mean_yaw_rate_rps"] > 0.005
+            passed &= results["reverse"]["mean_displacement_x_m"] < -0.005
         passed &= all(r["max_effort_ratio"] <= 1.0001 for r in results.values())
         results["passed"] = passed
         if args.output:

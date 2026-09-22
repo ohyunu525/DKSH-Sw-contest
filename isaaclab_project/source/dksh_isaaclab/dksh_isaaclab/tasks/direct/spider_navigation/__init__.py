@@ -3,6 +3,16 @@
 import gymnasium as gym
 
 gym.register(
+    id="Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v1",
+    entry_point=f"{__name__}.mg90s_cad6:MG90SCad6VelocityEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.mg90s_cad6:MG90SCad6VelocityV1EnvCfg",
+        "rsl_rl_cfg_entry_point": f"{__name__}.mg90s_cad6:MG90SCad6VelocityV1RunnerCfg",
+    },
+)
+
+gym.register(
     id="Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0",
     entry_point=f"{__name__}.mg90s_cad6:MG90SCad6Env",
     disable_env_checker=True,

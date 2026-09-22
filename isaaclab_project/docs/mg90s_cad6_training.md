@@ -8,6 +8,37 @@
 
 ## Nav2 속도 명령 작업 (권장)
 
+### 속도 추종 재학습 v1 (2026-09-22)
+
+`run_mg90s.ps1 -SpeedProfile velocity`는 이제
+`Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v1`을 실행한다.
+새 학습 폴더는 `dksh_mg90s_cad6_velocity_l1v2`이며, 기존 v0 체크포인트는
+작업 ID 검증에서 거절된다. 기존 v0 등록과 보관 정책은 이전 결과 재현용이다.
+
+- 명령 후보 범위: 전진 -0.025~0.050 m/s, 횡이동 ±0.025 m/s, 회전 ±0.08 rad/s.
+- 보행 주기 0.6초, 최대 발 이동량 25mm, lift 5mm, 관절 목표 변화율 6.25rad/s.
+- 등가 속도 0.025~0.035m/s에서 wave에서 tripod로 부드럽게 전환한다.
+- 병진·회전 복합 명령이 발별 이동 한계를 넘으면 전체 twist를 동일 비율로 축소한다.
+  축소된 명령을 관측·보상·발 궤적 모두에 사용한다. 각 축의 최댓값을 동시에
+  보장하는 직육면체 명령 영역은 아니다. 외부 명령도 같은 투영을 적용해야 한다.
+- 평면 추종 보상 배율 6.0, Gaussian 폭 0.015m/s, yaw 추종 배율 3.0.
+- 사전 검사는 정지·최대 전진·최대 횡이동·최대 회전·후진·복합 명령을 확인한다.
+  이는 기준 제어기 검사이며 학습된 정책의 속도 정확도를 보증하지 않는다.
+
+```powershell
+.\run_mg90s.ps1 -Mode check -SpeedProfile velocity -NumEnvs 4
+.\run_mg90s.ps1 -Mode check -SpeedProfile velocity -NumEnvs 8
+.\run_mg90s.ps1 -Mode check -SpeedProfile velocity -NumEnvs 16
+.\run_mg90s.ps1 -Mode train -SpeedProfile velocity -NumEnvs 32 -MaxIterations 2000
+```
+
+평가에는 `evaluate_mg90s_cad6.py --task Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v1`을
+사용한다. 평면 오차 0.008m/s, yaw 오차 0.08rad/s의 기존 통과 기준을 유지한다.
+평가 기본 시드는 43으로 학습 시드 42와 분리하며 결과 JSON에 기록한다.
+아래 학습 완료 수치는 **기존 저속 v0** 정책의 기록이며 v1 재학습 결과가 아니다.
+
+### 기존 저속 v0 기록
+
 실기 계층은 `L1 RM → ROS2 SLAM/Nav2 → /cmd_vel → 저수준 보행 정책`으로 고정한다.
 `Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0`는 68개 관측의 `command` 세 값을
 몸체 기준 `[vx, vy, wz]`로 모두 사용하며, 기존 직진 정책과 체크포인트를 공유하지 않는다.
@@ -15,7 +46,7 @@
 `-0.006~0.012 m/s`, 횡이동 `±0.006 m/s`, 회전 `±0.08 rad/s`이고 리셋의 15%는
 정지 명령이다. 발 궤적은 각 발의 병진·회전 합성 이동량을 기존 12 mm 도달 범위로 제한한다.
 
-루트 실행기의 기본 프로필은 `velocity`이다. 이전 직진 또는 sprint 정책을 다룰 때만
+루트 실행기의 기본 프로필은 `velocity`이며 현재 v1을 선택한다. 이전 직진 또는 sprint 정책을 다룰 때만
 각각 `-SpeedProfile normal`, `-SpeedProfile sprint`를 명시한다.
 
 ```powershell

@@ -95,6 +95,32 @@ class MG90SCad6VelocityRunnerCfg(MG90SCad6RunnerCfg):
     run_name = 'cad6_4v8_velocity'
 
 
+@configclass
+class MG90SCad6VelocityV1EnvCfg(MG90SCad6VelocityEnvCfg):
+    """Faster twist tracking with commands inside the reference gait envelope."""
+    gait_period = 0.6
+    gait_lift = 0.005
+    gait_stride_limit = 0.025
+    target_rate_limit = 6.25
+    tripod_enabled = True
+    command_forward_min = -0.025
+    command_forward_max = 0.050
+    command_lateral_min = -0.025
+    command_lateral_max = 0.025
+    command_yaw_min = -0.08
+    command_yaw_max = 0.08
+    project_velocity_commands = True
+    planar_tracking_reward_scale = 6.0
+    planar_tracking_sigma = 0.015
+    yaw_tracking_reward_scale = 3.0
+
+
+@configclass
+class MG90SCad6VelocityV1RunnerCfg(MG90SCad6VelocityRunnerCfg):
+    experiment_name = 'dksh_mg90s_cad6_velocity_l1v2'
+    run_name = 'cad6_mixed_velocity_v1'
+
+
 class MG90SCad6Env(MG90SWalkEnv):
     cfg: MG90SCad6EnvCfg
 
@@ -149,6 +175,10 @@ class MG90SCad6VelocityEnv(MG90SCad6Env):
             self.cfg.command_yaw_max - self.cfg.command_yaw_min
         ) * random[:, 2]
         self._commands[env_ids[random[:, 3] < self.cfg.command_stand_probability]] = 0
+        if getattr(self.cfg, 'project_velocity_commands', False):
+            self._commands[env_ids] = gait.feasible_velocity_command(
+                self._commands[env_ids], self.cfg.gait_period, self.cfg.gait_stride_limit
+            )
 
     def _gait_joint_positions(self):
         feet = gait.blended_directional_foot_targets(

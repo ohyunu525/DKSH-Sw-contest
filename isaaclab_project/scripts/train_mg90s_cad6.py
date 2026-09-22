@@ -13,6 +13,7 @@ TASKS = (
     'Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0',
     'Isaac-DKSH-MG90S-CAD6-Sprint-Direct-v0',
     'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0',
+    'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v1',
 )
 ROOT = Path(__file__).resolve().parents[2]
 parser = argparse.ArgumentParser()
