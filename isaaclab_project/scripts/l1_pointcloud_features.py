@@ -12,7 +12,7 @@ from pathlib import Path
 import sys
 
 
-PACKAGE_SOURCE = Path(__file__).resolve().parents[2] / "ROS2" / "dksh_l1_features"
+PACKAGE_SOURCE = Path(__file__).resolve().parents[2] / "ros2" / "dksh_l1_features"
 if str(PACKAGE_SOURCE) not in sys.path:
     sys.path.insert(0, str(PACKAGE_SOURCE))
 

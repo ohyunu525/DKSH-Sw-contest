@@ -2,6 +2,7 @@
 import argparse
 import json
 from pathlib import Path
+from cad6_asset_provenance import cad6_asset_hashes
 from isaaclab.app import AppLauncher
 
 parser = argparse.ArgumentParser()
@@ -13,11 +14,14 @@ parser.add_argument("--task", default="Isaac-DKSH-MG90S-Walk-Direct-v0",
                              "Isaac-DKSH-MG90S-CAD6-Sprint-Direct-v0",
                              "Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0",
                              "Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v1",
-                             "Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v2"])
+                             "Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v2",
+                             "Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v3"])
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 if args.steps < 1000 or args.num_envs < 1:
     parser.error("Use at least 1000 steps (20 seconds) and one environment")
+if args.task.endswith('-Velocity-Direct-v3'):
+    cad6_asset_hashes()
 app = AppLauncher(args).app
 
 import gymnasium as gym
@@ -34,6 +38,9 @@ def main():
     cfg = parse_env_cfg(args.task, device=args.device, num_envs=args.num_envs)
     # Inspect one uninterrupted 20 second trajectory in each phase.
     cfg.episode_length_s = (args.steps + 10) * cfg.sim.dt * cfg.decimation
+    # Hold each commanded preflight phase for the full measurement interval.
+    if hasattr(cfg, "command_resample_interval_s"):
+        cfg.command_resample_interval_s = 0.0
     env = gym.make(args.task, cfg=cfg)
     robot_env = env.unwrapped
     robot = robot_env._robot

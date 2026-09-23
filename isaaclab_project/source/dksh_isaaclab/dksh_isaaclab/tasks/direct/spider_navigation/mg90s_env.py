@@ -61,7 +61,11 @@ class MG90SWalkEnv(DirectRLEnv):
         return inverse_kinematics(feet).flatten(1)
 
     def _pre_physics_step(self, actions):
-        self.extras["log"] = {}
+        # Keep the keys present on every rollout step so an aggregator that
+        # fixes its schema from the first info dict cannot drop later resets.
+        self.extras["log"] = {
+            f"Episode_Count/{name}": 0.0 for name in self.completed
+        }
         self._previous_actions.copy_(self._actions)
         self._actions.copy_(actions.clamp(-1, 1))
         self._filtered_actions.lerp_(self._actions, self.cfg.action_smoothing)

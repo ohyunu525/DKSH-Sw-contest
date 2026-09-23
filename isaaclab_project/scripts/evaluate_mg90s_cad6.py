@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from mg90s_checkpoint import validate_checkpoint
+from mg90s_velocity_eval import velocity_pass
 from isaaclab.app import AppLauncher
 
 TASKS = (
@@ -12,12 +13,13 @@ TASKS = (
     'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0',
     'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v1',
     'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v2',
+    'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v3',
 )
 
 
 def checkpoint_observations(task: str) -> int:
     """Select the observation contract before opening Isaac Sim."""
-    return 69 if task == 'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v2' else 68
+    return 69 if task.endswith(('-v2', '-v3')) and '-Velocity-Direct-' in task else 68
 
 
 parser = argparse.ArgumentParser()
@@ -59,6 +61,8 @@ def main():
         obs, _ = env.get_observations()
         counts = base.completed.copy()
         speed_sum = error_sum = yaw_error_sum = torque_near_sum = 0.0
+        zero_speed_sum = zero_yaw_sum = 0.0
+        measured_env_steps = command_changes = 0
         arrival_undershoot_sum = arrival_overshoot_sum = arrival_cross_track_sum = 0.0
         has_arrival_timing = bool(getattr(base.cfg, 'arrival_timing_enabled', False))
         min_height, max_torque, max_effort_ratio = float('inf'), 0.0, 0.0
@@ -67,16 +71,27 @@ def main():
                 actions = policy(obs)
                 if actions.shape != (args.num_envs, 18) or not torch.isfinite(actions).all():
                     raise RuntimeError('Policy emitted non-finite or incorrectly shaped actions')
-                obs, reward, _, _ = env.step(actions)
+                previous_command = base._commands.clone()
+                obs, reward, dones, _ = env.step(actions)
                 if not torch.isfinite(obs).all() or not torch.isfinite(reward).all():
                     raise RuntimeError('Non-finite observation or reward')
+                changed = (base._commands != previous_command).any(dim=-1)
+                command_changes += int((changed & (dones == 0)).sum())
+                # DirectRLEnv resets completed robots before returning; those
+                # root velocities belong to the next episode. A resampling
+                # step also spans two different command values.
+                valid = (dones == 0) & ~changed
+                measured_env_steps += int(valid.sum())
                 velocity = base._robot.data.root_lin_vel_b
-                speed_sum += float(velocity[:, 0].mean())
+                speed_sum += float(velocity[valid, 0].sum())
                 if '-Velocity-Direct-' in args.task:
-                    error_sum += float(torch.linalg.vector_norm(velocity[:, :2] - base._commands[:, :2], dim=-1).mean())
-                    yaw_error_sum += float((base._robot.data.root_ang_vel_b[:, 2] - base._commands[:, 2]).abs().mean())
+                    command = base._commands[valid]
+                    error_sum += float(torch.linalg.vector_norm(velocity[valid, :2] - command[:, :2], dim=-1).sum())
+                    yaw_error_sum += float((base._robot.data.root_ang_vel_b[valid, 2] - command[:, 2]).abs().sum())
+                    zero_speed_sum += float(torch.linalg.vector_norm(command[:, :2], dim=-1).sum())
+                    zero_yaw_sum += float(command[:, 2].abs().sum())
                 else:
-                    error_sum += float((velocity[:, 0] - base._speed).abs().mean())
+                    error_sum += float((velocity[valid, 0] - base._speed[valid]).abs().sum())
                 min_height = min(min_height, float(base._robot.data.root_pos_w[:, 2].min()))
                 torque = base._robot.data.applied_torque.abs()
                 max_torque = max(max_torque, float(torque.max()))
@@ -88,12 +103,16 @@ def main():
                     arrival_undershoot_sum += float(arrival['Metrics/arrival_undershoot'])
                     arrival_overshoot_sum += float(arrival['Metrics/arrival_overshoot'])
                     arrival_cross_track_sum += float(arrival['Metrics/arrival_cross_track'])
+        if measured_env_steps == 0:
+            raise RuntimeError('No uninterrupted command-tracking steps were measured')
         result = {
             'task': args.task, 'checkpoint': str(checkpoint), 'steps': args.steps, 'envs': args.num_envs,
             'seed': args.seed,
-            'mean_forward_speed_mps': speed_sum / args.steps,
-            'mean_speed_error_mps': error_sum / args.steps,
-            'mean_yaw_error_rps': yaw_error_sum / args.steps,
+            'measured_env_steps': measured_env_steps,
+            'command_changes': command_changes,
+            'mean_forward_speed_mps': speed_sum / measured_env_steps,
+            'mean_speed_error_mps': error_sum / measured_env_steps,
+            'mean_yaw_error_rps': yaw_error_sum / measured_env_steps,
             'min_base_height_m': min_height, 'max_abs_torque_nm': max_torque,
             'max_effort_ratio': max_effort_ratio,
             'near_torque_cap_fraction': torque_near_sum / args.steps,
@@ -109,10 +128,11 @@ def main():
                 mean_arrival_cross_track=arrival_cross_track_sum / args.steps,
             )
         if '-Velocity-Direct-' in args.task:
-            result['passed'] = (result['falls'] == 0 and result['out_of_bounds'] == 0
-                                and result['mean_speed_error_mps'] <= 0.008
-                                and result['mean_yaw_error_rps'] <= 0.08
-                                and result['max_effort_ratio'] <= 1.0001)
+            result['zero_speed_error_mps'] = zero_speed_sum / measured_env_steps
+            result['zero_yaw_error_rps'] = zero_yaw_sum / measured_env_steps
+            result['passed'] = velocity_pass(result)
+            if args.task.endswith('-v3'):
+                result['passed'] &= command_changes > 0
         else:
             result['passed'] = (result['falls'] == 0 and result['out_of_bounds'] == 0
                                 and result['mean_forward_speed_mps'] >= 0.0025

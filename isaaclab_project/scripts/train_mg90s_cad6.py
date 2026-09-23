@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 
 from mg90s_checkpoint import validate_checkpoint
+from cad6_asset_provenance import cad6_asset_hashes
 from isaaclab.app import AppLauncher
 
 TASKS = (
@@ -15,12 +16,13 @@ TASKS = (
     'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0',
     'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v1',
     'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v2',
+    'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v3',
 )
 
 
 def checkpoint_observations(task: str) -> int:
     """Select the observation contract before opening Isaac Sim."""
-    return 69 if task == 'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v2' else 68
+    return 69 if task.endswith(('-v2', '-v3')) and '-Velocity-Direct-' in task else 68
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -37,6 +39,7 @@ if args.num_envs < 1 or args.max_iterations < 1:
 checkpoint = Path(args.checkpoint).resolve() if args.checkpoint else None
 if checkpoint:
     validate_checkpoint(checkpoint, observations=checkpoint_observations(args.task), task=args.task)
+asset_hashes = cad6_asset_hashes() if args.task.endswith('-Velocity-Direct-v3') else None
 app = AppLauncher(args).app
 
 import gymnasium as gym
@@ -67,6 +70,8 @@ def main():
                 'started_at': datetime.now().astimezone().isoformat(), 'status': 'initializing',
                 'source_checkpoint': str(checkpoint) if checkpoint else None,
                 'source_sha256': hashlib.sha256(checkpoint.read_bytes()).hexdigest() if checkpoint else None}
+    if asset_hashes is not None:
+        metadata['asset_sha256'] = asset_hashes
     metadata_path = log / 'run_metadata.json'
     env = None
     try:
@@ -89,7 +94,8 @@ def main():
         snapshot.mkdir()
         task_dir = ROOT / 'isaaclab_project/source/dksh_isaaclab/dksh_isaaclab/tasks/direct/spider_navigation'
         for source in [*task_dir.glob('mg90s*.py'), task_dir / 'cad6_wave_gait.py',
-                       Path(__file__), Path(__file__).with_name('mg90s_checkpoint.py'), ROOT / 'run_mg90s.ps1']:
+                       Path(__file__), Path(__file__).with_name('mg90s_checkpoint.py'),
+                       Path(__file__).with_name('cad6_asset_provenance.py'), ROOT / 'run_mg90s.ps1']:
             shutil.copy2(source, snapshot / source.name)
         print('CAD6_TRAINING_STARTED ' + json.dumps({'log': str(log), **metadata}), flush=True)
         runner.learn(num_learning_iterations=agent.max_iterations, init_at_random_ep_len=False)

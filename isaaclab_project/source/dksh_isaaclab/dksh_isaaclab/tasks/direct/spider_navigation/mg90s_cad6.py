@@ -154,6 +154,20 @@ class MG90SCad6VelocityV2RunnerCfg(MG90SCad6VelocityV1RunnerCfg):
     run_name = 'cad6_mixed_velocity_arrival_v2'
 
 
+@configclass
+class MG90SCad6VelocityV3EnvCfg(MG90SCad6VelocityV2EnvCfg):
+    """Correct base-frame yaw and train on command changes during an episode."""
+
+    correct_yaw_kinematics = True
+    command_resample_interval_s = 4.0
+
+
+@configclass
+class MG90SCad6VelocityV3RunnerCfg(MG90SCad6VelocityV2RunnerCfg):
+    experiment_name = 'dksh_mg90s_cad6_velocity_l1v4'
+    run_name = 'cad6_mixed_velocity_transitions_v3'
+
+
 class MG90SCad6Env(MG90SWalkEnv):
     cfg: MG90SCad6EnvCfg
 
@@ -216,8 +230,32 @@ class MG90SCad6VelocityEnv(MG90SCad6Env):
             self._arrival_start_yaw_w = torch.zeros(self.num_envs, device=self.device)
         self._arrival_start_pos_w[env_ids] = root_state[:, :2]
         self._arrival_start_yaw_w[env_ids] = self._yaw_from_quaternion(root_state[:, 3:7])
+        if getattr(self.cfg, 'command_resample_interval_s', 0) > 0:
+            if not hasattr(self, '_command_start_age'):
+                self._command_start_age = torch.zeros(self.num_envs, device=self.device)
+            self._command_start_age[env_ids] = self.cfg.settling_seconds
+
+    def _pre_physics_step(self, actions):
+        interval = getattr(self.cfg, 'command_resample_interval_s', 0)
+        if interval > 0:
+            env_ids = ((self._age >= self._command_start_age + interval)
+                       & (self._age > self.cfg.settling_seconds)).nonzero(as_tuple=False).squeeze(-1)
+            if len(env_ids):
+                self._arrival_start_pos_w[env_ids] = self._robot.data.root_pos_w[env_ids, :2]
+                self._arrival_start_yaw_w[env_ids] = self._yaw_from_quaternion(
+                    self._robot.data.root_quat_w[env_ids]
+                )
+                self._command_start_age[env_ids] = self._age[env_ids]
+                self._sample_commands(env_ids)
+            self._command_resamples_this_step = len(env_ids)
+        super()._pre_physics_step(actions)
+        if interval > 0:
+            self.extras['log']['Metrics/command_resamples'] = float(self._command_resamples_this_step)
 
     def _arrival_duration(self):
+        interval = getattr(self.cfg, 'command_resample_interval_s', 0)
+        if interval > 0:
+            return interval
         configured = self.cfg.arrival_time_s
         duration = configured if configured > 0 else self.cfg.episode_length_s - self.cfg.settling_seconds
         if duration <= 0:
@@ -225,6 +263,8 @@ class MG90SCad6VelocityEnv(MG90SCad6Env):
         return duration
 
     def _arrival_elapsed(self):
+        if getattr(self.cfg, 'command_resample_interval_s', 0) > 0:
+            return (self._age - self._command_start_age).clamp(0, self._arrival_duration())
         return (self._age - self.cfg.settling_seconds).clamp(0, self._arrival_duration())
 
     def _arrival_phase(self):
@@ -245,13 +285,15 @@ class MG90SCad6VelocityEnv(MG90SCad6Env):
         self._commands[env_ids[random[:, 3] < self.cfg.command_stand_probability]] = 0
         if getattr(self.cfg, 'project_velocity_commands', False):
             self._commands[env_ids] = gait.feasible_velocity_command(
-                self._commands[env_ids], self.cfg.gait_period, self.cfg.gait_stride_limit
+                self._commands[env_ids], self.cfg.gait_period, self.cfg.gait_stride_limit,
+                correct_yaw=getattr(self.cfg, 'correct_yaw_kinematics', False),
             )
 
     def _gait_joint_positions(self):
         feet = gait.blended_directional_foot_targets(
             self._phase(), self._commands, self.cfg.gait_period, self.cfg.gait_lift,
             self.cfg.gait_stride_limit, self._tripod_weight(),
+            correct_yaw=getattr(self.cfg, 'correct_yaw_kinematics', False),
         )
         return gait.inverse_kinematics(feet).flatten(1)
 
@@ -259,7 +301,8 @@ class MG90SCad6VelocityEnv(MG90SCad6Env):
         if not self.cfg.tripod_enabled:
             return torch.zeros_like(self._speed)
         equivalent_speed = torch.linalg.vector_norm(self._commands[:, :2], dim=-1)
-        equivalent_speed += self._commands[:, 2].abs() * gait.STANCE_RADIUS
+        radius = gait.BODY_STANCE_RADIUS if getattr(self.cfg, 'correct_yaw_kinematics', False) else gait.STANCE_RADIUS
+        equivalent_speed += self._commands[:, 2].abs() * radius
         width = self.cfg.tripod_transition_width
         if width <= 0:
             return (equivalent_speed >= self.cfg.tripod_transition_speed).float()

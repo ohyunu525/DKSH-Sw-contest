@@ -39,6 +39,40 @@ class Cad6GaitTests(unittest.TestCase):
             torch.testing.assert_close(gait.forward_kinematics(q), feet, atol=1e-8, rtol=1e-7)
             self.assertLess(float(q.abs().max()) + 0.035, math.pi / 2 * 0.95)
 
+    def test_velocity_v3_projection_matches_corrected_foot_targets(self):
+        commands = torch.cartesian_prod(
+            torch.tensor([-0.025, 0.0, 0.035, 0.050], dtype=torch.float64),
+            torch.tensor([-0.025, 0.0, 0.025], dtype=torch.float64),
+            torch.tensor([-0.08, 0.0, 0.08], dtype=torch.float64),
+        )
+        projected = gait.feasible_velocity_command(commands, 0.6, 0.025, correct_yaw=True)
+        phase = torch.linspace(0, 1, 301, dtype=torch.float64)
+        for command in projected:
+            values = command.expand(len(phase), -1)
+            torch.testing.assert_close(
+                gait.directional_foot_targets(phase, values, 0.6, 0.005, 0.025, correct_yaw=True),
+                gait.directional_foot_targets(phase, values, 0.6, 0.005, 1.0, correct_yaw=True),
+            )
+
+    def test_body_yaw_uses_urdf_hip_mount_and_positive_axis(self):
+        robot = ET.parse(ROOT / 'assets/spiderbot_variants/spiderbot_6leg/spiderbot_6leg.urdf').getroot()
+        hip_joint = robot.find("joint[@name='leg_0_hip_joint']")
+        self.assertEqual(hip_joint.find('axis').get('xyz'), '0 0 1')
+        self.assertAlmostEqual(float(hip_joint.find('origin').get('xyz').split()[0]), gait.HIP_MOUNT_RADIUS)
+        self.assertAlmostEqual(gait.BODY_STANCE_RADIUS, gait.HIP_MOUNT_RADIUS + gait.STANCE_RADIUS)
+        phase = torch.tensor([0.1, 0.10001], dtype=torch.float64)
+        command = torch.tensor([[0.0, 0.0, 0.04]] * 2, dtype=torch.float64)
+        feet = gait.directional_foot_targets(
+            phase, command, 0.6, 0.005, 0.025, offsets=(0,) * 6, correct_yaw=True,
+        )
+        dt = float((phase[1] - phase[0]) * 0.6)
+        # A stationary world foot moves backward in hip-local Y when the
+        # base has positive yaw. The full base-to-foot radius determines speed.
+        self.assertAlmostEqual(
+            float((feet[1, 0, 1] - feet[0, 0, 1]) / dt),
+            -0.04 * gait.BODY_STANCE_RADIUS, places=5,
+        )
+
     def test_cycle_reachable_and_limited_with_residual_margin(self):
         phase = torch.linspace(0, 1, 2401, dtype=torch.float64)
         for speed, period, stride_limit in ((0., 2.4, 0.012), (0.006, 2.4, 0.012), (0.050, 0.6, 0.025)):

@@ -14,6 +14,10 @@ ALPHA1, ALPHA2 = math.atan2(-FEMUR_Z, FEMUR_X), math.atan2(-SOLE_Z, SOLE_X)
 STANCE_FEMUR, STANCE_TIBIA = 0.60, -0.20
 STANCE_RADIUS = HIP_X + L1 * math.cos(ALPHA1 + STANCE_FEMUR) + L2 * math.cos(ALPHA2 + STANCE_FEMUR + STANCE_TIBIA)
 STANCE_Z = HIP_Z - L1 * math.sin(ALPHA1 + STANCE_FEMUR) - L2 * math.sin(ALPHA2 + STANCE_FEMUR + STANCE_TIBIA)
+# The URDF hip origin is 120 mm from the base origin. Foot targets and IK are
+# hip-local, but a body yaw moves the foot about the base origin.
+HIP_MOUNT_RADIUS = 0.120
+BODY_STANCE_RADIUS = HIP_MOUNT_RADIUS + STANCE_RADIUS
 
 
 WAVE_OFFSETS = (0, 3, 1, 4, 2, 5)
@@ -48,7 +52,7 @@ def blended_foot_targets(phase, speed, period, lift, stride_limit, tripod_weight
     return torch.lerp(wave, tripod, tripod_weight[:, None, None])
 
 
-def feasible_velocity_command(command, period, stride_limit):
+def feasible_velocity_command(command, period, stride_limit, *, correct_yaw=False):
     """Scale the whole twist to fit every foot's wave-stance travel budget.
 
     Uniform scaling preserves the requested translation/rotation ratio. Wave
@@ -56,15 +60,18 @@ def feasible_velocity_command(command, period, stride_limit):
     """
     angles = torch.arange(6, device=command.device, dtype=command.dtype) * (math.pi / 3)
     vx, vy, yaw = command.unbind(-1)
-    foot_x = vx[:, None] + yaw[:, None] * STANCE_RADIUS * torch.sin(angles)
-    foot_y = vy[:, None] - yaw[:, None] * STANCE_RADIUS * torch.cos(angles)
+    radius = BODY_STANCE_RADIUS if correct_yaw else STANCE_RADIUS
+    sign = -1 if correct_yaw else 1
+    foot_x = vx[:, None] + sign * yaw[:, None] * radius * torch.sin(angles)
+    foot_y = vy[:, None] - sign * yaw[:, None] * radius * torch.cos(angles)
     travel = torch.stack((foot_x, foot_y), -1).norm(dim=-1).amax(dim=-1) * period * (5 / 6)
     scale = (stride_limit / travel.clamp_min(1e-12)).clamp(max=1.0)
     return command * scale[:, None]
 
 
 def directional_foot_targets(
-    phase, command, period=2.4, lift=0.004, stride_limit=0.012, *, offsets=WAVE_OFFSETS, duty=5 / 6
+    phase, command, period=2.4, lift=0.004, stride_limit=0.012, *, offsets=WAVE_OFFSETS, duty=5 / 6,
+    correct_yaw=False,
 ):
     """Return CAD6 targets for body-frame ``[vx, vy, yaw_rate]`` commands.
 
@@ -83,11 +90,12 @@ def directional_foot_targets(
     rest_x = STANCE_RADIUS * torch.cos(angles)[None, :]
     rest_y = STANCE_RADIUS * torch.sin(angles)[None, :]
     vx, vy, yaw_rate = command.unbind(-1)
-    # The CAD hip axes use the opposite rotation sign to the ROS body yaw
-    # convention; invert the rotational tangent so positive angular.z yields
-    # positive measured root yaw in PhysX.
-    foot_velocity_x = vx[:, None] + yaw_rate[:, None] * rest_y
-    foot_velocity_y = vy[:, None] - yaw_rate[:, None] * rest_x
+    # Stance travel decreases with phase. For positive body yaw, the local foot
+    # velocity must be -omega x (hip mount + foot), in the base frame.
+    radius = BODY_STANCE_RADIUS if correct_yaw else STANCE_RADIUS
+    sign = -1 if correct_yaw else 1
+    foot_velocity_x = vx[:, None] + sign * yaw_rate[:, None] * radius * torch.sin(angles)
+    foot_velocity_y = vy[:, None] - sign * yaw_rate[:, None] * radius * torch.cos(angles)
     displacement = torch.stack((foot_velocity_x, foot_velocity_y), dim=-1) * (period * duty)
     scale = (stride_limit / displacement.norm(dim=-1).clamp_min(1e-12)).clamp(max=1.0)
     displacement = displacement * scale[..., None]
@@ -99,11 +107,12 @@ def directional_foot_targets(
     return torch.stack((x, y, z), -1)
 
 
-def blended_directional_foot_targets(phase, command, period, lift, stride_limit, tripod_weight):
+def blended_directional_foot_targets(phase, command, period, lift, stride_limit, tripod_weight, *, correct_yaw=False):
     """Blend directional wave and tripod targets continuously."""
-    wave = directional_foot_targets(phase, command, period, lift, stride_limit)
+    wave = directional_foot_targets(phase, command, period, lift, stride_limit, correct_yaw=correct_yaw)
     tripod = directional_foot_targets(
-        phase, command, period, lift, stride_limit, offsets=TRIPOD_OFFSETS, duty=0.55
+        phase, command, period, lift, stride_limit, offsets=TRIPOD_OFFSETS, duty=0.55,
+        correct_yaw=correct_yaw,
     )
     return torch.lerp(wave, tripod, tripod_weight[:, None, None])
 

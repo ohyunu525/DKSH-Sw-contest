@@ -14,8 +14,14 @@ def validate_checkpoint(path, observations=68, actions=18, task='Isaac-DKSH-MG90
     if actions == 18:
         metadata = Path(path).parent / 'run_metadata.json'
         import json
-        if not metadata.is_file() or json.loads(metadata.read_text(encoding='utf-8')).get('task') != task:
+        if not metadata.is_file():
             raise ValueError(f'CAD6 checkpoint must include matching run_metadata.json for {task}.')
+        record = json.loads(metadata.read_text(encoding='utf-8'))
+        if record.get('task') != task:
+            raise ValueError(f'CAD6 checkpoint must include matching run_metadata.json for {task}.')
+        if task.endswith('-Velocity-Direct-v3'):
+            from cad6_asset_provenance import validate_cad6_checkpoint_assets
+            validate_cad6_checkpoint_assets(record)
     return int(data['iter'])
 
 
