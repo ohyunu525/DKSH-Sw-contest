@@ -16,6 +16,13 @@ TASKS = (
     'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v1',
     'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v2',
 )
+
+
+def checkpoint_observations(task: str) -> int:
+    """Select the observation contract before opening Isaac Sim."""
+    return 69 if task == 'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v2' else 68
+
+
 ROOT = Path(__file__).resolve().parents[2]
 parser = argparse.ArgumentParser()
 parser.add_argument('--num_envs', type=int, default=32)
@@ -29,7 +36,7 @@ if args.num_envs < 1 or args.max_iterations < 1:
     parser.error('Environment and iteration counts must be positive')
 checkpoint = Path(args.checkpoint).resolve() if args.checkpoint else None
 if checkpoint:
-    validate_checkpoint(checkpoint, task=args.task)
+    validate_checkpoint(checkpoint, observations=checkpoint_observations(args.task), task=args.task)
 app = AppLauncher(args).app
 
 import gymnasium as gym

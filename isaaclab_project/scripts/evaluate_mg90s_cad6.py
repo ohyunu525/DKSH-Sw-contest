@@ -13,6 +13,13 @@ TASKS = (
     'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v1',
     'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v2',
 )
+
+
+def checkpoint_observations(task: str) -> int:
+    """Select the observation contract before opening Isaac Sim."""
+    return 69 if task == 'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v2' else 68
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--checkpoint', required=True)
 parser.add_argument('--num_envs', type=int, default=4)
@@ -25,7 +32,7 @@ args = parser.parse_args()
 if args.num_envs < 1 or args.steps < 1000:
     parser.error('Use at least one environment and 1,000 steps.')
 checkpoint = Path(args.checkpoint).resolve()
-validate_checkpoint(checkpoint, task=args.task)
+validate_checkpoint(checkpoint, observations=checkpoint_observations(args.task), task=args.task)
 app = AppLauncher(args).app
 
 import gymnasium as gym
@@ -52,6 +59,8 @@ def main():
         obs, _ = env.get_observations()
         counts = base.completed.copy()
         speed_sum = error_sum = yaw_error_sum = torque_near_sum = 0.0
+        arrival_undershoot_sum = arrival_overshoot_sum = arrival_cross_track_sum = 0.0
+        has_arrival_timing = bool(getattr(base.cfg, 'arrival_timing_enabled', False))
         min_height, max_torque, max_effort_ratio = float('inf'), 0.0, 0.0
         with torch.inference_mode():
             for _ in range(args.steps):
@@ -74,6 +83,11 @@ def main():
                 effort_ratio = torque / base._robot.data.joint_effort_limits
                 max_effort_ratio = max(max_effort_ratio, float(effort_ratio.max()))
                 torque_near_sum += float((effort_ratio > 0.70).float().mean())
+                if has_arrival_timing:
+                    _, arrival = base._arrival_timing_penalty()
+                    arrival_undershoot_sum += float(arrival['Metrics/arrival_undershoot'])
+                    arrival_overshoot_sum += float(arrival['Metrics/arrival_overshoot'])
+                    arrival_cross_track_sum += float(arrival['Metrics/arrival_cross_track'])
         result = {
             'task': args.task, 'checkpoint': str(checkpoint), 'steps': args.steps, 'envs': args.num_envs,
             'seed': args.seed,
@@ -88,6 +102,12 @@ def main():
             'out_of_bounds': base.completed['out_of_bounds'] - counts['out_of_bounds'],
             'timeouts': base.completed['time_out'] - counts['time_out'],
         }
+        if has_arrival_timing:
+            result.update(
+                mean_arrival_undershoot=arrival_undershoot_sum / args.steps,
+                mean_arrival_overshoot=arrival_overshoot_sum / args.steps,
+                mean_arrival_cross_track=arrival_cross_track_sum / args.steps,
+            )
         if '-Velocity-Direct-' in args.task:
             result['passed'] = (result['falls'] == 0 and result['out_of_bounds'] == 0
                                 and result['mean_speed_error_mps'] <= 0.008
