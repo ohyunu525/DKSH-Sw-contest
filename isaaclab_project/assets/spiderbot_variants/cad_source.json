@@ -6,24 +6,22 @@
     "document_id": "f646c0fde8bd91cfa43cbae7",
     "workspace_name": "Main",
     "workspace_id": "279609403375cff4404c6eae",
-    "element_id": "0eb274ad4063ff0fbe1ac353",
-    "url": "https://cad.onshape.com/documents/f646c0fde8bd91cfa43cbae7/w/279609403375cff4404c6eae/e/0eb274ad4063ff0fbe1ac353",
+    "element_id": "76a6985095c8e8f19d67aec6",
+    "url": "https://cad.onshape.com/documents/f646c0fde8bd91cfa43cbae7/w/279609403375cff4404c6eae/e/76a6985095c8e8f19d67aec6",
     "access": "link_shared_view_only",
-    "observed_at": "2026-09-22",
+    "observed_at": "2026-09-30",
     "lifecycle": "in_progress"
   },
   "observed_structure": {
     "hexapod_assembly": {
       "body_instances": 1,
       "leg_instances": 6,
-      "fixed_mates": 6
-    },
-    "leg_assembly": {
-      "part_instances": 9,
-      "revolute_mates": 3,
-      "fixed_mates": 5,
+      "part_instances": 19,
+      "total_mates": 25,
+      "revolute_mates": 18,
       "revolute_limits_defined": false,
-      "component_names_are_release_ready": false
+      "component_names_are_release_ready": true,
+      "joint_mates_named_release_ready": true
     }
   },
   "target_hardware": {
@@ -54,9 +52,10 @@
       "parts_preserved": false
     },
     "joint_spec": {
-      "path": null,
+      "path": "isaaclab_project/assets/spiderbot_variants/onshape_joint_frames.json",
       "axes_and_centers_complete": false,
-      "zero_pose_complete": false,
+      "zero_pose_complete": true,
+      "rotation_direction_complete": true,
       "limits_complete": false
     },
     "mass_properties": {

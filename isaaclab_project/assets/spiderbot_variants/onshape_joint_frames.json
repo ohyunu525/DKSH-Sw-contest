@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "source": {
+    "system": "Onshape",
+    "document_id": "f646c0fde8bd91cfa43cbae7",
+    "workspace_id": "279609403375cff4404c6eae",
+    "element_id": "76a6985095c8e8f19d67aec6",
+    "observed_at": "2026-09-30"
+  },
+  "canonical_body_frame": {
+    "x": "forward",
+    "y": "left",
+    "z": "up",
+    "leg_index_direction": "counterclockwise viewed from +Z",
+    "leg_azimuth_degrees": [
+      30.0,
+      90.0,
+      150.0,
+      -150.0,
+      -90.0,
+      -30.0
+    ]
+  },
+  "zero_pose": {
+    "definition": "saved Onshape assembly pose",
+    "coxa": "radial from the body center",
+    "femur": "vertical down",
+    "tibia": "horizontal outward",
+    "raw_onshape_mate_angles_are_joint_zero": false,
+    "note": "The saved L1 tibia Mate displayed about 92.119 degrees. That raw Mate coordinate is intentionally not propagated into the simulation joint position."
+  },
+  "joint_convention": {
+    "coxa": {
+      "canonical_name": "hip",
+      "axis_in_joint_frame": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "positive_motion": "counterclockwise viewed from body +Z"
+    },
+    "femur": {
+      "canonical_name": "femur",
+      "axis_in_joint_frame": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "positive_motion": "moves the femur distal end outward from the vertical-down zero pose"
+    },
+    "tibia": {
+      "canonical_name": "tibia",
+      "axis_in_joint_frame": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "positive_motion": "flexes the horizontal tibia upward from the zero pose"
+    }
+  },
+  "legs": [
+    {
+      "canonical_index": 0,
+      "azimuth_degrees": 30.0,
+      "onshape_leg": "L6"
+    },
+    {
+      "canonical_index": 1,
+      "azimuth_degrees": 90.0,
+      "onshape_leg": "L5"
+    },
+    {
+      "canonical_index": 2,
+      "azimuth_degrees": 150.0,
+      "onshape_leg": "L4"
+    },
+    {
+      "canonical_index": 3,
+      "azimuth_degrees": -150.0,
+      "onshape_leg": "L3"
+    },
+    {
+      "canonical_index": 4,
+      "azimuth_degrees": -90.0,
+      "onshape_leg": "L2"
+    },
+    {
+      "canonical_index": 5,
+      "azimuth_degrees": -30.0,
+      "onshape_leg": "L1"
+    }
+  ],
+  "import_policy": {
+    "rebuild_axes_from_canonical_convention": true,
+    "use_raw_onshape_mate_angles_as_offsets": false,
+    "apply_to_legacy_provisional_urdf": false
+  },
+  "verification": {
+    "named_revolute_mates": 18,
+    "zero_pose_complete": true,
+    "rotation_direction_complete": true,
+    "joint_centers_complete": false,
+    "joint_limits_complete": false,
+    "body_forward_against_physical_electronics_complete": false
+  }
+}

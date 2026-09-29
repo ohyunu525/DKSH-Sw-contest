@@ -1,10 +1,34 @@
 # Onshape CAD 갱신 및 학습 전환 절차
 
-최신 설계의 단일 출처는 [HEXAPOD Onshape 문서](https://cad.onshape.com/documents/f646c0fde8bd91cfa43cbae7/w/279609403375cff4404c6eae/e/0eb274ad4063ff0fbe1ac353)다.
-문서는 현재 링크 공유 읽기 전용이며 설계가 진행 중이다. 2026-09-22 관찰 기준으로
-`hexapod` 조립은 몸체 1개와 다리 6개, `leg` 조립은 회전 Mate 3개와 고정 Mate 5개다.
-세 회전 Mate에는 Limits가 없고 부품 이름도 대부분 `Part 1`이므로 현재 상태에서
-자동 URDF 변환이나 실물 기준 학습을 시작하지 않는다.
+최신 설계의 단일 출처는 [HEXAPOD Onshape 최종 조립](https://cad.onshape.com/documents/f646c0fde8bd91cfa43cbae7/w/279609403375cff4404c6eae/e/76a6985095c8e8f19d67aec6)이다.
+문서는 현재 링크 공유 읽기 전용이며 설계가 진행 중이다. 2026-09-30 관찰 기준으로
+최종 조립은 body 1개, coxa/femur/tibia 각 6개로 총 19개 인스턴스이며,
+`dof_L1_*`부터 `dof_L6_*`까지 이름이 붙은 Revolute Mate 18개가 있다.
+다만 Mate Limits, 정확한 축 중심, 최종 질량 명세는 아직 확정되지 않았으므로 현재
+상태에서 자동 URDF 변환이나 실물 기준 장시간 학습을 시작하지 않는다.
+
+## 확정한 관절 영점과 회전 방향
+
+관절 규약의 기계 판독 원본은
+`assets/spiderbot_variants/onshape_joint_frames.json`이다. Onshape에 저장된 조립 자세를
+모든 관절의 `q=0`으로 정의한다. 이 자세에서 coxa는 몸체 중심으로부터 방사형,
+femur는 수직 아래, tibia는 수평 바깥쪽을 향한다. Onshape Mate 편집기에 표시되는
+각도는 조립 구속조건의 내부 좌표이므로 시뮬레이션 영점 오프셋으로 사용하지 않는다.
+실제로 저장 자세의 L1 tibia에는 약 92.119도가 표시됐다.
+
+몸체 좌표는 +X 전방, +Y 좌측, +Z 위쪽이며 다리는 위에서 봤을 때 반시계 방향으로
+`leg_0`부터 `leg_5`까지 센다. 최신 Onshape 이름과의 대응은 차례로
+`L6, L5, L4, L3, L2, L1`이다. 새 URDF/USD 생성 시 coxa 축은 `(0, 0, +1)`,
+femur와 tibia 축은 각 다리의 로컬 좌표에서 `(0, -1, 0)`으로 재구성한다. 따라서
+양의 coxa 회전은 위에서 반시계, 양의 femur 회전은 영점에서 링크 끝을 바깥쪽으로,
+양의 tibia 회전은 발을 위로 접는다. 이 규약은 기준 자세가 다른 기존
+`spiderbot_6leg.urdf`에 소급 적용하지 않는다.
+
+다음 명령으로 18개 Mate 이름, 영점, 축 방향 계약을 검사한다.
+
+```powershell
+python isaaclab_project/scripts/onshape_joint_frames.py
+```
 
 ## CAD 담당자가 확정할 항목
 

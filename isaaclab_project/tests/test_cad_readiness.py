@@ -36,6 +36,7 @@ class CadReadinessTests(unittest.TestCase):
                 "path": "cad/joints.json",
                 "axes_and_centers_complete": True,
                 "zero_pose_complete": True,
+                "rotation_direction_complete": True,
                 "limits_complete": True,
             },
             "mass_properties": {
@@ -59,6 +60,11 @@ class CadReadinessTests(unittest.TestCase):
     def test_training_gate_rejects_current_manifest(self) -> None:
         with self.assertRaises(CAD.CadNotReadyError):
             CAD.assert_cad_ready()
+
+    def test_release_gate_requires_rotation_direction_evidence(self) -> None:
+        data = copy.deepcopy(CAD.load_manifest())
+        data["release_evidence"]["joint_spec"]["rotation_direction_complete"] = False
+        self.assertIn("joint rotation directions are incomplete", CAD.collect_blockers(data))
 
 
 if __name__ == "__main__":
