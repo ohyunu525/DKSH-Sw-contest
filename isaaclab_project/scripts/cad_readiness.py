@@ -48,6 +48,8 @@ def collect_blockers(data: dict[str, Any]) -> list[str]:
         blockers.append("joint axes and centers are incomplete")
     if not joints.get("zero_pose_complete"):
         blockers.append("joint zero pose is incomplete")
+    if not joints.get("rotation_direction_complete"):
+        blockers.append("joint rotation directions are incomplete")
     if not joints.get("limits_complete"):
         blockers.append("joint limits are incomplete")
     if not mass.get("path") or not mass.get("complete") or not mass.get("motor_inclusion_labeled"):
