@@ -8,6 +8,7 @@ from the saved assembly pose and rebuilding every axis in a canonical frame.
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +43,7 @@ def joint_records(path: Path = DEFAULT_SPEC) -> tuple[dict[str, Any], ...]:
         index = int(leg["canonical_index"])
         onshape_leg = str(leg["onshape_leg"])
         for onshape_kind, policy_kind in zip(JOINT_ORDER, POLICY_JOINT_ORDER):
+            lower_deg, upper_deg = convention[onshape_kind]["position_limit_degrees"]
             records.append(
                 {
                     "canonical_name": f"leg_{index}_{policy_kind}_joint",
@@ -51,6 +53,8 @@ def joint_records(path: Path = DEFAULT_SPEC) -> tuple[dict[str, Any], ...]:
                         for value in convention[onshape_kind]["axis_in_joint_frame"]
                     ),
                     "zero_position_radians": 0.0,
+                    "lower_limit_radians": math.radians(float(lower_deg)),
+                    "upper_limit_radians": math.radians(float(upper_deg)),
                     "azimuth_degrees": float(leg["azimuth_degrees"]),
                 }
             )
@@ -88,6 +92,16 @@ def validate_spec(path: Path = DEFAULT_SPEC) -> tuple[str, ...]:
         errors.append("raw Onshape Mate angles must not define joint zero")
     if data["import_policy"].get("rebuild_axes_from_canonical_convention") is not True:
         errors.append("importer must rebuild canonical joint axes")
+    for kind in JOINT_ORDER:
+        limits = data["joint_convention"][kind].get("position_limit_degrees")
+        if not isinstance(limits, list) or len(limits) != 2:
+            errors.append(f"{kind} must define lower and upper position limits")
+            continue
+        lower, upper = (float(value) for value in limits)
+        if not math.isclose(lower, -90.0) or not math.isclose(upper, 90.0):
+            errors.append(f"{kind} position limit must be -90 to +90 degrees")
+        if not math.isclose(upper - lower, 180.0):
+            errors.append(f"{kind} position range must be 180 degrees")
     return tuple(errors)
 
 
@@ -100,7 +114,9 @@ def main() -> int:
     for record in joint_records():
         print(
             f"{record['onshape_mate']} -> {record['canonical_name']} "
-            f"axis={record['axis_in_joint_frame']} q0=0"
+            f"axis={record['axis_in_joint_frame']} q0=0 "
+            f"limit=[{record['lower_limit_radians']:.6f}, "
+            f"{record['upper_limit_radians']:.6f}] rad"
         )
     return 0
 

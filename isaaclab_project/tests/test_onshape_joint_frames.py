@@ -31,6 +31,15 @@ class OnshapeJointFrameTests(unittest.TestCase):
         self.assertEqual(len({item["canonical_name"] for item in records}), 18)
         self.assertTrue(all(item["zero_position_radians"] == 0.0 for item in records))
 
+    def test_every_joint_has_a_symmetric_180_degree_range(self) -> None:
+        for record in FRAMES.joint_records():
+            self.assertAlmostEqual(record["lower_limit_radians"], -math.pi / 2.0)
+            self.assertAlmostEqual(record["upper_limit_radians"], math.pi / 2.0)
+            self.assertAlmostEqual(
+                record["upper_limit_radians"] - record["lower_limit_radians"],
+                math.pi,
+            )
+
     def test_onshape_legs_map_to_counterclockwise_policy_order(self) -> None:
         expected = {
             "dof_L6_coxa": "leg_0_hip_joint",
