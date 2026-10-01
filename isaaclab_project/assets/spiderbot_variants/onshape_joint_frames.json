@@ -37,6 +37,10 @@
         0.0,
         1.0
       ],
+      "position_limit_degrees": [
+        -90.0,
+        90.0
+      ],
       "positive_motion": "counterclockwise viewed from body +Z"
     },
     "femur": {
@@ -46,6 +50,10 @@
         -1.0,
         0.0
       ],
+      "position_limit_degrees": [
+        -90.0,
+        90.0
+      ],
       "positive_motion": "moves the femur distal end outward from the vertical-down zero pose"
     },
     "tibia": {
@@ -54,6 +62,10 @@
         0.0,
         -1.0,
         0.0
+      ],
+      "position_limit_degrees": [
+        -90.0,
+        90.0
       ],
       "positive_motion": "flexes the horizontal tibia upward from the zero pose"
     }
@@ -93,6 +105,7 @@
   "import_policy": {
     "rebuild_axes_from_canonical_convention": true,
     "use_raw_onshape_mate_angles_as_offsets": false,
+    "joint_limit_source": "project nominal soft limit pending physical collision validation",
     "apply_to_legacy_provisional_urdf": false
   },
   "verification": {
@@ -100,7 +113,8 @@
     "zero_pose_complete": true,
     "rotation_direction_complete": true,
     "joint_centers_complete": false,
-    "joint_limits_complete": false,
+    "joint_limits_complete": true,
+    "joint_limits_cad_collision_verified": false,
     "body_forward_against_physical_electronics_complete": false
   }
 }

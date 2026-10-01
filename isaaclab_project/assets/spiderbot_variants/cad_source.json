@@ -56,7 +56,8 @@
       "axes_and_centers_complete": false,
       "zero_pose_complete": true,
       "rotation_direction_complete": true,
-      "limits_complete": false
+      "limits_complete": true,
+      "limits_cad_collision_verified": false
     },
     "mass_properties": {
       "path": null,
