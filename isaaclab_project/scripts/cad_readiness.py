@@ -35,6 +35,7 @@ def collect_blockers(data: dict[str, Any]) -> list[str]:
     source = data["source"]
     evidence = data["release_evidence"]
     step = evidence["step_export"]
+    urdf = evidence.get("urdf_export", {})
     joints = evidence["joint_spec"]
     mass = evidence["mass_properties"]
     servo = evidence["servo_layout"]
@@ -42,8 +43,10 @@ def collect_blockers(data: dict[str, Any]) -> list[str]:
 
     if source.get("lifecycle") != "released_for_simulation":
         blockers.append("Onshape lifecycle is not released_for_simulation")
-    if not step.get("path") or not step.get("sha256") or not step.get("parts_preserved"):
-        blockers.append("part-preserving STEP export and SHA-256 are missing")
+    has_step = bool(step.get("path") and step.get("sha256") and step.get("parts_preserved"))
+    has_urdf = bool(urdf.get("path") and urdf.get("sha256") and urdf.get("mesh_assets_preserved"))
+    if not has_step and not has_urdf:
+        blockers.append("part-preserving STEP or Onshape URDF/STL export and SHA-256 are missing")
     if not joints.get("path") or not joints.get("axes_and_centers_complete"):
         blockers.append("joint axes and centers are incomplete")
     if not joints.get("zero_pose_complete"):

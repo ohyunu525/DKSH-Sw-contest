@@ -35,6 +35,27 @@ Mate의 Limits는 비활성화되어 있으므로, 실제 조립 후 간섭이 �
 python isaaclab_project/scripts/onshape_joint_frames.py
 ```
 
+## 2026-09-28 Onshape URDF 내보내기
+
+`assets/spiderbot_variants/onshape_20260928/`에는 제공받은 Onshape-to-Robot
+내보내기 원본 URDF/STL과 Isaac Lab 변환 USD가 있다. 원본은 18개 Revolute joint,
+25개 링크(고정 발 프레임 6개 포함), 총 질량 1.7923392 kg를 포함한다. 고정 프레임을
+병합한 USD는 19강체다. 원본 URDF의 `±pi`, effort/velocity `10`은 exporter 기본값이므로
+학습용 `robot.training.urdf`에서 프로젝트 관절 이름, `±90도` 한계, MG90S/RC920DMG의
+보수적 한계로 정규화했다.
+
+원본 coxa와 tibia Mate 축 부호는 프로젝트 규약과 반대였으므로 정규화 단계에서만
+반전했다. CAD 변환 원점·링크 질량·관성·메시는 그대로 보존된다. 재생성은 다음과 같다.
+
+```powershell
+python isaaclab_project/scripts/normalize_onshape_urdf.py <raw-urdf> <training-urdf>
+.\IsaacLab\isaaclab.bat -p .\IsaacLab\scripts\tools\convert_urdf.py --headless <training-urdf> <output-usd> --merge-joints --joint-stiffness 3.0 --joint-damping 0.06
+```
+
+이 내보내기로 관절 중심·축과 링크 질량/관성은 학습용으로 확보됐다. 그러나 모터가
+질량값에 포함됐는지, 실제 간섭 한계, 최종 서보 배치, L2 장착 위치는 CAD 내보내기에
+명시되지 않았으므로 자산 상태는 여전히 `current_onshape_provisional`이다.
+
 ## CAD 담당자가 확정할 항목
 
 1. Onshape에서 조립 리비전을 `released_for_simulation` 상태로 동결한다.
