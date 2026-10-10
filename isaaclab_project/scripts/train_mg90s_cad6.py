@@ -25,7 +25,7 @@ parser.add_argument('--task', choices=TASKS, default=TASKS[0])
 parser.add_argument(
     '--allow_provisional_cad',
     action='store_true',
-    help='Allow training against the legacy provisional asset and record the override',
+    help='Allow training against the current provisional CAD asset and record the override',
 )
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
@@ -68,6 +68,15 @@ def main():
                 'source_checkpoint': str(checkpoint) if checkpoint else None,
                 'source_sha256': hashlib.sha256(checkpoint.read_bytes()).hexdigest() if checkpoint else None,
                 'cad_source': cad_report}
+    metadata['observation_contract'] = cfg.observation_contract
+    metadata['hardware_deployable'] = False
+    metadata['privileged_observations'] = ['root_linear_velocity', 'projected_gravity', 'joint_position', 'joint_velocity']
+    metadata['physics_dt_s'] = cfg.sim.dt
+    metadata['control_dt_s'] = cfg.sim.dt * cfg.decimation
+    metadata['ground_material'] = cfg.ground_material.to_dict()
+    # to_dict includes the spawning callable; save only reproducible scalars.
+    metadata['ground_material'].pop('func', None)
+    metadata['collision_model'] = 'cad_mesh_convex_hulls'
     metadata_path = log / 'run_metadata.json'
     env = None
     try:
@@ -90,6 +99,8 @@ def main():
         snapshot.mkdir()
         task_dir = ROOT / 'isaaclab_project/source/dksh_isaaclab/dksh_isaaclab/tasks/direct/spider_navigation'
         for source in [*task_dir.glob('mg90s*.py'), task_dir / 'cad6_wave_gait.py',
+                       task_dir / 'onshape_cad6_gait.py', task_dir / 'hexapod_diagnostics.py',
+                       task_dir / 'servo_specs.py', task_dir / 'payload_mass.py',
                        Path(__file__), Path(__file__).with_name('mg90s_checkpoint.py'),
                        Path(__file__).with_name('cad_readiness.py'), DEFAULT_MANIFEST,
                        ROOT / 'run_mg90s.ps1']:

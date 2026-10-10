@@ -1,8 +1,8 @@
 # 6족 CAD · MG90S/RC920DMG 혼합 서보 보행 학습
 
-> **CAD 준비 상태:** 최신 Onshape 다리는 수정 중이며 기존 `spiderbot_6leg` 자산과
-> 일치하지 않는다. 아래 2026-09-22 학습은 혼합 서보 가능성을 보는 예비 실험이다.
-> 새 장시간 학습은 `cad_source.json`의 STEP·관절·질량 증빙이 완성될 때까지 기본 차단된다.
+> **CAD 준비 상태:** 기본 CAD6 자산은 2026-09-28 Onshape URDF 내보내기 기반의
+> `onshape_20260928.usd`로 갱신됐다. 아래 2026-09-22 학습은 이전 자산의 예비 실험이다.
+> 새 장시간 학습은 모터 포함 질량, 최종 서보 배치와 실측 증빙이 완성될 때까지 기본 차단된다.
 > 상태 확인: `python isaaclab_project/scripts/cad_readiness.py --json`
 
 > 2026-09-22 변경: body-coxa(`hip_joint`)는 MG90S를 유지하고,
@@ -15,6 +15,11 @@
 > 2026-10-10: 기본 LiDAR 환경은 Unitree L2로 전환했다. 아래 2026-09-22 평가 수치와
 > `mg90s_cad6_velocity_l1v1` 파일은 당시 L1 구성의 기록이며 L2 실기 검증 결과로 간주하지 않는다.
 > 저수준 보행 정책은 LiDAR 관측을 직접 받지 않지만 전체 L2 계층은 별도 검증해야 한다.
+
+2026-10-10 체크리스트 반영 후 관측 계약은 `simulation_only_privileged_state_v1`이다.
+관절 상태와 몸체 속도 참값을 사용하는 68개 관측 정책은 실물 배포용으로 검증되지 않았다.
+접촉·슬립 센서는 진단에만 사용한다. 마찰 3단계, 단순 충돌 형상, 자기 충돌과
+시간별 로그의 실행 및 해석은 [체크리스트 반영 기록](hexapod_checklist_review.md)을 따른다.
 
 ## Nav2 속도 명령 작업 (권장)
 
@@ -60,7 +65,7 @@ override 여부와 manifest 해시는 새 학습의 `run_metadata.json`에 기�
 ## 모델과 조건
 
 - 기존 직진 작업: `Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0`.
-- 실제 로드 자산: `assets/spiderbot_variants/spiderbot_6leg/spiderbot_6leg.usd`.
+- 실제 로드 자산: `assets/spiderbot_variants/onshape_20260928/onshape_20260928.usd`.
 - 6개 다리, 18관절, 19강체, 18행동, 68관측.
 - CAD URDF의 짧은 링크와 조립 영점을 사용한 6족 wave gait + ±0.035 rad 관절 보정.
   기존 primitive 8족의 IK는 이 작업에 사용하지 않는다.
@@ -72,7 +77,7 @@ override 여부와 manifest 해시는 새 학습의 `run_metadata.json`에 기�
   RC920DMG의 7.4 V 사양과 8.4 V 상한은 현재 모델에 적용하지 않았다.
 - 알려진 다리당 서보 질량은 MG90S 13.4 g 하나와 RC920DMG 60 g 두 개로 133.4 g이다.
   이를 로봇 전체 질량으로 대체하지 않는다. CAD 링크 질량/관성 추정치
-  2.31362kg에 L2 0.230kg를 더한 2.54362kg를 사용한다. 실제 배터리 포함
+  1.792339kg에 L2 0.230kg를 더한 2.022339kg를 사용한다. 실제 배터리 포함
   총중량·나머지 질량 분포는 미측정이다.
 - 약 180° 범위 내 기존 ±90° 관절 제한과 95% soft limits를 유지한다.
   dead band 5μs, PWM 보정, 전원/열 특성은 실측 전이므로 아직 모델에 포함하지 않았다.
