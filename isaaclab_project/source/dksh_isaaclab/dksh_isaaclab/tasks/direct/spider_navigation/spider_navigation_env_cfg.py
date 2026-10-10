@@ -9,7 +9,7 @@ from isaaclab.utils import configclass
 from dksh_isaaclab.assets import SPIDERBOT_CFG
 from dksh_isaaclab.assets.spiderbot import cad_spiderbot_cfg
 
-from .payload_mass import L1_RM_MOUNT_POSITION_B, L1_RM_PAYLOAD_MASS_KG, L1_RM_PAYLOAD_SIZE_M
+from .payload_mass import L2_MOUNT_POSITION_B, L2_PAYLOAD_MASS_KG, L2_PAYLOAD_SIZE_M
 
 
 @configclass
@@ -56,32 +56,33 @@ class SpiderNavigationEnvCfg(DirectRLEnvCfg):
     debris_impact_penalty = -2.0
     debris_impact_threshold = 2.0  # Newtons, filtered contacts with the robot only.
 
-    # Unitree 4D LiDAR L1 RM.  The policy consumes a compact planar projection
+    # Unitree 4D LiDAR L2 in 3D NEGA mode. The policy consumes a compact projection
     # instead of the complete point cloud so many environments can train in
-    # parallel.  Hardware values are from the Unitree L1 user manual v1.1.
-    lidar_model = "Unitree 4D LiDAR L1 RM"
+    # parallel. Hardware values are from the Unitree L2 user manual v1.1.
+    lidar_model = "Unitree 4D LiDAR L2"
     lidar_min_range_m = 0.05
     lidar_max_range_m = 30.0  # 90% reflectivity; 10% reflectivity is 15 m.
     lidar_low_reflectivity_range_m = 15.0
     lidar_horizontal_fov_deg = 360.0
-    lidar_vertical_fov_deg = 90.0
-    lidar_vertical_projection_bins = 3
+    lidar_vertical_fov_deg = 96.0
+    lidar_vertical_min_angle_deg = -6.0
+    lidar_vertical_projection_bins = 5
     lidar_azimuth_samples_per_bin = 5
-    lidar_sampling_frequency_hz = 43_200
-    lidar_effective_frequency_hz = 21_600
-    lidar_horizontal_scan_frequency_hz = 11.0
-    lidar_vertical_scan_frequency_hz = 180.0
+    lidar_sampling_frequency_hz = 128_000
+    lidar_effective_frequency_hz = 64_000
+    lidar_horizontal_scan_frequency_hz = 5.55
+    lidar_vertical_scan_frequency_hz = 216.0
     lidar_imu_sampling_frequency_hz = 1_000.0
-    lidar_imu_reporting_frequency_hz = 250.0
+    lidar_imu_reporting_frequency_hz = 500.0
     lidar_measurement_accuracy_m = 0.02
-    lidar_measurement_resolution_m = 0.008
+    lidar_measurement_resolution_m = 0.0045
     lidar_observation_bins = 16
     lidar_noise_enabled = True
-    lidar_payload_mass_kg = L1_RM_PAYLOAD_MASS_KG
-    lidar_payload_size_m = L1_RM_PAYLOAD_SIZE_M
-    # Point-cloud origin: bottom center of L1. The 30 mm bracket height is
+    lidar_payload_mass_kg = L2_PAYLOAD_MASS_KG
+    lidar_payload_size_m = L2_PAYLOAD_SIZE_M
+    # Point-cloud origin: bottom center of L2. The 30 mm bracket height is
     # provisional until the physical mounting bracket is measured.
-    lidar_mount_position_b = L1_RM_MOUNT_POSITION_B
+    lidar_mount_position_b = L2_MOUNT_POSITION_B
 
     # Keep early exploration inside a range the MG996R-powered stance can recover from.
     action_scale = 0.30

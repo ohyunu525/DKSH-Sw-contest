@@ -1,4 +1,4 @@
-"""Mass and USD helpers for the Unitree L1 RM payload."""
+"""Mass and USD helpers for the Unitree L2 payload."""
 
 from __future__ import annotations
 
@@ -6,10 +6,17 @@ from dataclasses import dataclass
 import math
 
 
-L1_RM_PAYLOAD_MASS_KG = 0.230
-L1_RM_PAYLOAD_SIZE_M = (0.075, 0.075, 0.065)
-L1_RM_MOUNT_POSITION_B = (0.0, 0.0, 0.030)
-L1_RM_PRIM_NAME = "LidarPayload"
+L2_PAYLOAD_MASS_KG = 0.230
+L2_PAYLOAD_SIZE_M = (0.075, 0.075, 0.065)
+L2_MOUNT_POSITION_B = (0.0, 0.0, 0.030)
+L2_PRIM_NAME = "LidarPayload"
+
+# L1 RM and L2 share these published mass/enclosure values. Keep the old
+# imports available for tools that inspect archived L1 training artifacts.
+L1_RM_PAYLOAD_MASS_KG = L2_PAYLOAD_MASS_KG
+L1_RM_PAYLOAD_SIZE_M = L2_PAYLOAD_SIZE_M
+L1_RM_MOUNT_POSITION_B = L2_MOUNT_POSITION_B
+L1_RM_PRIM_NAME = L2_PRIM_NAME
 
 
 @dataclass(frozen=True)
@@ -75,15 +82,15 @@ def add_centered_box_payload(
     return MassProperties(total_mass, center, inertia)
 
 
-def apply_l1_rm_payload_to_stage(
+def apply_l2_payload_to_stage(
     stage,
     base_prim_path: str,
     *,
-    payload_mass: float = L1_RM_PAYLOAD_MASS_KG,
-    payload_size: tuple[float, float, float] = L1_RM_PAYLOAD_SIZE_M,
-    mount_position: tuple[float, float, float] = L1_RM_MOUNT_POSITION_B,
+    payload_mass: float = L2_PAYLOAD_MASS_KG,
+    payload_size: tuple[float, float, float] = L2_PAYLOAD_SIZE_M,
+    mount_position: tuple[float, float, float] = L2_MOUNT_POSITION_B,
 ) -> MassProperties:
-    """Apply L1 RM mass properties and a collidable enclosure to one USD base.
+    """Apply L2 mass properties and a collidable enclosure to one USD base.
 
     Imports USD lazily so the pure mass helper remains usable in normal Python
     unit tests without an Isaac Sim runtime.
@@ -131,7 +138,7 @@ def apply_l1_rm_payload_to_stage(
     # A child collision shape belongs to the base rigid body.  This makes low
     # ceilings and falling debris interact with the real enclosure dimensions
     # without introducing an extra joint or rigid body into the articulation.
-    payload_path = f"{base_prim_path}/{L1_RM_PRIM_NAME}"
+    payload_path = f"{base_prim_path}/{L2_PRIM_NAME}"
     payload = UsdGeom.Cube.Define(stage, payload_path)
     payload.CreateSizeAttr(1.0)
     xform = UsdGeom.Xformable(payload.GetPrim())
@@ -141,3 +148,6 @@ def apply_l1_rm_payload_to_stage(
     payload.CreateDisplayColorAttr([Gf.Vec3f(0.08, 0.10, 0.12)])
     UsdPhysics.CollisionAPI.Apply(payload.GetPrim())
     return combined
+
+
+apply_l1_rm_payload_to_stage = apply_l2_payload_to_stage

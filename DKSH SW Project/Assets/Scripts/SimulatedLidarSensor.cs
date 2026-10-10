@@ -224,7 +224,7 @@ namespace DKSH.Spiderbot.Sensors
             var rawDistance = didHit ? hitInfo.distance : activeSettings.maxDistance;
             if (didHit && rawDistance < activeSettings.minDistance)
             {
-                // The L1 RM has no valid return inside its 5 cm blind zone.
+                // The L2 has no valid return inside its 5 cm blind zone.
                 didHit = false;
                 rawDistance = activeSettings.maxDistance;
             }
@@ -309,14 +309,7 @@ namespace DKSH.Spiderbot.Sensors
 
         private static float GetVerticalAngle(LidarScanSettings activeSettings, int verticalIndex)
         {
-            var verticalT = activeSettings.verticalResolution <= 1
-                ? 0.5f
-                : verticalIndex / (activeSettings.verticalResolution - 1f);
-
-            return Mathf.Lerp(
-                -activeSettings.verticalFovDegrees * 0.5f,
-                activeSettings.verticalFovDegrees * 0.5f,
-                verticalT);
+            return activeSettings.GetVerticalAngle(verticalIndex);
         }
 
         private static float GetHorizontalAngle(LidarScanSettings activeSettings, int horizontalIndex)

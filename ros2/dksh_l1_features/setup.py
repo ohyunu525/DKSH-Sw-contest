@@ -15,9 +15,12 @@ setup(
     zip_safe=True,
     maintainer="DKSH",
     maintainer_email="dksh@example.invalid",
-    description="Unitree L1 RM point-cloud encoder for DKSH policy observations.",
+    description="Unitree L1 RM and L2 point-cloud encoders for DKSH policy observations.",
     license="MIT",
     entry_points={
-        "console_scripts": ["l1_policy_features = dksh_l1_features.node:main"],
+        "console_scripts": [
+            "l1_policy_features = dksh_l1_features.node:main",
+            "l2_policy_features = dksh_l1_features.node:main_l2",
+        ],
     },
 )

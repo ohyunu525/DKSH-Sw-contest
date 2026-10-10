@@ -83,7 +83,7 @@ def configure_runner(argv: list[str], *, training: bool) -> list[str]:
         normalized.append(f"{aliases[name]}={value}" if separator and name in aliases else arg)
     options, remaining = parser.parse_known_args(normalized)
     if "--use_pretrained_checkpoint" in remaining:
-        parser.error("the published checkpoint uses the old observation contract; train an L1 v2 policy")
+        parser.error("the published checkpoint uses the old observation contract; train an L2 v1 policy")
 
     spec = gym.spec(options.task)
     env_entry_point = spec.kwargs["env_cfg_entry_point"]

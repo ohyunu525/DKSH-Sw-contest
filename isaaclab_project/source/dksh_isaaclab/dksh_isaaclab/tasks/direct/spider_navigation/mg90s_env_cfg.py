@@ -15,7 +15,7 @@ from isaaclab.utils import configclass
 from .wave_gait import STANCE_DEPTH, STANCE_FEMUR, STANCE_TIBIA
 from dksh_isaaclab.assets import SPIDERBOT_CFG
 from .agents.rsl_rl_ppo_cfg import SpiderNavigationPPORunnerCfg
-from .payload_mass import L1_RM_MOUNT_POSITION_B, L1_RM_PAYLOAD_MASS_KG, L1_RM_PAYLOAD_SIZE_M
+from .payload_mass import L2_MOUNT_POSITION_B, L2_PAYLOAD_MASS_KG, L2_PAYLOAD_SIZE_M
 from .servo_specs import (
     MG90S_MASS_KG,
     MG90S_NO_LOAD_SPEED_RAD_S,
@@ -95,12 +95,12 @@ class MG90SWalkEnvCfg(DirectRLEnvCfg):
     known_servo_mass_per_leg_kg = MG90S_MASS_KG + 2 * RC920DMG_MASS_KG
     leg_servo_size_m = RC920DMG_SIZE_M
     mass_assumption = (
-        "Primitive links 2.91816 kg + L1 RM 0.230 kg; known mixed-servo masses "
+        "Primitive links 2.91816 kg + L2 0.230 kg; known mixed-servo masses "
         "are recorded but not redistributed across provisional link inertias"
     )
-    lidar_payload_mass_kg = L1_RM_PAYLOAD_MASS_KG
-    lidar_payload_size_m = L1_RM_PAYLOAD_SIZE_M
-    lidar_mount_position_b = L1_RM_MOUNT_POSITION_B
+    lidar_payload_mass_kg = L2_PAYLOAD_MASS_KG
+    lidar_payload_size_m = L2_PAYLOAD_SIZE_M
+    lidar_mount_position_b = L2_MOUNT_POSITION_B
     gait_period = 2.0
     gait_lift = 0.006
     settling_seconds = 1.0

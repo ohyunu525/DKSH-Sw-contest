@@ -33,7 +33,7 @@ class MG90SCad6EnvCfg(MG90SWalkEnvCfg):
     tripod_transition_width = 0.005
     tripod_enabled = False
     mass_assumption = (
-        'CAD6 links 2.31362 kg + L1 RM 0.230 kg; known mixed-servo masses '
+        'CAD6 links 2.31362 kg + L2 0.230 kg; known mixed-servo masses '
         'are recorded but not redistributed across provisional link inertias'
     )
 
@@ -91,7 +91,7 @@ class MG90SCad6VelocityEnvCfg(MG90SCad6EnvCfg):
 
 @configclass
 class MG90SCad6VelocityRunnerCfg(MG90SCad6RunnerCfg):
-    experiment_name = 'dksh_mg90s_cad6_velocity_l1v1'
+    experiment_name = 'dksh_mg90s_cad6_velocity_l2v1'
     run_name = 'cad6_4v8_velocity'
 
 

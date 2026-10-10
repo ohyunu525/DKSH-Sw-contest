@@ -199,6 +199,24 @@ class ScenarioSensingTests(unittest.TestCase):
         )
         self.assertTrue(torch.equal(result, torch.ones_like(result)))
 
+    def test_l2_negative_slice_detects_low_obstacles_and_preserves_horizon(self):
+        positions = self.tensor([[0.0, 0.0, 0.0]])
+        identity = self.tensor([[1.0, 0.0, 0.0, 0.0]])
+        for height in (-math.tan(math.radians(6)), 0.0):
+            ranges = SENSING.spatial_obstacle_ranges(
+                positions, identity, self.tensor([[[1.0, 0.0, height]]]), self.tensor([[0.03, 0.03, 0.01]]),
+                max_range=30.0, horizontal_count=16, azimuth_samples_per_bin=5,
+                vertical_fov_degrees=96.0, vertical_min_degrees=-6.0, vertical_count=5,
+            )
+            self.assertLess(ranges[0, 0].item(), 1.0)
+
+        below = SENSING.spatial_obstacle_ranges(
+            positions, identity, self.tensor([[[1.0, 0.0, -0.5]]]), self.tensor([[0.03, 0.03, 0.01]]),
+            max_range=30.0, horizontal_count=16, azimuth_samples_per_bin=5,
+            vertical_fov_degrees=96.0, vertical_min_degrees=-6.0, vertical_count=5,
+        )
+        self.assertTrue(torch.equal(below, torch.ones_like(below)))
+
     def test_spatial_projection_includes_dynamic_spheres_and_static_occlusion(self):
         positions = self.tensor([[0.0, 0.0, 0.0]])
         identity = self.tensor([[1.0, 0.0, 0.0, 0.0]])

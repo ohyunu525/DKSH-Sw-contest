@@ -24,11 +24,11 @@ $Environment = $Environment.ToLowerInvariant()
 $isaacLabRoot = Join-Path $projectRoot "IsaacLab"
 $launcher = Join-Path $isaacLabRoot "isaaclab.bat"
 $taskName = "Isaac-DKSH-Spider-Navigation-Direct-v0"
-$experimentName = 'dksh_spider_navigation_l1v2'
+$experimentName = 'dksh_spider_navigation_l2v1'
 if ($RobotModel -ne 'baseline') {
     $cadCount = $RobotModel.Substring(3)
     $taskName = "Isaac-DKSH-Spider-CAD$cadCount-Navigation-Direct-v0"
-    $experimentName = "dksh_spider_cad${cadCount}_navigation_l1v2"
+    $experimentName = "dksh_spider_cad${cadCount}_navigation_l2v1"
 }
 if ($Environment -ne 'flat') {
     $experimentName += '_obstacles'

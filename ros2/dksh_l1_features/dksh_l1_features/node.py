@@ -1,4 +1,4 @@
-"""ROS2 adapter from one L1 PointCloud2 frame to the 32-value policy input."""
+"""ROS2 adapters from Unitree PointCloud2 frames to 32-value policy inputs."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from sensor_msgs.msg import PointCloud2
 from sensor_msgs_py import point_cloud2
 from std_msgs.msg import Float32MultiArray, MultiArrayDimension
 
-from .encoder import encode_l1_obstacles
+from .encoder import encode_l1_obstacles, encode_l2_obstacles
 
 
 def _xyz(point):
@@ -19,11 +19,13 @@ def _xyz(point):
     return point[0], point[1], point[2]
 
 
-class L1PolicyFeaturesNode(Node):
-    def __init__(self):
-        super().__init__("l1_policy_features")
+class PolicyFeaturesNode(Node):
+    def __init__(self, model: str):
+        super().__init__(f"{model}_policy_features")
+        self._model = model
+        self._encode = encode_l2_obstacles if model == "l2" else encode_l1_obstacles
         self.declare_parameter("input_topic", "/unilidar/cloud")
-        self.declare_parameter("output_topic", "/policy/l1_features")
+        self.declare_parameter("output_topic", f"/policy/{model}_features")
         self.declare_parameter("expected_frame", "unilidar_lidar")
         input_topic = self.get_parameter("input_topic").value
         output_topic = self.get_parameter("output_topic").value
@@ -33,7 +35,7 @@ class L1PolicyFeaturesNode(Node):
             PointCloud2, input_topic, self._on_cloud, qos_profile_sensor_data
         )
         self.get_logger().info(
-            f"Encoding complete L1 frames from {input_topic} to {output_topic} in {self._expected_frame}"
+            f"Encoding {model.upper()} obstacle frames from {input_topic} to {output_topic} in {self._expected_frame}"
         )
 
     def _on_cloud(self, message: PointCloud2) -> None:
@@ -49,18 +51,36 @@ class L1PolicyFeaturesNode(Node):
                 message, field_names=("x", "y", "z"), skip_nans=True
             )
         )
-        features = encode_l1_obstacles(points)
+        features = self._encode(points)
         output = Float32MultiArray()
-        output.layout.dim = [MultiArrayDimension(label="l1_policy_features", size=32, stride=32)]
+        output.layout.dim = [MultiArrayDimension(label=f"{self._model}_policy_features", size=32, stride=32)]
         output.data = features
         self._publisher.publish(output)
 
 
-def main(args=None):
+class L1PolicyFeaturesNode(PolicyFeaturesNode):
+    def __init__(self):
+        super().__init__("l1")
+
+
+class L2PolicyFeaturesNode(PolicyFeaturesNode):
+    def __init__(self):
+        super().__init__("l2")
+
+
+def _run(node_type, args=None):
     rclpy.init(args=args)
-    node = L1PolicyFeaturesNode()
+    node = node_type()
     try:
         rclpy.spin(node)
     finally:
         node.destroy_node()
         rclpy.shutdown()
+
+
+def main(args=None):
+    _run(L1PolicyFeaturesNode, args)
+
+
+def main_l2(args=None):
+    _run(L2PolicyFeaturesNode, args)

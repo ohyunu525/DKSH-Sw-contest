@@ -1,1 +1,1 @@
-"""Unitree L1 RM feature encoding for ROS2 and policy-side parity tests."""
+"""Unitree L1 RM and L2 feature encoding shared by ROS2 and policy checks."""

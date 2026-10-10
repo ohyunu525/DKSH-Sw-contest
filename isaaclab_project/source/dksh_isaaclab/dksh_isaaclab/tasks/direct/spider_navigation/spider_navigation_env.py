@@ -16,7 +16,7 @@ from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import quat_from_euler_xyz, quat_rotate_inverse
 
-from .payload_mass import apply_l1_rm_payload_to_stage
+from .payload_mass import apply_l2_payload_to_stage
 from .scenario_layout import validate_environment
 from .scenario_runtime import ScenarioRuntime
 from .spider_navigation_env_cfg import SpiderNavigationEnvCfg
@@ -29,7 +29,7 @@ class SpiderNavigationEnv(DirectRLEnv):
 
     def __init__(self, cfg: SpiderNavigationEnvCfg, render_mode: str | None = None, **kwargs):
         validate_environment(cfg.environment_preset, cfg.environment_difficulty)
-        # Actor: proprioception + L1 ranges + return-valid flags in every preset.
+        # Actor: proprioception + L2 ranges + return-valid flags in every preset.
         # Critic alone sees the simulator's terrain, floor and debris state.
         cfg.observation_space = 12 + 3 * cfg.action_space + 2 * cfg.lidar_observation_bins
         cfg.state_space = cfg.observation_space + 16
@@ -83,11 +83,11 @@ class SpiderNavigationEnv(DirectRLEnv):
         light_cfg.func("/World/Light", light_cfg)
 
     def _apply_lidar_payload_mass(self) -> None:
-        """Add the physical L1 enclosure and collision shape to the base."""
+        """Add the physical L2 enclosure and collision shape to the base."""
         import omni.usd
 
         stage = omni.usd.get_context().get_stage()
-        combined = apply_l1_rm_payload_to_stage(
+        combined = apply_l2_payload_to_stage(
             stage,
             "/World/envs/env_0/Robot/base",
             payload_mass=self.cfg.lidar_payload_mass_kg,

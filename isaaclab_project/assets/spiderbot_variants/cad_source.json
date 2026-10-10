@@ -41,7 +41,7 @@
       }
     },
     "lidar": {
-      "model": "Unitree LiDAR L1 RM",
+      "model": "Unitree LiDAR L2",
       "count": 1
     }
   },

@@ -248,7 +248,7 @@ class ScenarioRuntime:
         ).squeeze(1)
 
     def _lidar_observations(self, positions_w, quaternion_w, centers_w):
-        """Update and hold a 3-D-projected L1 RM scan at its physical 11 Hz rate."""
+        """Update and hold a 3-D-projected L2 scan at its physical 5.55 Hz rate."""
         cfg = self.env.cfg
         due = self.time >= self._lidar_next_update
         due_ids = due.nonzero(as_tuple=True)[0]
@@ -262,6 +262,7 @@ class ScenarioRuntime:
                 horizontal_count=cfg.lidar_observation_bins,
                 azimuth_samples_per_bin=cfg.lidar_azimuth_samples_per_bin,
                 vertical_fov_degrees=cfg.lidar_vertical_fov_deg,
+                vertical_min_degrees=cfg.lidar_vertical_min_angle_deg,
                 vertical_count=cfg.lidar_vertical_projection_bins,
                 sphere_centers_w=sphere_centers,
                 sphere_radii=self.radius if sphere_centers is not None else None,
@@ -282,8 +283,8 @@ class ScenarioRuntime:
             self._lidar_valid[due_ids] = (measured < 1.0).to(measured.dtype)
         period = 1.0 / cfg.lidar_horizontal_scan_frequency_hz
         # Advance from the ideal sensor clock instead of the policy clock.  At
-        # 50 Hz control, scheduling from ``time + period`` would turn 11 Hz into
-        # a drifting 10 Hz stream because scans can only be consumed on a step.
+        # 50 Hz control, scheduling from ``time + period`` would turn 5.55 Hz
+        # into a drifting 5 Hz stream because scans are consumed on a step.
         elapsed_periods = torch.floor(
             (self.time - self._lidar_next_update).clamp_min(0.0) / period
         ) + 1.0
@@ -295,7 +296,7 @@ class ScenarioRuntime:
         return torch.cat((self._lidar_ranges, self._lidar_valid), dim=1)
 
     def observations(self):
-        """Return 32 L1 actor features followed by 16 privileged critic features."""
+        """Return 32 L2 actor features followed by 16 privileged critic features."""
         env = self.env
         pos = env._robot.data.root_pos_w
         quat = env._robot.data.root_quat_w

@@ -2,12 +2,17 @@
 param(
     [Parameter(Position = 0)]
     [ValidateSet('Build', 'Start', 'StartLidar', 'Stop', 'Status', 'Validate', 'Shell')]
-    [string]$Action = 'Status'
+    [string]$Action = 'Status',
+    [ValidateSet('udp', 'serial')]
+    [string]$LidarTransport = 'udp'
 )
 
 $ErrorActionPreference = 'Stop'
 $composeFile = Join-Path $PSScriptRoot 'compose.yaml'
 $lidarComposeFile = Join-Path $PSScriptRoot 'compose.lidar.yaml'
+if ($LidarTransport -eq 'serial') {
+    $lidarComposeFile = Join-Path $PSScriptRoot 'compose.lidar.serial.yaml'
+}
 $minimumBuildFreeGB = 25.0
 
 function Assert-DockerReady {
@@ -40,7 +45,7 @@ switch ($Action) {
     'StartLidar' {
         docker compose --file $composeFile --file $lidarComposeFile up --detach
         if ($LASTEXITCODE -ne 0) {
-            throw 'ROS2 Unitree L1 container start failed. Check UNITREE_LIDAR_DEVICE and USB access.'
+            throw "ROS2 Unitree L2 container start failed ($LidarTransport). Check the LiDAR NIC/IP or UNITREE_LIDAR_DEVICE and USB access."
         }
     }
     'Stop' {

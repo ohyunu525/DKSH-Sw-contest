@@ -21,13 +21,13 @@ SPEC.loader.exec_module(PAYLOAD)
 
 
 class PayloadMassTests(unittest.TestCase):
-    def test_l1_rm_mass_center_and_inertia_are_combined(self):
+    def test_l2_mass_center_and_inertia_are_combined(self):
         base = PAYLOAD.MassProperties(0.5, (0.0, 0.0, 0.0), (0.002, 0.003, 0.004))
-        mount = PAYLOAD.L1_RM_MOUNT_POSITION_B
-        size = PAYLOAD.L1_RM_PAYLOAD_SIZE_M
+        mount = PAYLOAD.L2_MOUNT_POSITION_B
+        size = PAYLOAD.L2_PAYLOAD_SIZE_M
         result = PAYLOAD.add_centered_box_payload(
             base,
-            payload_mass=PAYLOAD.L1_RM_PAYLOAD_MASS_KG,
+            payload_mass=PAYLOAD.L2_PAYLOAD_MASS_KG,
             payload_size=size,
             payload_center=(mount[0], mount[1], mount[2] + size[2] / 2.0),
         )

@@ -7,7 +7,7 @@ from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
 from .mg90s_env_cfg import MG90SWalkEnvCfg
 from .mg90s_rewards import speed_tracking_reward
-from .payload_mass import apply_l1_rm_payload_to_stage
+from .payload_mass import apply_l2_payload_to_stage
 from .wave_gait import foot_targets, inverse_kinematics
 
 
@@ -38,7 +38,7 @@ class MG90SWalkEnv(DirectRLEnv):
         self._robot = Articulation(self.cfg.robot)
         import omni.usd
 
-        combined = apply_l1_rm_payload_to_stage(
+        combined = apply_l2_payload_to_stage(
             omni.usd.get_context().get_stage(),
             "/World/envs/env_0/Robot/base",
             payload_mass=self.cfg.lidar_payload_mass_kg,

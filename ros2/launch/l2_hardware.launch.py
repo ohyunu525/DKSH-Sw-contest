@@ -1,3 +1,5 @@
+"""Unitree L2 SDK2 driver, planar navigation projection, and policy features."""
+
 import math
 
 from launch import LaunchDescription
@@ -18,7 +20,6 @@ def _integer(name):
 
 
 def generate_launch_description():
-    port = LaunchConfiguration("port")
     cloud_topic = LaunchConfiguration("cloud_topic")
     imu_topic = LaunchConfiguration("imu_topic")
     scan_topic = LaunchConfiguration("scan_topic")
@@ -27,7 +28,16 @@ def generate_launch_description():
     imu_frame = LaunchConfiguration("imu_frame")
 
     declarations = [
-        DeclareLaunchArgument("port", default_value="/dev/ttyUSB0"),
+        # SDK2: 2 = UDP / 1 = serial. NEGA+3D+IMU is work mode 1 (UDP)
+        # or 9 (serial). Transport must already match the device configuration.
+        DeclareLaunchArgument("initialize_type", default_value="2"),
+        DeclareLaunchArgument("work_mode", default_value="1"),
+        DeclareLaunchArgument("serial_port", default_value="/dev/ttyACM0"),
+        DeclareLaunchArgument("baudrate", default_value="4000000"),
+        DeclareLaunchArgument("lidar_ip", default_value="192.168.1.62"),
+        DeclareLaunchArgument("lidar_port", default_value="6101"),
+        DeclareLaunchArgument("local_ip", default_value="192.168.1.2"),
+        DeclareLaunchArgument("local_port", default_value="6201"),
         DeclareLaunchArgument("cloud_topic", default_value="/unilidar/cloud"),
         DeclareLaunchArgument("imu_topic", default_value="/unilidar/imu"),
         DeclareLaunchArgument("scan_topic", default_value="/scan"),
@@ -40,7 +50,8 @@ def generate_launch_description():
         DeclareLaunchArgument("mount_yaw", default_value="0.0"),
         DeclareLaunchArgument("mount_pitch", default_value="0.0"),
         DeclareLaunchArgument("mount_roll", default_value="0.0"),
-        DeclareLaunchArgument("cloud_scan_num", default_value="18"),
+        # 216 vertical scans / 5.55 horizontal frames ~= 39 rings per sweep.
+        DeclareLaunchArgument("cloud_scan_num", default_value="39"),
         DeclareLaunchArgument("min_height", default_value="-0.10"),
         DeclareLaunchArgument("max_height", default_value="0.10"),
         DeclareLaunchArgument("start_navigation", default_value="false"),
@@ -54,12 +65,20 @@ def generate_launch_description():
         executable="unitree_lidar_ros2_node",
         name="unitree_lidar_ros2_node",
         output="screen",
+        # SDK2 publishes its own IMU->LiDAR TF. Isolate it to avoid duplicate
+        # parents/cycles with the measured static base->LiDAR->IMU chain.
+        remappings=[("/tf", "/unilidar/sdk_tf")],
         parameters=[
             {
-                "port": port,
-                "rotate_yaw_bias": 0.0,
-                "range_scale": 0.001,
-                "range_bias": 0.0,
+                "initialize_type": _integer("initialize_type"),
+                "work_mode": _integer("work_mode"),
+                "serial_port": LaunchConfiguration("serial_port"),
+                "baudrate": _integer("baudrate"),
+                "lidar_ip": LaunchConfiguration("lidar_ip"),
+                "lidar_port": _integer("lidar_port"),
+                "local_ip": LaunchConfiguration("local_ip"),
+                "local_port": _integer("local_port"),
+                "use_system_timestamp": True,
                 "range_min": 0.05,
                 "range_max": 30.0,
                 "cloud_frame": lidar_frame,
@@ -74,7 +93,7 @@ def generate_launch_description():
     cloud_to_scan = Node(
         package="pointcloud_to_laserscan",
         executable="pointcloud_to_laserscan_node",
-        name="l1_cloud_to_scan",
+        name="l2_cloud_to_scan",
         output="screen",
         remappings=[("cloud_in", cloud_topic), ("scan", scan_topic)],
         parameters=[
@@ -86,7 +105,7 @@ def generate_launch_description():
                 "angle_min": -math.pi,
                 "angle_max": math.pi,
                 "angle_increment": math.radians(0.5),
-                "scan_time": 1.0 / 11.0,
+                "scan_time": 1.0 / 5.55,
                 "range_min": 0.05,
                 "range_max": 30.0,
                 "use_inf": True,
@@ -98,13 +117,13 @@ def generate_launch_description():
 
     policy_features = Node(
         package="dksh_l1_features",
-        executable="l1_policy_features",
-        name="l1_policy_features",
+        executable="l2_policy_features",
+        name="l2_policy_features",
         output="screen",
         parameters=[
             {
                 "input_topic": cloud_topic,
-                "output_topic": "/policy/l1_features",
+                "output_topic": "/policy/l2_features",
                 "expected_frame": lidar_frame,
             }
         ],
@@ -113,7 +132,7 @@ def generate_launch_description():
     base_to_lidar = Node(
         package="tf2_ros",
         executable="static_transform_publisher",
-        name="base_to_l1_tf",
+        name="base_to_l2_tf",
         arguments=[
             "--x", LaunchConfiguration("mount_x"),
             "--y", LaunchConfiguration("mount_y"),
@@ -128,7 +147,7 @@ def generate_launch_description():
     lidar_to_imu = Node(
         package="tf2_ros",
         executable="static_transform_publisher",
-        name="l1_to_imu_tf",
+        name="l2_to_imu_tf",
         arguments=[
             "--x", "-0.007698",
             "--y", "-0.014655",

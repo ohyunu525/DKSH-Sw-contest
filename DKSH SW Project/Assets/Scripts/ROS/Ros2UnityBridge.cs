@@ -174,7 +174,7 @@ namespace DKSH.Spiderbot.ROS
             var settings = lidarSensor.ActiveSettings;
             var horizontalCount = Mathf.Max(1, frame.HorizontalResolution);
             var selectedVerticalIndex = Mathf.Clamp(
-                (frame.VerticalResolution - 1) / 2,
+                settings.HorizontalSliceIndex,
                 0,
                 Mathf.Max(0, frame.VerticalResolution - 1));
             var ranges = new float[horizontalCount];

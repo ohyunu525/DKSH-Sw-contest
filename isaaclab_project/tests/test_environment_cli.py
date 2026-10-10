@@ -134,14 +134,14 @@ class EvaluationCheckpointTests(unittest.TestCase):
         namespace = {"Path": Path, "__file__": str(path), "args_cli": self.args}
         exec(compile(ast.Module(body=[function], type_ignores=[]), str(path), "exec"), namespace)
         self.resolve = namespace["_resolve_checkpoint"]
-        self.cfg = types.SimpleNamespace(experiment_name="dksh_spider_navigation_l1v2")
+        self.cfg = types.SimpleNamespace(experiment_name="dksh_spider_navigation_l2v1")
 
     def test_missing_checkpoint_requires_training_for_every_environment(self):
         with patch.object(Path, "glob", return_value=[]), patch.object(Path, "is_file", return_value=True):
             for preset in CLI.ENVIRONMENTS:
                 with self.subTest(preset=preset):
                     self.args.environment = preset
-                    self.cfg.experiment_name = "dksh_spider_navigation_l1v2" + (
+                    self.cfg.experiment_name = "dksh_spider_navigation_l2v1" + (
                         "_obstacles" if preset != "flat" else ""
                     )
                     with self.assertRaisesRegex(FileNotFoundError, "No compatible checkpoint"):
@@ -151,7 +151,7 @@ class EvaluationCheckpointTests(unittest.TestCase):
         older, newer = Mock(spec=Path), Mock(spec=Path)
         older.stat.return_value.st_mtime = 10
         newer.stat.return_value.st_mtime = 20
-        self.cfg.experiment_name = "dksh_spider_navigation_l1v2_obstacles"
+        self.cfg.experiment_name = "dksh_spider_navigation_l2v1_obstacles"
         self.args.environment = "mixed"
         with patch.object(Path, "glob", autospec=True, return_value=[older, newer]) as glob:
             self.assertIs(self.resolve(self.cfg), newer)

@@ -6,7 +6,7 @@ FROM ${ROS_BASE_IMAGE} AS builder
 ARG ROS_DISTRO
 ARG ROS_TCP_ENDPOINT_TAG=ROS2v0.7.0
 ARG FRONTIER_EXPLORATION_TAG=v1.6.1
-ARG UNITREE_LIDAR_COMMIT=1bd7d95d8ab7ce7a22058d2bb07e39fd62612aa6
+ARG UNITREE_LIDAR_COMMIT=0e3c51f512e6b8ff60b8c32f160b412cb48445c2
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive
@@ -21,6 +21,7 @@ RUN apt-get update \
         ros-${ROS_DISTRO}-ament-cmake-gtest \
         ros-${ROS_DISTRO}-nav2-msgs \
         ros-${ROS_DISTRO}-pcl-conversions \
+        ros-${ROS_DISTRO}-tf2-ros \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/dksh_ros2/src
@@ -31,11 +32,11 @@ RUN git clone --branch "${ROS_TCP_ENDPOINT_TAG}" --depth 1 \
         https://github.com/Unity-Technologies/ROS-TCP-Endpoint.git ros_tcp_endpoint \
     && git clone --branch "${FRONTIER_EXPLORATION_TAG}" --depth 1 \
         https://github.com/mertgulerx/frontier_exploration_ros2.git frontier_exploration_ros2 \
-    && mkdir unilidar_sdk \
-    && git -C unilidar_sdk init \
-    && git -C unilidar_sdk remote add origin https://github.com/unitreerobotics/unilidar_sdk.git \
-    && git -C unilidar_sdk fetch --depth 1 origin "${UNITREE_LIDAR_COMMIT}" \
-    && git -C unilidar_sdk checkout --detach FETCH_HEAD
+    && mkdir unilidar_sdk2 \
+    && git -C unilidar_sdk2 init \
+    && git -C unilidar_sdk2 remote add origin https://github.com/unitreerobotics/unilidar_sdk2.git \
+    && git -C unilidar_sdk2 fetch --depth 1 origin "${UNITREE_LIDAR_COMMIT}" \
+    && git -C unilidar_sdk2 checkout --detach FETCH_HEAD
 
 WORKDIR /opt/dksh_ros2
 

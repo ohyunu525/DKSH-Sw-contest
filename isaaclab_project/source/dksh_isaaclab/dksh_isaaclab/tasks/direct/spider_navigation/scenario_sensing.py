@@ -95,6 +95,7 @@ def spatial_obstacle_ranges(
     azimuth_samples_per_bin: int = 1,
     vertical_fov_degrees: float,
     vertical_count: int,
+    vertical_min_degrees: float = 0.0,
     sphere_centers_w: torch.Tensor | None = None,
     sphere_radii: torch.Tensor | float | None = None,
 ) -> torch.Tensor:
@@ -115,6 +116,11 @@ def spatial_obstacle_ranges(
         raise ValueError("vertical_count must be a positive integer")
     if not math.isfinite(vertical_fov_degrees) or not 0.0 <= vertical_fov_degrees <= 180.0:
         raise ValueError("vertical_fov_degrees must be finite and between zero and 180")
+    if not math.isfinite(vertical_min_degrees) or not -90.0 <= vertical_min_degrees <= 90.0:
+        raise ValueError("vertical_min_degrees must be finite and between -90 and 90")
+    vertical_max_degrees = vertical_min_degrees + vertical_fov_degrees
+    if vertical_max_degrees > 90.0:
+        raise ValueError("vertical field of view must end at or below 90 degrees")
     sizes = _batched_half_sizes(centers_w, half_sizes)
     if positions_w.shape != (centers_w.shape[0], 3):
         raise ValueError("positions_w must have shape (num_envs, 3)")
@@ -128,10 +134,17 @@ def spatial_obstacle_ranges(
     horizontal = (horizontal + offsets[None, :] * sector_width).reshape(-1)
     horizontal_rays = horizontal_count * azimuth_samples_per_bin
     if vertical_count == 1:
-        vertical = positions_w.new_zeros(1)
+        vertical = positions_w.new_tensor([math.radians(max(vertical_min_degrees, min(0.0, vertical_max_degrees)))])
+    elif vertical_count >= 3 and vertical_min_degrees < 0.0 < vertical_max_degrees:
+        # L2 NEGA covers -6..90 degrees. Retain a ray on the horizon rather
+        # than centering a symmetric cone or moving the upper edge past zenith.
+        vertical = torch.cat((
+            positions_w.new_tensor([math.radians(vertical_min_degrees)]),
+            torch.linspace(0.0, math.radians(vertical_max_degrees), vertical_count - 1, dtype=dtype, device=device),
+        ))
     else:
-        # The upright L1 scans the hemisphere above its mounting plane.
-        vertical = torch.linspace(0.0, math.radians(vertical_fov_degrees), vertical_count, dtype=dtype, device=device)
+        vertical = torch.linspace(math.radians(vertical_min_degrees), math.radians(vertical_max_degrees),
+                                  vertical_count, dtype=dtype, device=device)
     azimuth = horizontal[:, None].expand(horizontal_rays, vertical_count)
     elevation = vertical[None, :].expand(horizontal_rays, vertical_count)
     cos_elevation = elevation.cos()
@@ -242,7 +255,7 @@ def apply_lidar_measurement_model(
         if (noise.abs() > 1.0).any():
             raise ValueError("noise must be between -1 and one")
 
-    # A geometric intersection inside the L1 near field cannot be measured.
+    # A geometric intersection inside the LiDAR near field cannot be measured.
     has_return = (normalized_ranges < 1.0) & (normalized_ranges * max_range >= min_range)
     distance = normalized_ranges * max_range + noise * accuracy
     distance = torch.round(distance / resolution) * resolution
