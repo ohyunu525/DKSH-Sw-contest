@@ -6,15 +6,14 @@ from dksh_isaaclab.assets.spiderbot import cad_spiderbot_cfg
 from .mg90s_env import MG90SWalkEnv
 from .mg90s_env_cfg import MG90SWalkEnvCfg, MG90SWalkRunnerCfg, mixed_servo_robot_cfg
 from .mg90s_rewards import velocity_tracking_reward
-from . import cad6_wave_gait as gait
+from . import onshape_cad6_gait as gait
 
 
 def robot_cfg():
     robot = cad_spiderbot_cfg(6)
     robot.actuators = mixed_servo_robot_cfg().actuators
-    robot.init_state.pos = (0, 0, -gait.STANCE_Z + 0.016)
-    robot.init_state.joint_pos = {'.*_hip_joint': 0., '.*_femur_joint': gait.STANCE_FEMUR,
-                                  '.*_tibia_joint': gait.STANCE_TIBIA}
+    robot.init_state.pos = (0, 0, gait.ROOT_HEIGHT_M)
+    robot.init_state.joint_pos = {'.*_joint': 0.0}
     return robot.replace(prim_path='/World/envs/env_.*/Robot')
 
 
@@ -33,7 +32,7 @@ class MG90SCad6EnvCfg(MG90SWalkEnvCfg):
     tripod_transition_width = 0.005
     tripod_enabled = False
     mass_assumption = (
-        'CAD6 links 2.31362 kg + L2 0.230 kg; known mixed-servo masses '
+        'Onshape CAD6 links 1.792339 kg + L2 0.230 kg; known mixed-servo masses '
         'are recorded but not redistributed across provisional link inertias'
     )
 
@@ -105,11 +104,10 @@ class MG90SCad6Env(MG90SWalkEnv):
         self._viewer_visuals = None
 
     def _gait_joint_positions(self):
-        feet = gait.blended_foot_targets(
+        return gait.blended_wave_joint_positions(
             self._phase(), self._speed, self.cfg.gait_period, self.cfg.gait_lift,
             self.cfg.gait_stride_limit, self._tripod_weight(),
-        )
-        return gait.inverse_kinematics(feet).flatten(1)
+        ).flatten(1)
 
     def _tripod_weight(self):
         if not self.cfg.tripod_enabled:
@@ -151,11 +149,10 @@ class MG90SCad6VelocityEnv(MG90SCad6Env):
         self._commands[env_ids[random[:, 3] < self.cfg.command_stand_probability]] = 0
 
     def _gait_joint_positions(self):
-        feet = gait.blended_directional_foot_targets(
+        return gait.blended_directional_joint_positions(
             self._phase(), self._commands, self.cfg.gait_period, self.cfg.gait_lift,
             self.cfg.gait_stride_limit, self._tripod_weight(),
-        )
-        return gait.inverse_kinematics(feet).flatten(1)
+        ).flatten(1)
 
     def _tripod_weight(self):
         if not self.cfg.tripod_enabled:

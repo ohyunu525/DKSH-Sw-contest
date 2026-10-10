@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "source": {
+    "exporter": "onshape-to-robot",
+    "archive_filename": "trasfer.zip",
+    "archive_sha256": "995eb05b753e5b39183d58af07d34fa9308ecd12eace31509d30fcfb5e7914ac",
+    "onshape_document_id": "f646c0fde8bd91cfa43cbae7",
+    "onshape_workspace_id": "279609403375cff4404c6eae",
+    "exported_at": "2026-09-28"
+  },
+  "files": {
+    "raw_urdf": {
+      "path": "robot.onshape.urdf",
+      "sha256": "49aa6bb2d9d05c3d18babf80169c7c47e1875301a99c4ffde87a4f027b3c1b6e"
+    },
+    "normalized_training_urdf": {
+      "path": "robot.training.urdf",
+      "sha256": "b4c550457b52fa6e46db160f12ea74d4f0dda72f5dc84209ed5de4fc6c46024d"
+    },
+    "isaac_lab_usd": {
+      "path": "onshape_20260928.usd",
+      "sha256": "f25701167346d16e2a31409990f50f0f43a3b80a4fad24a510f931e2c65d5128",
+      "merge_fixed_joints": true
+    },
+    "mesh_assets": {
+      "directory": "assets",
+      "stl_count": 10,
+      "onshape_part_metadata_count": 10
+    }
+  },
+  "extracted_structure": {
+    "links_before_fixed_joint_merge": 25,
+    "revolute_joints": 18,
+    "fixed_foot_joints": 6,
+    "rigid_bodies_after_fixed_joint_merge": 19,
+    "mass_kg": 1.7923392
+  },
+  "normalization": {
+    "zero_pose": "saved Onshape assembly pose",
+    "leg_mapping": "Onshape L6,L5,L4,L3,L2,L1 maps to policy leg_0..leg_5",
+    "joint_limits_degrees": [-90.0, 90.0],
+    "raw_axis_sign_flips": ["coxa", "tibia"],
+    "actuator_limits": "MG90S hip and conservative 5 V RC920DMG leg limits"
+  },
+  "limitations": {
+    "motor_inclusion_in_mass_properties": "unlabeled by export",
+    "physical_collision_limits_verified": false,
+    "lidar_mount_included": false,
+    "status": "current_onshape_provisional"
+  }
+}

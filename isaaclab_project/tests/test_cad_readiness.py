@@ -21,7 +21,8 @@ class CadReadinessTests(unittest.TestCase):
         self.assertFalse(report["ready"])
         self.assertEqual(report["lifecycle"], "in_progress")
         self.assertNotIn("joint limits are incomplete", report["blockers"])
-        self.assertIn("joint axes and centers are incomplete", report["blockers"])
+        self.assertNotIn("joint axes and centers are incomplete", report["blockers"])
+        self.assertIn("link mass/COM data with motor inclusion labels are incomplete", report["blockers"])
         self.assertIn("MG90S/RC920DMG layout is not verified in CAD", report["blockers"])
 
     def test_complete_release_evidence_is_accepted(self) -> None:
