@@ -2,6 +2,7 @@
 import torch
 
 from isaaclab.utils import configclass
+from isaaclab.sensors import ContactSensorCfg
 from dksh_isaaclab.assets.spiderbot import cad_spiderbot_cfg
 from .mg90s_env import MG90SWalkEnv
 from .mg90s_env_cfg import MG90SWalkEnvCfg, MG90SWalkRunnerCfg, mixed_servo_robot_cfg
@@ -14,6 +15,7 @@ def robot_cfg():
     robot.actuators = mixed_servo_robot_cfg().actuators
     robot.init_state.pos = (0, 0, gait.ROOT_HEIGHT_M)
     robot.init_state.joint_pos = {'.*_joint': 0.0}
+    robot.spawn.activate_contact_sensors = True
     return robot.replace(prim_path='/World/envs/env_.*/Robot')
 
 
@@ -22,6 +24,11 @@ class MG90SCad6EnvCfg(MG90SWalkEnvCfg):
     robot = robot_cfg()
     action_space = 18
     observation_space = 68
+    foot_contact_sensor = ContactSensorCfg(
+        prim_path='/World/envs/env_.*/Robot/leg_[0-5]_tibia',
+        update_period=0.0, history_length=1, track_pose=False,
+        track_air_time=True, force_threshold=0.5,
+    )
     minimum_height = 0.075
     gait_period = 2.4
     gait_lift = 0.004

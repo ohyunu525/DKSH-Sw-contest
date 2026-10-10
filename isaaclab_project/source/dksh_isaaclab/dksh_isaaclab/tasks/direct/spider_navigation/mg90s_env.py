@@ -5,6 +5,7 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
+from isaaclab.sensors import ContactSensor
 from .mg90s_env_cfg import MG90SWalkEnvCfg
 from .mg90s_rewards import speed_tracking_reward
 from .payload_mass import apply_l2_payload_to_stage
@@ -46,10 +47,29 @@ class MG90SWalkEnv(DirectRLEnv):
             mount_position=self.cfg.lidar_mount_position_b,
         )
         self._base_mass_with_lidar = combined.mass
-        sim_utils.spawn_ground_plane("/World/ground", sim_utils.GroundPlaneCfg())
+        if self.cfg.foot_contact_sensor is not None:
+            from .hexapod_diagnostics import restore_foot_frames, apply_simple_collisions
+            stage = omni.usd.get_context().get_stage()
+            restore_foot_frames(stage, "/World/envs/env_0/Robot")
+            if self.cfg.simple_collisions:
+                apply_simple_collisions(stage, "/World/envs/env_0/Robot", self.cfg.assumed_foot_radius_m)
+        sim_utils.spawn_ground_plane("/World/ground", sim_utils.GroundPlaneCfg(physics_material=self.cfg.ground_material))
+        # Bind at rigid-body ancestors so instanceable child colliders inherit
+        # the same material. The root binding also covers the LiDAR enclosure.
+        from pxr import UsdShade
+        material = UsdShade.Material(omni.usd.get_context().get_stage().GetPrimAtPath("/World/ground/physicsMaterial"))
+        if not material:
+            raise RuntimeError("Ground physics material was not created")
+        UsdShade.MaterialBindingAPI.Apply(
+            omni.usd.get_context().get_stage().GetPrimAtPath("/World/envs/env_0/Robot")).Bind(
+                material, bindingStrength=UsdShade.Tokens.strongerThanDescendants, materialPurpose="physics"
+            )
         self.scene.clone_environments(copy_from_source=False)
         self.scene.filter_collisions(global_prim_paths=["/World/ground"])
         self.scene.articulations["robot"] = self._robot
+        if self.cfg.foot_contact_sensor is not None:
+            self._foot_contact = ContactSensor(self.cfg.foot_contact_sensor)
+            self.scene.sensors["foot_contact"] = self._foot_contact
         light = sim_utils.DomeLightCfg(intensity=2200.0)
         light.func("/World/Light", light)
 

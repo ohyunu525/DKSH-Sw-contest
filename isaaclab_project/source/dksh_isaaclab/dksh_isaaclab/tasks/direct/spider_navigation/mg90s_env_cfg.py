@@ -11,6 +11,7 @@ from isaaclab.actuators import DCMotorCfg
 from isaaclab.envs import DirectRLEnvCfg, ViewerCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
+import isaaclab.sim as sim_utils
 from isaaclab.utils import configclass
 from .wave_gait import STANCE_DEPTH, STANCE_FEMUR, STANCE_TIBIA
 from dksh_isaaclab.assets import SPIDERBOT_CFG
@@ -79,6 +80,16 @@ class MG90SWalkEnvCfg(DirectRLEnvCfg):
     decimation = 4
     sim: SimulationCfg = SimulationCfg(dt=0.005, render_interval=4)
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=32, env_spacing=2.0, replicate_physics=True)
+    # Both colliding surfaces use the same explicit material. Average of two
+    # identical coefficients gives the intended 0.4/0.6/0.8 comparison value.
+    ground_material = sim_utils.RigidBodyMaterialCfg(
+        static_friction=0.6, dynamic_friction=0.6, restitution=0.0,
+        friction_combine_mode="average", restitution_combine_mode="average",
+    )
+    observation_contract = "simulation_only_privileged_state_v1"
+    foot_contact_sensor = None
+    simple_collisions = False
+    assumed_foot_radius_m = 0.005
     # Keep the playback viewport user-controlled.  ``asset_root`` rewrites the
     # camera pose on every render frame, which prevents orbit/pan navigation.
     viewer = ViewerCfg(eye=(1.0, 1.0, 0.65), lookat=(0, 0, 0.15), origin_type="world")
