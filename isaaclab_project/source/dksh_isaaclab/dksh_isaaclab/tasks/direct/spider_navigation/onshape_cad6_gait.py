@@ -18,8 +18,11 @@ FOOT_VERTICAL_GAIN_M_PER_RAD = 0.2745
 # CAD axes are measured at the assembled zero.  The following conservative
 # Jacobian gains convert a small Cartesian reference into position targets;
 # they are deliberately below the +/- 90 degree hard limits.
-HIP_TRAVEL_GAIN = 4.0
-LEG_TRAVEL_GAIN = 4.0
+# Zero-pose CAD lever arms: hip to foot is about 0.1796 m and the radial
+# derivative of counter-rotated femur/tibia is about 0.1000 m per radian.
+# Convert body-frame travel once, rather than multiplying it by an arbitrary 4.
+HIP_TRAVEL_GAIN = STANCE_RADIUS_M / 0.1796
+LEG_TRAVEL_GAIN = FOOT_VERTICAL_GAIN_M_PER_RAD / 0.1000
 SWING_JOINT_GAIN = 8.0
 WAVE_OFFSETS = (0, 3, 1, 4, 2, 5)
 TRIPOD_OFFSETS = (0, 3, 0, 3, 0, 3)
@@ -46,8 +49,8 @@ def joint_positions_for_twist(
     """Return normalized ``[hip, femur, tibia]`` targets for each Onshape leg.
 
     Hip displacement is the tangential projection of the desired foot travel.
-    Positive femur and tibia both raise the foot in the normalized joint frames,
-    so their equal swing offsets provide a small, conservative clearance.
+    Positive femur and tibia offsets raise the exported foot point. They do
+    not guarantee that all attached tibia collision shapes leave the floor.
     """
 
     if command.ndim != 2 or command.shape[1] != 3:
@@ -69,8 +72,13 @@ def joint_positions_for_twist(
     # supplies tangential travel; femur/tibia supply radial travel.  The
     # opposite tibia contribution avoids treating the two serial pivots as a
     # single virtual slider.
-    hip = -(displacement * tangent).sum(dim=-1) * travel / STANCE_RADIUS_M * HIP_TRAVEL_GAIN
-    radial_travel = -(displacement * radial).sum(dim=-1) * travel / FOOT_VERTICAL_GAIN_M_PER_RAD
+    # travel decreases during stance. CAD-positive hip rotates CCW, so a
+    # positive body tangential command needs a decreasing hip angle to hold
+    # the planted world foot fixed. Do not negate that decreasing reference.
+    hip = (displacement * tangent).sum(dim=-1) * travel / STANCE_RADIUS_M * HIP_TRAVEL_GAIN
+    # The radial reference uses the same decreasing stance travel. Keeping
+    # an extra minus here would make translation fight the corrected hips.
+    radial_travel = (displacement * radial).sum(dim=-1) * travel / FOOT_VERTICAL_GAIN_M_PER_RAD
     lift_target = lift * torch.sin(math.pi * swing).square() / FOOT_VERTICAL_GAIN_M_PER_RAD
     femur = radial_travel * LEG_TRAVEL_GAIN + lift_target * SWING_JOINT_GAIN
     tibia = -radial_travel * LEG_TRAVEL_GAIN + lift_target * SWING_JOINT_GAIN

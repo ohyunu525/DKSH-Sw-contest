@@ -1,5 +1,6 @@
 """Physical-time slip detection and preservation of CAD foot geometry."""
 import importlib.util
+import math
 from pathlib import Path
 import unittest
 
@@ -12,6 +13,18 @@ SPEC.loader.exec_module(DIAGNOSTICS)
 
 
 class HexapodDiagnosticsTests(unittest.TestCase):
+    def test_heading_crossing_pi_preserves_turn_direction(self):
+        previous = torch.tensor([math.pi - 0.01, -math.pi + 0.01], dtype=torch.float64)
+        current = torch.tensor([-math.pi + 0.01, math.pi - 0.01], dtype=torch.float64)
+        torch.testing.assert_close(DIAGNOSTICS.heading_increment(current, previous),
+                                   torch.tensor([0.02, -0.02], dtype=torch.float64))
+
+    def test_heading_increment_is_zero_for_same_orientation(self):
+        previous = torch.tensor([0.2, -1.5], dtype=torch.float64)
+        current = previous + 2 * math.pi
+        torch.testing.assert_close(DIAGNOSTICS.heading_increment(current, previous),
+                                   torch.zeros_like(previous), atol=1e-12, rtol=0)
+
     def test_slip_requires_60ms_at_different_sample_intervals(self):
         for dt, steps in ((0.02, 3), (0.01, 6), (0.005, 12)):
             timer = DIAGNOSTICS.SlipTimer((1, 6), 'cpu')

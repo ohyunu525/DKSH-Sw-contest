@@ -137,3 +137,9 @@ def foot_kinematics(robot, body_ids, offsets):
 def velocity_at_point(com_velocity, angular_velocity, point_position, com_position):
     """Rigid-body point velocity with both positions in the same world frame."""
     return com_velocity + torch.cross(angular_velocity, point_position - com_position, dim=-1)
+
+
+def heading_increment(current, previous):
+    """Shortest signed world-heading change, including a +/- pi crossing."""
+    difference = current - previous
+    return torch.atan2(torch.sin(difference), torch.cos(difference))
