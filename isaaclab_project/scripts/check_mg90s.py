@@ -15,6 +15,8 @@ parser.add_argument("--physics_dt", type=float, choices=(0.0025, 0.005, 0.01), d
 parser.add_argument("--root_height", type=float, default=None, help="Optional body-height assumption in metres")
 parser.add_argument("--simple_collisions", action="store_true", help="CAD bounding boxes and 5 mm assumed foot pads")
 parser.add_argument("--self_collisions", action="store_true", help="Enable body/leg collisions for diagnostic comparison")
+parser.add_argument("--yaw_rate", type=float, choices=(-0.04, 0.04), default=0.04,
+                    help="Signed CAD6 yaw command; verify both turn directions with the same speed gate")
 parser.add_argument("--task", default="Isaac-DKSH-MG90S-Walk-Direct-v0",
                     choices=["Isaac-DKSH-MG90S-Walk-Direct-v0", "Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0",
                              "Isaac-DKSH-MG90S-CAD6-Sprint-Direct-v0",
@@ -31,11 +33,14 @@ import gymnasium as gym
 import torch
 import dksh_isaaclab
 from isaaclab_tasks.utils import parse_env_cfg
+from isaaclab.utils.math import euler_xyz_from_quat
 from dksh_isaaclab.tasks.direct.spider_navigation.mg90s_env_cfg import (
     MG90S_NO_LOAD_SPEED,
     RC920DMG_NO_LOAD_SPEED,
 )
-from dksh_isaaclab.tasks.direct.spider_navigation.hexapod_diagnostics import SlipTimer, foot_offsets, foot_kinematics
+from dksh_isaaclab.tasks.direct.spider_navigation.hexapod_diagnostics import (
+    SlipTimer, foot_offsets, foot_kinematics, heading_increment,
+)
 
 
 def main():
@@ -84,6 +89,8 @@ def main():
             'assumed_pad_center_in_foot_frame_m': [0.0, 0.0, cfg.assumed_foot_radius_m] if args.simple_collisions else None,
             'timeseries': str(trace_path) if trace_path else None,
             'sample_period_s': robot_env.step_dt,
+            'yaw_command_rad_s': args.yaw_rate if hasattr(cfg, 'command_forward_min') else None,
+            'yaw_gate_metric': 'unwrapped_world_heading_change_per_elapsed_time',
             'contact_scope': 'tibia_and_attached_colliders' if contact is not None else None,
             'contact_force_kind': 'normal_only_no_tangential_force',
             'foot_velocity_reference': 'world_point_relative_to_body_center_of_mass',
@@ -115,7 +122,7 @@ def main():
                 ("stand", 0.0, 0.0, 0.0, 0.0),
                 ("forward", cfg.command_speed_min, 0.0, 0.0, gait_lift),
                 ("lateral", 0.0, cfg.command_speed_min, 0.0, gait_lift),
-                ("yaw", 0.0, 0.0, 0.04, gait_lift),
+                ("yaw", 0.0, 0.0, args.yaw_rate, gait_lift),
             )
         else:
             phases = (
@@ -136,6 +143,8 @@ def main():
                 robot_env.cfg.command_stand_probability = 0.0
             obs, _ = env.reset()
             initial = robot.data.root_pos_w.clone()
+            previous_heading = euler_xyz_from_quat(robot.data.root_quat_w)[2]
+            heading_change = torch.zeros(args.num_envs, device=robot_env.device)
             counts_before = robot_env.completed.copy()
             min_height = 10.
             max_torque = 0.
@@ -171,6 +180,10 @@ def main():
                 current_position = robot.data.root_pos_w[:, :2]
                 # Automatic resets teleport the base; exclude those intervals.
                 resets = terminated | truncated
+                heading = euler_xyz_from_quat(robot.data.root_quat_w)[2]
+                heading_delta = heading_increment(heading, previous_heading)
+                heading_change += torch.where(resets, torch.zeros_like(heading_delta), heading_delta)
+                previous_heading = heading.clone()
                 increment = torch.linalg.vector_norm(current_position - previous_position, dim=-1)
                 distance += torch.where(resets, torch.zeros_like(increment), increment)
                 for index in terminated.nonzero().flatten().tolist():
@@ -202,6 +215,8 @@ def main():
                         'velocity_b_mps': velocity.cpu().tolist(),
                         'yaw_rate_rps': robot.data.root_ang_vel_b[:, 2].cpu().tolist(),
                         'root_position_w_m': robot.data.root_pos_w.cpu().tolist(),
+                        'root_quaternion_wxyz': robot.data.root_quat_w.cpu().tolist(),
+                        'world_heading_delta_rad': heading_delta.cpu().tolist(),
                         'terminated': terminated.cpu().tolist(), 'truncated': truncated.cpu().tolist(),
                         'feet': foot_values,
                     }) + '\n')
@@ -214,6 +229,8 @@ def main():
                 "mean_forward_speed_mps": forward_speed_sum / args.steps,
                 "mean_lateral_speed_mps": lateral_speed_sum / args.steps,
                 "mean_yaw_rate_rps": yaw_rate_sum / args.steps,
+                "world_heading_change_rad": heading_change.cpu().tolist(),
+                "mean_world_heading_rate_rps": float(heading_change.mean()) / (args.steps * robot_env.step_dt),
                 "mean_displacement_x_m": float((robot.data.root_pos_w[:, 0] - initial[:, 0]).mean()),
                 "mean_displacement_y_m": float((robot.data.root_pos_w[:, 1] - initial[:, 1]).mean()),
                 "near_torque_cap_fraction": saturated_sum / args.steps,
@@ -237,7 +254,11 @@ def main():
         else:
             passed &= results["forward"]["mean_displacement_x_m"] > 0.005
             passed &= results["lateral"]["mean_displacement_y_m"] > 0.002
-            passed &= results["yaw"]["mean_yaw_rate_rps"] > 0.005
+            yaw_sign = 1.0 if args.yaw_rate > 0 else -1.0
+            # Last-substep body omega can alias servo oscillation and is not
+            # net world heading. Keep it in diagnostics, but gate the actual
+            # orientation change over the trajectory using the same threshold.
+            passed &= results["yaw"]["mean_world_heading_rate_rps"] * yaw_sign > 0.005
         passed &= all(r["max_effort_ratio"] <= 1.0001 for r in results.values())
         results["passed"] = passed
         failures = []
@@ -256,8 +277,8 @@ def main():
                 failures.append('forward: displacement below 5 mm')
             if results['lateral']['mean_displacement_y_m'] <= 0.002:
                 failures.append('lateral: displacement below 2 mm')
-            if results['yaw']['mean_yaw_rate_rps'] <= 0.005:
-                failures.append('yaw: positive rate below 0.005 rad/s')
+            if results['yaw']['mean_world_heading_rate_rps'] * yaw_sign <= 0.005:
+                failures.append('yaw: command-aligned world heading rate below 0.005 rad/s')
         results['failure_reasons'] = failures
         results["conditions"] = conditions
         if args.output:
