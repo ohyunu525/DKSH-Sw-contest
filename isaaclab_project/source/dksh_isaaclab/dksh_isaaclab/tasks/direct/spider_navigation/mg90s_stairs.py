@@ -2,7 +2,8 @@
 import math
 import torch
 from isaaclab.utils import configclass
-from isaaclab.utils.math import quat_apply, quat_apply_inverse
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.utils.math import quat_apply, quat_conjugate
 from .mg90s_cad6 import MG90SCad6Env, MG90SCad6EnvCfg, MG90SCad6RunnerCfg
 from . import stair_sensing as sensing
 
@@ -12,7 +13,7 @@ class MG90SCad6StairsEnvCfg(MG90SCad6EnvCfg):
     observation_space = sensing.OBSERVATIONS
     observation_contract = 'assumed_l2_bno086_command_history_v1'
     episode_length_s = 80.0
-    scene = MG90SCad6EnvCfg.scene.replace(num_envs=16, env_spacing=20.0)
+    scene = InteractiveSceneCfg(num_envs=16, env_spacing=20.0, replicate_physics=True)
     action_scale = 0.8  # Allow learned body lift/placement, not only tiny flat residuals.
     action_smoothing = 0.15
     command_speed_min = 0.02
@@ -130,7 +131,7 @@ class MG90SCad6StairsEnv(MG90SCad6Env):
         valid &= torch.rand_like(ranges) >= self.cfg.lidar_dropout
         ranges = (ranges + torch.randn_like(ranges) * self.cfg.lidar_range_noise_std_m).clamp(0.05, 1.5)
         points = origin[:, None] + ranges[..., None] * rays
-        points_b = quat_apply_inverse(q_rays, points - root[:, None])
+        points_b = quat_apply(quat_conjugate(q_rays), points - root[:, None])
         self._lidar_features[ids] = sensing.observed_height_grid(points_b, valid)
         self._lidar_age[ids] = 0
 
