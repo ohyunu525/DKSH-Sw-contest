@@ -163,3 +163,11 @@ Python 스크립트를 직접 호출할 때는 `--environment`, `--difficulty`, 
 ```
 
 같은 시드를 지정하면 같은 무작위 환경 설정으로 실행할 수 있습니다.
+
+## CAD6 계단 + 센서 관측 작업
+
+L2/BNO086이 있다고 가정한 저수준 계단 정책은 기존 Nav2 속도 명령/평지 정책과
+별도 task와 checkpoint를 사용합니다. 실행: `run_stairs.ps1`.
+관측 계약·센서 근사·20~120 mm curriculum·실행 결과는
+[계단 센서 학습 기록](stair_sensor_training.md)을 참고하세요.
+학습 완료와 실제 계단 통과는 별개이며 현재 실물 배포용 정책이 아닙니다.

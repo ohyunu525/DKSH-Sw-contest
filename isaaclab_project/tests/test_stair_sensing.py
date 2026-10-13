@@ -1,6 +1,9 @@
 """Sensor-only stair observations and success-gated curriculum, no Isaac needed."""
 import importlib.util
+import ast
+import math
 from pathlib import Path
+from types import SimpleNamespace
 import unittest
 import torch
 
@@ -69,6 +72,22 @@ class StairSensingTests(unittest.TestCase):
                                         torch.tensor([False, False, False, True]), streaks, 5)
         self.assertEqual(levels.tolist(), [1, 2, 5, 1])
         self.assertEqual(streaks.tolist(), [0, 0, 3, 0])
+
+    def test_policy_observations_need_no_robot_ground_truth(self):
+        tree = ast.parse(PATH.with_name('mg90s_stairs.py').read_text(encoding='utf-8'))
+        cls = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == 'MG90SCad6StairsEnv')
+        method = next(node for node in cls.body if isinstance(node, ast.FunctionDef) and node.name == '_get_observations')
+        namespace = {'torch': torch, 'math': math, 'sensing': S}
+        exec(compile(ast.Module(body=[method], type_ignores=[]), str(PATH), 'exec'), namespace)
+        # No _robot, real joint state, root position/velocity, level or terrain height provided.
+        fake = SimpleNamespace(_update_lidar=lambda: None, _phase=lambda: torch.zeros(2),
+                               _imu=torch.zeros(2, 6), _commands=torch.zeros(2, 3),
+                               _filtered_actions=torch.zeros(2, 18), _targets=torch.zeros(2, 18),
+                               _joint_ids=torch.arange(18), _lidar_features=torch.zeros(2, 192),
+                               _lidar_age=torch.zeros(2))
+        obs = namespace['_get_observations'](fake)['policy']
+        self.assertEqual(obs.shape, (2, S.OBSERVATIONS))
+        self.assertTrue(bool(torch.isfinite(obs).all()))
 
 
 if __name__ == '__main__':
