@@ -20,6 +20,12 @@ Unity 및 headless ROS2/Nav2 통합을 담당합니다. 그보다 낮은 사양�
 
 ## 6족 자율 탐색 빠른 시작
 
+LiDAR가 없는 상태에서 원격 웨이포인트 UI를 시험하려면 Unity의
+`Assets/Scenes/RemoteNavigation.unity`를 열고 Play를 누르세요. 지도 클릭·방향 드래그,
+최대 10개 순차 목표, 가상 이동, 취소·정지와 연결 끊김 시험을 실행할 수 있습니다.
+Python 원격 서버는 `.\ros2\run_waypoint_demo.ps1`로 시작합니다.
+[센서 없는 웨이포인트 실행·검증 안내](ros2/dksh_remote_navigation/README.md)를 참고하세요.
+
 Unity `LidarScene`에는 기존 Frontier 탐지·군집·목표 선택을 보존한 독립 실행 경로가 구성되어
 있습니다. 최소 8방향 A*, 이진 clearance, line-of-sight waypoint 압축,
 `CharacterController` 추종 및 단일 exploration coordinator를 사용합니다. ROS 브리지와

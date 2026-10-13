@@ -27,6 +27,7 @@ RUN apt-get update \
 WORKDIR /opt/dksh_ros2/src
 
 COPY dksh_l1_features /opt/dksh_ros2/src/dksh_l1_features
+COPY dksh_remote_navigation /opt/dksh_ros2/src/dksh_remote_navigation
 
 RUN git clone --branch "${ROS_TCP_ENDPOINT_TAG}" --depth 1 \
         https://github.com/Unity-Technologies/ROS-TCP-Endpoint.git ros_tcp_endpoint \
@@ -43,7 +44,7 @@ WORKDIR /opt/dksh_ros2
 RUN source "/opt/ros/${ROS_DISTRO}/setup.bash" \
     && colcon build \
         --merge-install \
-        --packages-select ros_tcp_endpoint frontier_exploration_ros2 unitree_lidar_ros2 dksh_l1_features \
+        --packages-select ros_tcp_endpoint frontier_exploration_ros2 unitree_lidar_ros2 dksh_l1_features dksh_remote_navigation \
         --cmake-args -DCMAKE_BUILD_TYPE=Release \
     && source install/setup.bash \
     && colcon test --merge-install --packages-select frontier_exploration_ros2 \

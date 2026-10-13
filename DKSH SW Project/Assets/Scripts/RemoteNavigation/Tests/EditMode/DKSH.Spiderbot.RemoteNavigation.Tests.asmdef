@@ -1,0 +1,7 @@
+{
+  "name": "DKSH.Spiderbot.RemoteNavigation.Tests",
+  "references": ["DKSH.Spiderbot.RemoteNavigation"],
+  "includePlatforms": ["Editor"],
+  "autoReferenced": false,
+  "optionalUnityReferences": ["TestAssemblies"]
+}

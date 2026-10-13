@@ -2,6 +2,8 @@
 build
 install
 log
+logs
+**/__pycache__
 *.bag
 *.db3
 *.mcap

@@ -1,0 +1,10 @@
+# Simulation only. The gateway requires an explicit secret inside the container.
+services:
+  ros2:
+    command: ["ros2", "launch", "/opt/dksh/launch/remote_navigation.launch.py"]
+    environment:
+      DKSH_GATEWAY_TOKEN: ${DKSH_GATEWAY_TOKEN:?Set a simulation token of at least 16 characters}
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - ./logs/remote_navigation:/opt/dksh/logs/remote_navigation

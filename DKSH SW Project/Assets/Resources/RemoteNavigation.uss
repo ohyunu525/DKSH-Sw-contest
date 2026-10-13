@@ -1,0 +1,55 @@
+.app { flex-grow: 1; background-color: #101925; color: #dfeaf0; padding: 24px 28px 14px; font-size: 15px; }
+.header { flex-direction: row; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.eyebrow { font-size: 11px; color: #8ca2b5; letter-spacing: 2px; margin-bottom: 8px; }
+.title { font-size: 30px; -unity-font-style: bold; }
+.mode-badge { background-color: #173c43; color: #70dce1; border-radius: 4px; padding: 9px 14px; font-size: 12px; }
+.source-controls { flex-direction: row; align-items: center; }
+.source-controls Button { margin-left: 10px; }
+.body { flex-grow: 1; flex-direction: row; min-height: 0; }
+.map-column { flex-grow: 1; flex-basis: 0; margin-right: 22px; min-width: 360px; }
+.map-toolbar, .legend, .section-row { flex-direction: row; justify-content: space-between; align-items: center; }
+.map-toolbar { margin-bottom: 10px; }
+.map-meta { font-size: 12px; color: #9fb2c2; }
+.map-view { flex-grow: 1; min-height: 260px; overflow: hidden; background-color: #0a111b; border-radius: 6px; border-width: 1px; border-color: #293949; }
+.map-number { position: absolute; font-size: 12px; color: #ffd689; -unity-font-style: bold; }
+.legend { margin-top: 14px; }
+.legend-colors { color: #71d4de; font-size: 12px; }
+.muted { color: #8ca2b5; font-size: 12px; white-space: normal; }
+.hint { margin-top: 12px; min-height: 38px; color: #bbcbd6; white-space: normal; font-size: 13px; }
+.sidebar { width: 310px; flex-shrink: 0; min-height: 0; }
+.card { padding: 15px; background-color: #192534; border-radius: 6px; margin-bottom: 10px; flex-shrink: 0; }
+.state { font-size: 24px; color: #6de0c4; -unity-font-style: bold; margin-bottom: 5px; }
+.state.warning { color: #ffc879; }
+.detail { font-size: 13px; white-space: normal; margin-bottom: 12px; }
+.position { margin-bottom: 12px; color: #d6e2ea; font-size: 13px; }
+.metrics { flex-direction: row; justify-content: space-between; }
+.metrics .muted { margin-left: 8px; flex-shrink: 1; }
+.mission-card { min-height: 170px; }
+.waypoint-scroll { flex-grow: 1; min-height: 55px; max-height: 125px; margin: 10px 0; }
+.empty { color: #7890a3; font-size: 12px; white-space: normal; }
+.waypoint-row { flex-direction: row; align-items: center; padding: 5px 0; }
+.waypoint-index { color: #ffcb79; width: 26px; font-size: 12px; }
+.waypoint-coordinate { flex-grow: 1; font-size: 12px; }
+Button { border-width: 0; border-radius: 4px; padding: 9px 12px; color: #dde9f1; background-color: #2a3b4e; margin: 2px 0; -unity-font-style: bold; }
+Button:hover { background-color: #3c536b; }
+Button:disabled { opacity: 0.38; }
+.primary-button { background-color: #25808e; padding: 12px; color: #ffffff; }
+.primary-button:hover { background-color: #319faf; }
+.secondary-button { font-size: 12px; }
+.stop-button { background-color: #b34749; color: #fff5f2; padding: 12px; font-size: 16px; letter-spacing: 2px; }
+.stop-button:hover { background-color: #cf5c5e; }
+.small-button { padding: 5px 10px; font-size: 11px; background-color: #243446; }
+.row-button { padding: 4px 8px; margin-left: 4px; font-size: 12px; }
+.connection-card { margin-top: 8px; margin-bottom: 0; }
+.connection-card TextField, .connection-card IntegerField { font-size: 12px; margin-bottom: 4px; }
+.connection-card .unity-base-field__label { min-width: 46px; color: #96acbd; }
+.connection-card .unity-base-text-field__input { background-color: #101c29; color: #dfebf2; border-width: 0; padding: 4px; }
+.connection-card .section-row { margin-top: 6px; }
+.connection-card .section-row Button { flex-grow: 1; margin-right: 5px; }
+.connection-card .small-button { margin-top: 6px; }
+Toggle { font-size: 12px; color: #b2c6d4; }
+.unity-scroller--vertical { width: 10px; }
+.unity-scroller__low-button, .unity-scroller__high-button { background-color: #2a3b4e; padding: 0; margin: 0; }
+.unity-base-slider__tracker { background-color: #172533; }
+.unity-base-slider__dragger { background-color: #496174; border-width: 0; border-radius: 3px; }
+.footer { color: #688294; font-size: 10px; margin-top: 14px; letter-spacing: 1px; }
