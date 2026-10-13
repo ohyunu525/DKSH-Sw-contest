@@ -11,11 +11,14 @@ def validate_checkpoint(path, observations=68, actions=18, task='Isaac-DKSH-MG90
     actual = (layers[0][1].shape[1], layers[-1][1].shape[0])
     if actual != (observations, actions):
         raise ValueError(f'Incompatible checkpoint: observations/actions={actual}; expected {(observations, actions)}. Do not reuse an eight-leg policy on CAD6.')
-    if observations == 68:
+    if task.startswith('Isaac-DKSH-MG90S-CAD6-'):
         metadata = Path(path).parent / 'run_metadata.json'
         import json
         if not metadata.is_file() or json.loads(metadata.read_text(encoding='utf-8')).get('task') != task:
             raise ValueError(f'CAD6 checkpoint must include matching run_metadata.json for {task}.')
+        record = json.loads(metadata.read_text(encoding='utf-8'))
+        if '-Stairs-Sensors-' in task and record.get('observation_contract') != 'assumed_l2_bno086_command_history_v1':
+            raise ValueError('Stair checkpoint sensor observation contract is incompatible.')
     return int(data['iter'])
 
 
