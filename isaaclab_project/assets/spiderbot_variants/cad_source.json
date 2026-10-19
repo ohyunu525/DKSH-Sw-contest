@@ -28,7 +28,7 @@
     "legs": 6,
     "actuators": {
       "body_coxa": {
-        "model": "MG90S",
+        "model": "MG996R",
         "count": 6
       },
       "coxa_femur": {
@@ -78,7 +78,7 @@
   },
   "current_simulation_asset": {
     "source": "isaaclab_project/assets/spiderbot_variants/onshape_20260928/robot.training.urdf",
-    "source_sha256": "b4c550457b52fa6e46db160f12ea74d4f0dda72f5dc84209ed5de4fc6c46024d",
+    "source_sha256": "2b95a93302d88c274349598e2e79064f124f069c9136efd7d0bf5320f10b2663",
     "usd": "isaaclab_project/assets/spiderbot_variants/onshape_20260928/onshape_20260928.usd",
     "geometry_status": "current_onshape_provisional",
     "matches_onshape_release": false,

@@ -69,6 +69,7 @@ def main():
                 'source_sha256': hashlib.sha256(checkpoint.read_bytes()).hexdigest() if checkpoint else None,
                 'cad_source': cad_report}
     metadata['observation_contract'] = cfg.observation_contract
+    metadata['actuator_contract'] = cfg.actuator_contract
     metadata['hardware_deployable'] = False
     metadata['privileged_observations'] = ['root_linear_velocity', 'projected_gravity', 'joint_position', 'joint_velocity']
     metadata['physics_dt_s'] = cfg.sim.dt

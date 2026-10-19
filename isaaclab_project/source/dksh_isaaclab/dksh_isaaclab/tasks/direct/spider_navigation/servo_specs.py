@@ -1,7 +1,7 @@
 """Servo specifications used by the spiderbot actuator models.
 
-Torque and speed values are provisional seller-supplied no-load/stall data for
-the named reference voltage.  RC920DMG does not yet have a version-controlled
+MG996R uses the TowerPro product Specification section (checked 2026-10-19).
+RC920DMG still uses provisional seller-supplied no-load/stall data and has no
 manufacturer datasheet or bench curve in this repository.  The 75% effort
 limit used by the simulator is a separate provisional derating, not a
 manufacturer continuous-torque rating.
@@ -12,7 +12,21 @@ import math
 
 KGF_CM_TO_NM = 0.0980665
 PROVISIONAL_EFFORT_DERATING = 0.75
+ACTUATOR_CONTRACT = 'mg996r_4v8_rc920dmg_5v_v1'
 
+MG996R_SPEC_SOURCE = 'https://towerpro.com.tw/product/mg996r/'
+MG996R_SPEC_VERIFICATION_STATUS = 'manufacturer_nominal_not_bench_verified'
+MG996R_REFERENCE_VOLTAGE_V = 4.8
+MG996R_STALL_TORQUE_KGF_CM = 9.4
+# The page's Specification says 0.19 s; an older description table says 0.17 s.
+# Use the slower value; neither is a measured loaded joint speed.
+MG996R_SECONDS_PER_60_DEGREES = 0.19
+MG996R_MASS_KG = 0.055
+MG996R_SIZE_M = (0.0407, 0.0197, 0.0429)
+MG996R_STALL_TORQUE_NM = MG996R_STALL_TORQUE_KGF_CM * KGF_CM_TO_NM
+MG996R_NO_LOAD_SPEED_RAD_S = math.radians(60.0) / MG996R_SECONDS_PER_60_DEGREES
+
+# Historical MG90S data retained for archived experiment comparisons ONLY.
 MG90S_REFERENCE_VOLTAGE_V = 4.8
 MG90S_STALL_TORQUE_KGF_CM = 1.8
 MG90S_SECONDS_PER_60_DEGREES = 0.10

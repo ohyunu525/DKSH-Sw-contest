@@ -19,6 +19,15 @@ SPEC.loader.exec_module(SERVO)
 
 
 class ServoSpecificationTests(unittest.TestCase):
+    def test_mg996r_4v8_manufacturer_nominal_data(self) -> None:
+        self.assertEqual(SERVO.MG996R_REFERENCE_VOLTAGE_V, 4.8)
+        self.assertEqual(SERVO.MG996R_MASS_KG, 0.055)
+        self.assertEqual(SERVO.MG996R_SECONDS_PER_60_DEGREES, 0.19)
+        self.assertAlmostEqual(SERVO.MG996R_STALL_TORQUE_NM, 0.9218251)
+        self.assertAlmostEqual(SERVO.PROVISIONAL_EFFORT_DERATING * SERVO.MG996R_STALL_TORQUE_NM, 0.691368825)
+        self.assertAlmostEqual(SERVO.MG996R_NO_LOAD_SPEED_RAD_S, math.radians(60) / 0.19)
+        self.assertEqual(SERVO.ACTUATOR_CONTRACT, 'mg996r_4v8_rc920dmg_5v_v1')
+
     def test_rc920dmg_supplied_physical_data(self) -> None:
         self.assertEqual(SERVO.RC920DMG_OPERATING_VOLTAGE_RANGE_V, (4.8, 8.4))
         self.assertEqual(SERVO.RC920DMG_REFERENCE_VOLTAGE_V, 5.0)

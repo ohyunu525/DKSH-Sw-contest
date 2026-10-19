@@ -39,7 +39,7 @@ class MG90SCad6StairsEnvCfg(MG90SCad6EnvCfg):
 
 @configclass
 class MG90SCad6StairsRunnerCfg(MG90SCad6RunnerCfg):
-    experiment_name = 'dksh_cad6_stairs_l2_bno086_v1'
+    experiment_name = 'dksh_cad6_stairs_mg996r_l2_bno086_v1'
     run_name = 'provisional_sensors'
 
     def __post_init__(self):
