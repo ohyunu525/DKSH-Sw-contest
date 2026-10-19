@@ -58,7 +58,8 @@ def collect_blockers(data: dict[str, Any]) -> list[str]:
     if not mass.get("path") or not mass.get("complete") or not mass.get("motor_inclusion_labeled"):
         blockers.append("link mass/COM data with motor inclusion labels are incomplete")
     if not servo.get("verified_in_cad"):
-        blockers.append("MG90S/RC920DMG layout is not verified in CAD")
+        models = '/'.join(dict.fromkeys(item['model'] for item in data['target_hardware']['actuators'].values()))
+        blockers.append(f"{models} layout is not verified in CAD")
     if not servo.get("performance_source") or not servo.get("operating_point_verified"):
         blockers.append("servo operating-point specs lack a versioned source or bench verification")
     return blockers

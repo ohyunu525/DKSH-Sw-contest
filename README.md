@@ -2,6 +2,9 @@
 
 Unity와 NVIDIA Isaac Lab에서 사용할 수 있는 6족 spiderbot 강화학습 프로젝트입니다.
 
+현재 보행 학습의 모터 구성은 **몸체–coxa MG996R 6개 + 다리 RC920DMG 12개**입니다.
+2026-10-19 모터 정정 및 계단 재학습은 [MG996R 실행 기록](isaaclab_project/docs/mg996r_hip_correction.md)을 참고하세요.
+
 분리 CAD 다리를 사용한 **6족 조립 모델**과 Unity 프리팹도 제공합니다.
 [모델 파일, 실행법 및 보정 가정](isaaclab_project/assets/spiderbot_variants/README.md)을 참고하세요.
 Isaac Lab 실행 시 `-RobotModel cad8` 또는 `-RobotModel cad6`로 선택할 수 있습니다.

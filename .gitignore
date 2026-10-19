@@ -7,6 +7,7 @@ outputs/
 .pytest_cache/
 **/.asset_hash
 isaaclab_project/assets/spiderbot_usd/config.yaml
+isaaclab_project/assets/spiderbot_variants/onshape_20260928/config.yaml
 
 # Isaac Sim conversion/cache links and editor files
 IsaacLab/_isaac_sim

@@ -23,13 +23,20 @@ class StairCheckpointTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 GUARD.validate_checkpoint(path, 240, 18, TASK)
             for record in ({'task': 'Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0'},
-                           {'task': TASK, 'observation_contract': 'simulation_only_privileged_state_v1'}):
+                           {'task': TASK, 'actuator_contract': 'mg996r_4v8_rc920dmg_5v_v1',
+                            'observation_contract': 'simulation_only_privileged_state_v1'}):
                 metadata.write_text(json.dumps(record), encoding='utf-8')
                 with self.assertRaises(ValueError):
                     GUARD.validate_checkpoint(path, 240, 18, TASK)
             metadata.write_text(json.dumps({'task': TASK,
+                                           'actuator_contract': 'mg996r_4v8_rc920dmg_5v_v1',
                                            'observation_contract': 'assumed_l2_bno086_command_history_v1'}), encoding='utf-8')
             self.assertEqual(GUARD.validate_checkpoint(path, 240, 18, TASK), 3)
+            for old_contract in (None, 'mg90s_4v8_rc920dmg_5v_v1'):
+                metadata.write_text(json.dumps({'task': TASK, 'actuator_contract': old_contract,
+                                               'observation_contract': 'assumed_l2_bno086_command_history_v1'}), encoding='utf-8')
+                with self.assertRaisesRegex(ValueError, 'actuator contract'):
+                    GUARD.validate_checkpoint(path, 240, 18, TASK)
 
     def test_flat_policy_rejected_before_simulation(self):
         with tempfile.TemporaryDirectory() as directory:

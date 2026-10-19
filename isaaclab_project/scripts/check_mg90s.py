@@ -35,7 +35,7 @@ import dksh_isaaclab
 from isaaclab_tasks.utils import parse_env_cfg
 from isaaclab.utils.math import euler_xyz_from_quat
 from dksh_isaaclab.tasks.direct.spider_navigation.mg90s_env_cfg import (
-    MG90S_NO_LOAD_SPEED,
+    HIP_SERVO_NO_LOAD_SPEED,
     RC920DMG_NO_LOAD_SPEED,
 )
 from dksh_isaaclab.tasks.direct.spider_navigation.hexapod_diagnostics import (
@@ -112,7 +112,7 @@ def main():
                 for name, actuator in robot.actuators.items()
             },
             "no_load_speeds_rad_s": {
-                "mg90s_4v8_hip": MG90S_NO_LOAD_SPEED,
+                "mg996r_4v8_hip": HIP_SERVO_NO_LOAD_SPEED,
                 "rc920dmg_5v_leg": RC920DMG_NO_LOAD_SPEED,
             },
         }, flush=True)

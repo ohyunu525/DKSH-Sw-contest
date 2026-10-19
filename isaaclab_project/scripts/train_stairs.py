@@ -64,6 +64,13 @@ def main():
                 'started_at': datetime.now().astimezone().isoformat(), 'status': 'initializing',
                 'observations': cfg.observation_space, 'actions': cfg.action_space,
                 'observation_contract': cfg.observation_contract, 'hardware_deployable': False,
+                'actuator_contract': cfg.actuator_contract,
+                'hip_servo_model': cfg.hip_servo_model, 'leg_servo_model': cfg.leg_servo_model,
+                'hip_reference_voltage_v': cfg.hip_servo_reference_voltage_v,
+                'leg_reference_voltage_v': cfg.leg_servo_reference_voltage_v,
+                'known_servo_mass_per_leg_kg': cfg.known_servo_mass_per_leg_kg,
+                'mass_assumption': cfg.mass_assumption,
+                'servo_zero_pwm_calibrated': False,
                 'sensor_assumptions': cfg.sensor_assumptions, 'cad_source': cad_report,
                 'initial_level': args.level, 'num_envs': args.num_envs,
                 'physics_dt_s': cfg.sim.dt, 'control_dt_s': cfg.sim.dt * cfg.decimation,
@@ -77,6 +84,22 @@ def main():
         env = RslRlVecEnvWrapper(gym.make(TASK, cfg=cfg), clip_actions=agent.clip_actions)
         base = env.unwrapped
         metadata['mass_kg'] = float(base._robot.root_physx_view.get_masses()[0].sum())
+        metadata['actuator_limits'] = {
+            name: {'effort_limit_nm': float(actuator.effort_limit.max()),
+                   'velocity_limit_rad_s': float(actuator.velocity_limit.max())}
+            for name, actuator in base._robot.actuators.items()
+        }
+        hip = base._robot.actuators['mg996r_4v8_hip']
+        from dksh_isaaclab.tasks.direct.spider_navigation.servo_specs import (
+            MG996R_STALL_TORQUE_NM, MG996R_NO_LOAD_SPEED_RAD_S, PROVISIONAL_EFFORT_DERATING,
+        )
+        if not torch.allclose(hip.effort_limit, torch.full_like(hip.effort_limit, PROVISIONAL_EFFORT_DERATING * MG996R_STALL_TORQUE_NM)):
+            raise RuntimeError('MG996R hip effort cap was not applied')
+        if not torch.allclose(hip.velocity_limit, torch.full_like(hip.velocity_limit, MG996R_NO_LOAD_SPEED_RAD_S)):
+            raise RuntimeError('MG996R hip speed cap was not applied')
+        hip_ids = base._joint_ids[::3]
+        if not torch.allclose(base._robot.data.joint_effort_limits[:, hip_ids], hip.effort_limit):
+            raise RuntimeError('PhysX hip effort caps do not match MG996R actuator model')
         runner = OnPolicyRunner(env, agent.to_dict(), log_dir=str(log), device=agent.device)
         if checkpoint:
             runner.load(str(checkpoint), load_optimizer=args.mode == 'train')
@@ -92,6 +115,7 @@ def main():
         for source in [*task_dir.glob('mg90s*.py'), task_dir / 'stair_sensing.py',
                        task_dir / 'onshape_cad6_gait.py', task_dir / 'payload_mass.py',
                        task_dir / 'servo_specs.py', task_dir / '__init__.py',
+                       ROOT / 'isaaclab_project/assets/spiderbot_variants/cad_source.json',
                        Path(__file__), Path(__file__).with_name('mg90s_checkpoint.py')]:
             shutil.copy2(source, snapshot / source.name)
         print('STAIRS_RUN_STARTED ' + str(log), flush=True)

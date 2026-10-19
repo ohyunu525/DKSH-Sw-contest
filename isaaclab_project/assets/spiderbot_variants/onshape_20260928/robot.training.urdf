@@ -331,7 +331,7 @@
     <parent link="base" />
     <child link="leg_5_hip" />
     <axis xyz="0 0 -1" />
-    <limit effort="0.13239000" velocity="10.47197551" lower="-1.5707963267948966" upper="1.5707963267948966" />
+    <limit effort="0.69136883" velocity="5.51156606" lower="-1.5707963267948966" upper="1.5707963267948966" />
   </joint>
   <link name="leg_4_hip">
     <inertial>
@@ -537,7 +537,7 @@
     <parent link="base" />
     <child link="leg_4_hip" />
     <axis xyz="0 0 -1" />
-    <limit effort="0.13239000" velocity="10.47197551" lower="-1.5707963267948966" upper="1.5707963267948966" />
+    <limit effort="0.69136883" velocity="5.51156606" lower="-1.5707963267948966" upper="1.5707963267948966" />
   </joint>
   <link name="leg_3_hip">
     <inertial>
@@ -743,7 +743,7 @@
     <parent link="base" />
     <child link="leg_3_hip" />
     <axis xyz="0 0 -1" />
-    <limit effort="0.13239000" velocity="10.47197551" lower="-1.5707963267948966" upper="1.5707963267948966" />
+    <limit effort="0.69136883" velocity="5.51156606" lower="-1.5707963267948966" upper="1.5707963267948966" />
   </joint>
   <link name="leg_2_hip">
     <inertial>
@@ -949,7 +949,7 @@
     <parent link="base" />
     <child link="leg_2_hip" />
     <axis xyz="0 0 -1" />
-    <limit effort="0.13239000" velocity="10.47197551" lower="-1.5707963267948966" upper="1.5707963267948966" />
+    <limit effort="0.69136883" velocity="5.51156606" lower="-1.5707963267948966" upper="1.5707963267948966" />
   </joint>
   <link name="leg_1_hip">
     <inertial>
@@ -1155,7 +1155,7 @@
     <parent link="base" />
     <child link="leg_1_hip" />
     <axis xyz="0 0 -1" />
-    <limit effort="0.13239000" velocity="10.47197551" lower="-1.5707963267948966" upper="1.5707963267948966" />
+    <limit effort="0.69136883" velocity="5.51156606" lower="-1.5707963267948966" upper="1.5707963267948966" />
   </joint>
   <link name="leg_0_hip">
     <inertial>
@@ -1361,6 +1361,6 @@
     <parent link="base" />
     <child link="leg_0_hip" />
     <axis xyz="0 0 -1" />
-    <limit effort="0.13239000" velocity="10.47197551" lower="-1.5707963267948966" upper="1.5707963267948966" />
+    <limit effort="0.69136883" velocity="5.51156606" lower="-1.5707963267948966" upper="1.5707963267948966" />
   </joint>
 </robot>
