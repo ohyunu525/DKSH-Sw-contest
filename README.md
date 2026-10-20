@@ -53,6 +53,12 @@ tailnet 안에서만 허용됩니다. 자세한 조건과 해제 방법은 [ROS2
 
 ## Isaac Lab 빠른 시작
 
+기본 학습은 이제 **관절 절대각 직접 출력(v1)** 방식입니다. 기본 gait에 작은 각도를 더하는
+방식을 사용하지 않으며, 정책이 허용 범위 전체에서 각 관절의 목표각을 선택합니다.
+관절 제한·명령 변화 속도·접지·에너지 비용과 연속 계단 코스를 포함합니다.
+[직접 관절각 학습과 단계별 실행](isaaclab_project/docs/joint_angle_training.md)을 먼저 참고하세요.
+기존 v0 정책은 `-ControlMode legacy`로 선택하며 새 v1 정책에는 사용할 수 없습니다.
+
 현재 구성은 Isaac Sim 4.5.0과 호환되는 Isaac Lab 2.1.0/Python 3.10을 사용합니다. NVIDIA GPU와
 Isaac Sim 4.5 standalone 설치가 필요하며, 기본 설치 위치가 다르면 경로를 지정합니다.
 
@@ -81,12 +87,13 @@ git submodule update --init --recursive
 .\run_isaaclab.ps1 -Mode train -NumEnvs 32 -MaxIterations 1000
 ```
 
-학습 결과는 `logs/rsl_rl/dksh_spider_navigation` 아래에 저장됩니다.
+기본 직접 각도 학습 결과는 `logs/rsl_rl/dksh_spider_jointangles_v1` 아래에 저장됩니다.
+기존 `legacy` 결과 경로는 `logs/rsl_rl/dksh_spider_navigation`입니다.
 
 ## 학습 환경 선택
 
 `-Environment`로 평지(`flat`), 좁은 틈(`narrow`), 진동 바닥(`vibrating`),
-낙하물 위험구역(`falling_debris`), 요철·단차(`rough`), 복합 환경(`mixed`)을 선택합니다.
+낙하물 위험구역(`falling_debris`), 요철·단차(`rough`), 복합 환경(`mixed`), 연속 계단(`stairs`)을 선택합니다.
 `-Difficulty`는 0~1이며 기본값은 0.5입니다. `-Seed`로 무작위 시드를 지정할 수 있습니다.
 
 ```powershell
@@ -121,7 +128,7 @@ git submodule update --init --recursive
 .\run_isaaclab.ps1 -Mode play -NumEnvs 1 -Checkpoint "C:\path\to\model.pt"
 ```
 
-기본 로봇의 평지에서 로그가 없는 새 체크아웃은 함께 제공되는 `balance_baseline.pt`를 자동 사용합니다. 이 모델은
+`-ControlMode legacy`에서 기본 로봇의 평지 로그가 없는 새 체크아웃은 함께 제공되는 `balance_baseline.pt`를 자동 사용합니다. 이 모델은
 500회 PPO 학습으로 20초 자세 유지를 검증한 시작점이며, 목표 보행을 완성한 모델은 아닙니다.
 
 등록된 환경 ID는 `Isaac-DKSH-Spider-Navigation-Direct-v0`입니다. 로봇은 실제 설계값을 반영한
@@ -139,7 +146,7 @@ Unity 프로젝트는 `DKSH SW Project`에 유지됩니다. Unity의 FBX는 외�
 Isaac Sim 4.5는 변환 파일을 정상 기록한 뒤 종료 코드 1을 반환할 수 있습니다. 재생성 스크립트는
 필수 USD 4개가 실제로 생성됐는지 검사하며, 이 경우 경고를 표시하고 성공으로 처리합니다.
 
-## 검증 범위
+## 기존 v0 검증 기록
 
 - 물리 주기 200 Hz, 정책 제어 주기 50 Hz
 - 기본 8족 로봇: 평지 관측 84차원, 비평지 관측 116차원, 연속 행동 24차원

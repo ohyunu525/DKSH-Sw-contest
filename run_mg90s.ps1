@@ -1,15 +1,40 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('train', 'check', 'play')][string]$Mode = 'train',
+    [ValidateSet('train', 'check', 'evaluate', 'play')][string]$Mode = 'train',
     [ValidateRange(1, 128)][int]$NumEnvs = 32,
     [ValidateRange(1, 100000)][int]$MaxIterations = 2000,
     [string]$Checkpoint = '',
     [ValidateSet('cad6', 'legacy8')][string]$RobotModel = 'cad6',
     [ValidateSet('normal', 'sprint')][string]$SpeedProfile = 'normal',
+    [ValidateSet('direct', 'legacy')][string]$ControlMode = 'direct',
+    [ValidateSet('flat', 'narrow', 'vibrating', 'falling_debris', 'rough', 'mixed', 'stairs')][string]$Environment = 'flat',
+    [ValidateRange(0, 1)][double]$Difficulty = 0.5,
+    [ValidateRange(1, 100000)][int]$Steps = 12000,
+    [ValidateRange(0, 2147483647)][int]$Seed = 42,
+    [string]$Output = '',
     [switch]$Gui
 )
 
 $ErrorActionPreference = 'Stop'
+if ($ControlMode -eq 'direct') {
+    if ($PSBoundParameters.ContainsKey('SpeedProfile') -and $SpeedProfile -eq 'sprint') {
+        throw 'SpeedProfile sprint is a legacy reference gait. Use -ControlMode legacy for old gait policies; direct mode learns its own joint angles.'
+    }
+    $directMode = if ($Mode -eq 'check') { 'smoke' } else { $Mode }
+    $directRobot = if ($RobotModel -eq 'legacy8') { 'baseline' } else { 'cad6' }
+    $options = @{
+        Mode = $directMode; RobotModel = $directRobot; ServoModel = 'mg90s'; ControlMode = 'direct'
+        Environment = $Environment; Difficulty = $Difficulty; NumEnvs = $NumEnvs
+        MaxIterations = $MaxIterations; Seed = $Seed; Checkpoint = $Checkpoint; Output = $Output; Gui = $Gui
+    }
+    if ($Mode -eq 'check') { $options.Steps = if ($PSBoundParameters.ContainsKey('Steps')) { $Steps } else { 1000 } }
+    elseif ($Mode -eq 'evaluate') { $options.Steps = $Steps }
+    & (Join-Path $PSScriptRoot 'run_isaaclab.ps1') @options
+    return
+}
+if ($Environment -ne 'flat' -or $Mode -eq 'evaluate') {
+    throw 'Use direct mode for terrain courses and the new evaluation report. Legacy mode supports its original flat gait tasks.'
+}
 $launcher = Join-Path $PSScriptRoot 'IsaacLab\isaaclab.bat'
 $taskName = 'Isaac-DKSH-MG90S-Walk-Direct-v0'
 $observationCount = 86

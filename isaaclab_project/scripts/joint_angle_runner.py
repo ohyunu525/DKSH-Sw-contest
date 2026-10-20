@@ -1,0 +1,187 @@
+"""Train, evaluate or play a policy that directly chooses every joint angle."""
+
+from __future__ import annotations
+
+import argparse
+from datetime import datetime
+import hashlib
+import json
+from pathlib import Path
+import time
+
+from environment_cli import add_environment_args, apply_environment_cfg, experiment_for_environment
+from joint_angle_checkpoint import ACTION_SEMANTICS, resolve_checkpoint, validate_checkpoint, validate_control_contract
+from isaaclab.app import AppLauncher
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--mode", choices=("train", "evaluate", "play"), required=True)
+parser.add_argument("--task", default="Isaac-DKSH-MG90S-CAD6-JointAngles-v1")
+parser.add_argument("--checkpoint", default="")
+parser.add_argument("--num_envs", type=int, default=4)
+parser.add_argument("--max_iterations", type=int, default=2000)
+parser.add_argument("--steps", type=int, default=12000)
+parser.add_argument("--output", default="", help="Optional JSON evaluation report")
+parser.add_argument("--disable_fabric", action="store_true")
+add_environment_args(parser)
+AppLauncher.add_app_launcher_args(parser)
+args = parser.parse_args()
+if min(args.num_envs, args.max_iterations, args.steps) < 1:
+    parser.error("Environment, iteration and step counts must be positive")
+if not args.task.endswith("-JointAngles-v1"):
+    parser.error("This runner requires a v1 absolute-angle task")
+if args.checkpoint:
+    validate_checkpoint(args.checkpoint, args.task, args.environment)
+app = AppLauncher(args).app
+
+import gymnasium as gym
+import torch
+from rsl_rl.runners import OnPolicyRunner
+import dksh_isaaclab  # noqa: F401
+from isaaclab.utils.io import dump_yaml
+from isaaclab_tasks.utils import parse_env_cfg
+from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
+
+
+def write_json(path, data):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, allow_nan=False), encoding="utf-8")
+
+
+def experiment_name(task, environment):
+    return experiment_for_environment("dksh_" + task.removeprefix("Isaac-DKSH-").lower().replace("-", "_"), environment)
+
+
+def train(env, runner, cfg, agent, log, checkpoint):
+    base = env.unwrapped
+    metadata = {
+        "task": args.task, "action_semantics": ACTION_SEMANTICS,
+        "environment": args.environment, "difficulty": args.difficulty,
+        "seed": cfg.seed, "actions": cfg.action_space, "observations": cfg.observation_space,
+        "joint_names": [base._robot.joint_names[i] for i in base._joint_ids],
+        "angle_limits_rad": base._angle_limits[0].cpu().tolist(),
+        "target_rate_limit_rad_s": cfg.target_rate_limit, "target_smoothing": cfg.target_smoothing,
+        "control_frequency_hz": 1.0 / base.step_dt,
+        "source_checkpoint": str(checkpoint) if checkpoint else None,
+        "additional_iterations": args.max_iterations, "status": "initializing",
+    }
+    path = log / "run_metadata.json"
+    try:
+        if checkpoint:
+            runner.load(str(checkpoint))
+            runner.current_learning_iteration += 1
+        else:
+            # Start near a static standing pose with free trainable outputs.
+            # This is a one-time weight initialization, never a gait/angle offset.
+            output = [layer for layer in runner.alg.policy.actor if isinstance(layer, torch.nn.Linear)][-1]
+            from dksh_isaaclab.tasks.direct.spider_navigation.joint_angle_control import normalize_angles
+            initial = normalize_angles(base._robot.data.default_joint_pos[:, base._joint_ids], base._angle_limits)[0]
+            with torch.no_grad():
+                output.weight.zero_()
+                output.bias.copy_(initial)
+        metadata.update(status="running", start_iteration=runner.current_learning_iteration)
+        write_json(path, metadata)
+        dump_yaml(str(log / "params/env.yaml"), cfg)
+        dump_yaml(str(log / "params/agent.yaml"), agent)
+        runner.learn(num_learning_iterations=args.max_iterations, init_at_random_ep_len=False)
+        final = log / f"model_{runner.current_learning_iteration}.pt"
+        if not final.is_file():
+            raise RuntimeError("Training returned without its final checkpoint")
+        metadata.update(status="completed", final_checkpoint=final.name,
+                        final_sha256=hashlib.sha256(final.read_bytes()).hexdigest(),
+                        final_iteration=runner.current_learning_iteration, completed_episodes=base.completed)
+        write_json(path, metadata)
+        print("DKSH_JOINT_ANGLE_TRAINING_COMPLETE " + str(final), flush=True)
+    except BaseException as error:
+        metadata.update(status="failed", error=repr(error))
+        write_json(path, metadata)
+        raise
+
+
+def evaluate_or_play(env, runner, cfg, checkpoint):
+    runner.load(str(checkpoint))
+    policy = runner.get_inference_policy(device=env.unwrapped.device)
+    observation, _ = env.get_observations()
+    base = env.unwrapped
+    totals = {name: 0.0 for name in ("mechanical_energy_j", "progress_m", "forward_speed_mps", "body_contact_fraction", "joint_limit_cost")}
+    rate_max = 0.0
+    steps = 0
+    with torch.inference_mode():
+        while app.is_running() and (args.mode == "play" or steps < args.steps):
+            started = time.perf_counter()
+            actions = policy(observation)
+            if not torch.isfinite(actions).all():
+                raise RuntimeError("Policy produced non-finite joint-angle actions")
+            observation, rewards, _, _ = env.step(actions)
+            if not torch.isfinite(observation).all() or not torch.isfinite(rewards).all():
+                raise RuntimeError("Non-finite observation or reward")
+            metrics = base.step_metrics
+            totals["mechanical_energy_j"] += float(metrics["mechanical_power_w"].sum()) * base.step_dt
+            totals["progress_m"] += float(metrics["progress_m"].sum())
+            totals["forward_speed_mps"] += float(metrics["forward_speed_mps"].mean())
+            totals["body_contact_fraction"] += float(metrics["body_contact"].mean())
+            totals["joint_limit_cost"] += float(metrics["joint_limit_cost"].mean())
+            rate_max = max(rate_max, float(metrics["target_rate_rad_s"].max()))
+            steps += 1
+            if args.mode == "play" and not args.headless:
+                time.sleep(max(0, base.step_dt - (time.perf_counter() - started)))
+    if args.mode == "evaluate":
+        if steps != args.steps:
+            raise RuntimeError("Evaluation ended before the requested number of steps")
+        counts = base.completed.copy()
+        success_rate = counts["goal"] / max(1, counts["episodes"])
+        report = {
+            "checkpoint": str(checkpoint), "task": args.task, "action_semantics": ACTION_SEMANTICS,
+            "environment": args.environment, "difficulty": args.difficulty, "seed": cfg.seed,
+            "environments": args.num_envs, "steps": steps, "episodes": counts,
+            "success_rate": success_rate,
+            **{key: value / steps if key in ("forward_speed_mps", "body_contact_fraction", "joint_limit_cost") else value for key, value in totals.items()},
+            "energy_per_progress_j_m": (totals["mechanical_energy_j"] / totals["progress_m"] if totals["progress_m"] > 1e-6 else None),
+            "max_target_rate_rad_s": rate_max,
+            "locomotion_pass": counts["goal"] >= args.num_envs and success_rate >= 0.8
+                and counts["fallen"] == 0 and counts["out_of_bounds"] == 0,
+        }
+        if args.output:
+            write_json(args.output, report)
+        print(json.dumps(report, indent=2, allow_nan=False), flush=True)
+        # Completion is distinct from demonstrating successful locomotion.
+        print("DKSH_JOINT_ANGLE_EVAL_COMPLETE locomotion_pass=" + str(report["locomotion_pass"]), flush=True)
+    else:
+        print("DKSH_JOINT_ANGLE_PLAY_COMPLETE", flush=True)
+
+
+def main():
+    cfg = parse_env_cfg(args.task, device=args.device, num_envs=args.num_envs, use_fabric=not args.disable_fabric)
+    apply_environment_cfg(cfg, args.environment, args.difficulty, args.seed)
+    agent = load_cfg_from_registry(args.task, "rsl_rl_cfg_entry_point")
+    agent.device = cfg.sim.device
+    agent.seed = cfg.seed
+    agent.max_iterations = args.max_iterations
+    agent.experiment_name = experiment_name(args.task, args.environment)
+    root = Path(__file__).resolve().parents[2] / "logs/rsl_rl" / agent.experiment_name
+    checkpoint = (resolve_checkpoint(args.checkpoint, root, args.task, args.environment)
+                  if args.checkpoint or args.mode != "train" else None)
+    log = root / datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f") if args.mode == "train" else None
+    if log:
+        log.mkdir(parents=True, exist_ok=False)
+    env = RslRlVecEnvWrapper(gym.make(args.task, cfg=cfg), clip_actions=agent.clip_actions)
+    try:
+        if checkpoint:
+            metadata = validate_checkpoint(checkpoint, args.task, args.environment)
+            base = env.unwrapped
+            validate_control_contract(metadata, [base._robot.joint_names[i] for i in base._joint_ids], base._angle_limits[0])
+        runner = OnPolicyRunner(env, agent.to_dict(), log_dir=str(log) if log else None, device=agent.device)
+        if args.mode == "train":
+            train(env, runner, cfg, agent, log, checkpoint)
+        else:
+            evaluate_or_play(env, runner, cfg, checkpoint)
+    finally:
+        env.close()
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    finally:
+        app.close()

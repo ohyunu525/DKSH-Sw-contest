@@ -33,6 +33,10 @@ def main():
     try:
         env.reset()
         actions = torch.zeros((cfg.scene.num_envs, cfg.action_space), device=env.unwrapped.device)
+        if getattr(cfg, "action_semantics", None) == "absolute_joint_angles_v1":
+            from dksh_isaaclab.tasks.direct.spider_navigation.joint_angle_control import normalize_angles
+            base = env.unwrapped
+            actions = normalize_angles(base._robot.data.default_joint_pos[:, base._joint_ids], base._angle_limits)
         print(f"Preview: {args.environment}, difficulty={args.difficulty}. Robot holds its initial joint targets.")
         with torch.inference_mode():
             for _ in range(args.steps):

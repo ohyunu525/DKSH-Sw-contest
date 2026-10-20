@@ -99,6 +99,22 @@ class ScenarioLayoutTests(unittest.TestCase):
             self.assertGreater(hard_step.position[0] - hard_step.size[0] / 2.0, hard.spawn[0])
             self.assertLess(hard_step.position[0] + hard_step.size[0] / 2.0, hard.goal[0])
 
+    def test_stairs_are_contiguous_ascending_and_end_in_supported_goal_platform(self):
+        for difficulty in (0.0, 0.5, 1.0):
+            layout = LAYOUT.build_layout("stairs", difficulty, robot_width=0.46, robot_height=0.24)
+            stairs = [box for box in layout.boxes if box.kind == "stairs"]
+            self.assertEqual(len(stairs), 3)
+            tops = [box.position[2] + box.size[2] / 2 for box in stairs]
+            self.assertLess(tops[0], tops[1])
+            self.assertLess(tops[1], tops[2])
+            self.assertAlmostEqual(layout.goal[2], tops[-1])
+            self.assertGreater(layout.goal[2], layout.spawn[2])
+            for lower, upper in zip(stairs, stairs[1:]):
+                self.assertAlmostEqual(lower.position[0] + lower.size[0] / 2, upper.position[0] - upper.size[0] / 2)
+            self.assertEqual(stairs[-1].size[1], layout.corridor_width)
+            self.assertLess(stairs[-1].position[0] - stairs[-1].size[0] / 2, layout.goal[0])
+            self.assertGreater(stairs[-1].position[0] + stairs[-1].size[0] / 2, layout.goal[0] + 0.46 / 2)
+
     def test_dynamic_presets_have_matching_surface_heights_and_open_hazard_zone(self) -> None:
         expected_flags = {
             "flat": (False, False),

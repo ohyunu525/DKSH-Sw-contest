@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from numbers import Real
 
 
-ENVIRONMENT_PRESETS = ("flat", "narrow", "vibrating", "falling_debris", "rough", "mixed")
+ENVIRONMENT_PRESETS = ("flat", "narrow", "vibrating", "falling_debris", "rough", "mixed", "stairs")
 COURSE_LENGTH = 5.6
 VIBRATING_SURFACE_HEIGHT = 0.08
 
@@ -137,12 +137,28 @@ def build_layout(
                 )
             )
 
+    goal_z = floor_z
+    if preset == "stairs":
+        # Three contiguous ascending treads, then a full standing platform.
+        # Difficulty changes riser height only; endpoints/observation sizes stay
+        # identical, allowing checkpoint transfer from easy to harder stairs.
+        riser = robot_height * (0.025 + 0.10 * difficulty)
+        edges = (-0.85, -0.30, 0.25, COURSE_LENGTH / 2)
+        for index in range(3):
+            left, right = edges[index:index + 2]
+            height = (index + 1) * riser
+            boxes.append(BoxSpec(
+                name=f"stair_{index}", position=((left + right) / 2, 0.0, height / 2),
+                size=(right - left, corridor_width, height), kind="stairs",
+            ))
+        goal_z = 3 * riser
+
     return ScenarioLayout(
         preset=preset,
         difficulty=difficulty,
         boxes=tuple(boxes),
         spawn=(-1.6, 0.0, floor_z),
-        goal=(1.6, 0.0, floor_z),
+        goal=(1.6, 0.0, goal_z),
         corridor_width=float(corridor_width),
         vibration_active=vibration_active,
         debris_active=debris_active,

@@ -122,7 +122,7 @@ class ScenarioRuntime:
         self._centers = torch.tensor([b.position for b in self.layout.boxes], device=env.device).reshape(-1, 3)
         self._halves = torch.tensor([b.size for b in self.layout.boxes], device=env.device).reshape(-1, 3) / 2
         # Roof and walls are never interpreted as supporting terrain.
-        self._terrain_indices = [i for i, b in enumerate(self.layout.boxes) if b.kind == "rough"]
+        self._terrain_indices = [i for i, b in enumerate(self.layout.boxes) if b.kind in ("rough", "stairs")]
         self._height_offsets = torch.tensor(
             [(x, y) for x in (-0.3, 0.0, 0.3) for y in (-0.3, 0.0, 0.3)], device=env.device
         )

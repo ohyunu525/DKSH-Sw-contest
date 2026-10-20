@@ -313,6 +313,15 @@ class ScenarioRuntimeTests(unittest.TestCase):
                     if preset == "flat":
                         torch.testing.assert_close(observation[:, :16], torch.ones((4, 16)))
 
+    def test_stair_surface_queries_include_raised_goal_platform(self):
+        runtime = self.make_runtime("stairs")
+        stairs = [box for box in runtime.layout.boxes if box.kind == "stairs"]
+        positions = runtime.env.scene.env_origins + torch.tensor([
+            [-1.6, 0, 0.2], [-0.6, 0, 0.2], [0.0, 0, 0.2], [1.6, 0, 0.3],
+        ])
+        tops = [box.position[2] + box.size[2] / 2 for box in stairs]
+        torch.testing.assert_close(runtime.ground_height(positions), runtime.env.scene.env_origins[:, 2] + torch.tensor([0, *tops]))
+
 
 if __name__ == "__main__":
     unittest.main()

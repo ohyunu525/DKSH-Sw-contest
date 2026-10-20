@@ -11,12 +11,18 @@ param(
     [string]$Checkpoint = "",
     [ValidateSet('baseline', 'cad8', 'cad6')]
     [string]$RobotModel = 'baseline',
-    [ValidateSet('flat', 'narrow', 'vibrating', 'falling_debris', 'rough', 'mixed')]
+    [ValidateSet('mg996r', 'mg90s')]
+    [string]$ServoModel = 'mg996r',
+    [ValidateSet('direct', 'legacy')]
+    [string]$ControlMode = 'direct',
+    [ValidateSet('flat', 'narrow', 'vibrating', 'falling_debris', 'rough', 'mixed', 'stairs')]
     [string]$Environment = 'flat',
     [ValidateRange(0.0, 1.0)]
     [double]$Difficulty = 0.5,
     [ValidateRange(0, 2147483647)]
-    [int]$Seed = 42
+    [int]$Seed = 42,
+    [string]$Output = '',
+    [switch]$Gui
 )
 
 $projectRoot = $PSScriptRoot
@@ -32,6 +38,14 @@ if ($RobotModel -ne 'baseline') {
 }
 if ($Environment -ne 'flat') {
     $experimentName += '_obstacles'
+}
+if ($ControlMode -eq 'direct') {
+    $taskPrefix = if ($ServoModel -eq 'mg90s') { 'MG90S' } else { 'Spider' }
+    if ($RobotModel -ne 'baseline') { $taskPrefix += "-$($RobotModel.ToUpperInvariant())" }
+    $taskName = "Isaac-DKSH-$taskPrefix-JointAngles-v1"
+}
+elseif ($ServoModel -eq 'mg90s') {
+    throw 'Use run_mg90s.ps1 -ControlMode legacy for an old residual MG90S policy.'
 }
 $difficultyText = $Difficulty.ToString([System.Globalization.CultureInfo]::InvariantCulture)
 $environmentArguments = @("--environment=$Environment", "--difficulty=$difficultyText")
@@ -50,10 +64,37 @@ if (-not (Test-Path -LiteralPath $launcher)) {
 
 Push-Location $projectRoot
 try {
+    if ($ControlMode -eq 'direct' -and $Mode -in @('train', 'evaluate', 'play')) {
+        $scriptPath = Join-Path $projectRoot 'isaaclab_project\scripts\joint_angle_runner.py'
+        $arguments = @('-p', $scriptPath, "--mode=$Mode", "--task=$taskName", "--num_envs=$NumEnvs", "--max_iterations=$MaxIterations") + $environmentArguments
+        if ($Checkpoint) { $arguments += "--checkpoint=$Checkpoint" }
+        if ($Output) { $arguments += "--output=$Output" }
+        if ($Mode -eq 'play') { $arguments += '--disable_fabric' }
+        elseif (-not $Gui) { $arguments += '--headless' }
+        if ($PSBoundParameters.ContainsKey('Steps')) { $arguments += "--steps=$Steps" }
+        $completionMarker = switch ($Mode) {
+            'train' { 'DKSH_JOINT_ANGLE_TRAINING_COMPLETE' }
+            'evaluate' { 'DKSH_JOINT_ANGLE_EVAL_COMPLETE' }
+            'play' { 'DKSH_JOINT_ANGLE_PLAY_COMPLETE' }
+        }
+        $completed = $false
+        & $launcher @arguments 2>&1 | ForEach-Object {
+            if ([string]$_ -like "$completionMarker*") { $completed = $true }
+            Write-Output $_
+        }
+        $nativeExitCode = $LASTEXITCODE
+        if (-not $completed -or $nativeExitCode -notin @(0, 1)) {
+            throw "Absolute joint-angle $Mode did not complete (native exit code $nativeExitCode)."
+        }
+        cmd.exe /d /c exit 0
+        return
+    }
     switch ($Mode) {
         "smoke" {
             $scriptPath = Join-Path $projectRoot "isaaclab_project\scripts\smoke_env.py"
-            $output = @(& $launcher -p $scriptPath --headless "--task=$taskName" "--num_envs=$NumEnvs" "--steps=$Steps" @environmentArguments 2>&1)
+            $smokeArguments = @('-p', $scriptPath, "--task=$taskName", "--num_envs=$NumEnvs", "--steps=$Steps") + $environmentArguments
+            if (-not $Gui) { $smokeArguments += '--headless' }
+            $output = @(& $launcher @smokeArguments 2>&1)
             $nativeExitCode = $LASTEXITCODE
             $output | Write-Output
             if (-not ($output -match "DKSH_ISAACLAB_SMOKE_PASS")) {

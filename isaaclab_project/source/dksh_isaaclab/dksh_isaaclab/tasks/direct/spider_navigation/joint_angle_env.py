@@ -1,0 +1,236 @@
+"""Learn locomotion by selecting absolute motor angles, including on stairs."""
+
+from __future__ import annotations
+
+import torch
+
+from isaaclab.sensors import ContactSensor, ContactSensorCfg
+from isaaclab.utils.math import quat_rotate
+
+from .spider_navigation_env import SpiderNavigationEnv
+from .joint_angle_control import (
+    bounded_angle_targets, frontier_progress, joint_names, motion_costs,
+    normalize_angles, observation_size, point_velocity,
+)
+from .mg90s_rewards import speed_tracking_reward
+
+
+class JointAngleNavigationEnv(SpiderNavigationEnv):
+    def __init__(self, cfg, render_mode=None, **kwargs):
+        cfg.robot = cfg.robot.copy()
+        cfg.robot.spawn.activate_contact_sensors = True
+        cfg.robot.spawn.articulation_props.enabled_self_collisions = True
+        super().__init__(cfg, render_mode, **kwargs)
+        # Parent retains its v0 observation contract. Set the v1 space before
+        # DirectRLEnv configures Gym spaces, via _configure_gym_env_spaces below.
+        self._joint_ids = [self._robot.joint_names.index(name) for name in joint_names(cfg.action_space // 3)]
+        asset_limits = self._robot.data.soft_joint_pos_limits[:, self._joint_ids].clone()
+        working = torch.tensor(
+            [cfg.joint_angle_ranges[part] for _ in range(cfg.action_space // 3)
+             for part in ("hip", "femur", "tibia")], device=self.device,
+        )
+        self._angle_limits = torch.stack((
+            torch.maximum(asset_limits[..., 0], working[:, 0]),
+            torch.minimum(asset_limits[..., 1], working[:, 1]),
+        ), dim=-1)
+        if not torch.all(self._angle_limits[..., 0] < self._angle_limits[..., 1]):
+            raise ValueError("Working angle ranges do not overlap the asset's joint limits")
+        # Constrain actual physics too: contacts must not bend knees through the
+        # opposite IK branch while commanded targets remain inside their limits.
+        physical_limits = self._robot.data.joint_pos_limits.clone()
+        physical_limits[:, self._joint_ids] = self._angle_limits
+        self._robot.write_joint_position_limit_to_sim(physical_limits)
+        self._processed_actions = self._robot.data.default_joint_pos.clone()
+        self._target_velocity = torch.zeros_like(self._actions)
+        self._previous_target_velocity = torch.zeros_like(self._actions)
+        self._best_goal_distance = torch.zeros(self.num_envs, device=self.device)
+        self._goal_hold_time = torch.zeros_like(self._best_goal_distance)
+        self._reached_goal = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self._feet = [self._robot.body_names.index(f"leg_{leg}_tibia") for leg in range(cfg.action_space // 3)]
+        self._sensor_feet = [self._contacts.body_names.index(self._robot.body_names[i]) for i in self._feet]
+        self._sensor_body = [i for i, name in enumerate(self._contacts.body_names) if not name.endswith("_tibia")]
+        self._sole_offset = torch.tensor(cfg.sole_offset, device=self.device).expand(self.num_envs, len(self._feet), 3)
+        self._effort_limits = self._robot.data.joint_effort_limits[:, self._joint_ids]
+        self.completed = {name: 0 for name in ("episodes", "goal", "fallen", "time_out", "out_of_bounds")}
+        self._episode_sums = {name: torch.zeros(self.num_envs, device=self.device) for name in (
+            "progress", "speed", "upright", "joint_limit", "joint_velocity", "torque", "power",
+            "target_acceleration", "body_contact", "foot_slip", "angular_velocity", "stillness",
+            "goal", "failure", "debris_impact",
+        )}
+        self.step_metrics = {}
+
+    @property
+    def joint_angle_targets_rad(self):
+        """Applied absolute targets in public leg-major order, ready for 50 Hz commands."""
+        return self._processed_actions[:, self._joint_ids]
+
+    def _configure_gym_env_spaces(self):
+        self.cfg.observation_space = observation_size(self.cfg.action_space, self.cfg.environment_preset)
+        super()._configure_gym_env_spaces()
+
+    def _setup_scene(self):
+        super()._setup_scene()
+        # All link colliders have contact reporting enabled by the spawn config.
+        self._contacts = ContactSensor(ContactSensorCfg(
+            prim_path="/World/envs/env_.*/Robot/.*", update_period=0.0,
+            history_length=self.cfg.decimation,
+        ))
+        self.scene.sensors["robot_contacts"] = self._contacts
+
+    def _pre_physics_step(self, actions):
+        if self._scenario is not None:
+            self._scenario.begin_step()
+        self.extras["log"] = {}
+        self._previous_actions.copy_(self._actions)
+        previous = self._processed_actions[:, self._joint_ids]
+        self._actions.copy_(torch.where(torch.isfinite(actions), actions, normalize_angles(previous, self._angle_limits)).clamp(-1, 1))
+        targets = bounded_angle_targets(
+            self._actions, previous, self._angle_limits, dt=self.step_dt,
+            rate_limit=self.cfg.target_rate_limit, smoothing=self.cfg.target_smoothing,
+        )
+        self._previous_target_velocity.copy_(self._target_velocity)
+        self._target_velocity.copy_((targets - previous) / self.step_dt)
+        self._processed_actions[:, self._joint_ids] = targets
+
+    def _contact_state(self):
+        forces = torch.linalg.vector_norm(self._contacts.data.net_forces_w_history, dim=-1).amax(dim=1)
+        feet = forces[:, self._sensor_feet] > self.cfg.contact_threshold
+        body = (forces[:, self._sensor_body] > self.cfg.contact_threshold).any(dim=-1)
+        return feet, body
+
+    def _ground_height(self):
+        if self._scenario is None:
+            return self.scene.env_origins[:, 2]
+        return self._scenario.ground_height(self._robot.data.root_pos_w)
+
+    def _get_observations(self):
+        # Keep the CAD viewport synchronization already used by the v0 player.
+        if "spiderbot_variants" in self.cfg.robot.spawn.usd_path:
+            self._sync_cad_visual_for_gui()
+        data = self._robot.data
+        distance, _, direction_b = self._goal_data()
+        feet, _ = self._contact_state()
+        clearance = data.root_pos_w[:, 2] - self._ground_height()
+        goal_surface = (self._target_positions_w[:, 2] - 0.015 if self._scenario is not None
+                        else self.scene.env_origins[:, 2])
+        observation = torch.cat((
+            data.root_lin_vel_b, data.root_ang_vel_b, data.projected_gravity_b,
+            direction_b[:, :2], (distance / self.cfg.goal_max_distance).unsqueeze(-1),
+            normalize_angles(data.joint_pos[:, self._joint_ids], self._angle_limits),
+            data.joint_vel[:, self._joint_ids] / self.cfg.servo_velocity_limit,
+            normalize_angles(self._processed_actions[:, self._joint_ids], self._angle_limits),
+            feet.float(), (clearance / self.cfg.robot_height).unsqueeze(-1),
+            ((goal_surface - data.root_pos_w[:, 2]) / self.cfg.robot_height).unsqueeze(-1),
+        ), dim=-1)
+        if self._scenario is not None:
+            observation = torch.cat((observation, self._scenario.observations()), dim=-1)
+        return {"policy": observation}
+
+    def _get_dones(self):
+        if self._scenario is not None:
+            self._scenario.collect_impacts()
+        distance, _, _ = self._goal_data()
+        feet, body_contact = self._contact_state()
+        goal_surface = (self._target_positions_w[:, 2] - 0.015 if self._scenario is not None
+                        else self.scene.env_origins[:, 2])
+        stable_goal = (
+            (distance < self.cfg.goal_radius)
+            & (self._robot.data.root_pos_w[:, 2] >= goal_surface + self.cfg.minimum_base_height)
+            & (self._robot.data.projected_gravity_b[:, 2] < -0.80)
+            & (feet.sum(-1) >= self.cfg.minimum_support_feet) & ~body_contact & ~self._fallen()
+        )
+        self._goal_hold_time = torch.where(stable_goal, self._goal_hold_time + self.step_dt, 0.0)
+        self._reached_goal = self._goal_hold_time >= self.cfg.goal_hold_seconds
+        local = self._robot.data.root_pos_w - self.scene.env_origins
+        if self._scenario is None:
+            self._out_of_bounds = torch.linalg.vector_norm(local[:, :2], dim=-1) > self.cfg.max_distance_from_origin
+        else:
+            self._out_of_bounds = (local[:, 0].abs() > 2.5) | (local[:, 1].abs() > self._scenario.layout.corridor_width / 2)
+        return self._reached_goal | self._fallen() | self._out_of_bounds, self.episode_length_buf >= self.max_episode_length - 1
+
+    def _get_rewards(self):
+        data = self._robot.data
+        distance, direction_w, _ = self._goal_data()
+        progress, self._best_goal_distance = frontier_progress(
+            self._best_goal_distance, distance, 2 * self.cfg.target_speed * self.step_dt,
+        )
+        forward = (data.root_lin_vel_w[:, :2] * direction_w[:, :2]).sum(-1)
+        upright = (-data.projected_gravity_b[:, 2]).clamp(0, 1)
+        costs = motion_costs(
+            data.joint_pos[:, self._joint_ids], data.joint_vel[:, self._joint_ids],
+            data.applied_torque[:, self._joint_ids], self._angle_limits,
+            self._effort_limits, self.cfg.servo_velocity_limit,
+        )
+        feet, body_contact = self._contact_state()
+        offset = quat_rotate(data.body_link_quat_w[:, self._feet].reshape(-1, 4), self._sole_offset.reshape(-1, 3)).reshape_as(self._sole_offset)
+        velocity = point_velocity(data.body_link_lin_vel_w[:, self._feet], data.body_link_ang_vel_w[:, self._feet], offset)
+        if self._scenario is not None:
+            velocity = velocity - self._scenario.floor_velocity[:, None, :]
+        slip = (velocity[..., :2].square().sum(-1) * feet).sum(-1) / feet.sum(-1).clamp_min(1)
+        acceleration = ((self._target_velocity - self._previous_target_velocity) / self.cfg.target_rate_limit).square().mean(-1)
+        rates = {
+            "speed": self.cfg.speed_reward_scale * speed_tracking_reward(forward, torch.full_like(forward, self.cfg.target_speed), self.cfg.speed_tracking_sigma) * upright.square(),
+            "upright": self.cfg.upright_cost_scale * (1 - upright).square(),
+            **{name: getattr(self.cfg, f"{name}_cost_scale") * value for name, value in costs.items()},
+            "target_acceleration": self.cfg.target_acceleration_cost_scale * acceleration,
+            "body_contact": self.cfg.body_contact_cost_scale * body_contact.float(),
+            "foot_slip": self.cfg.foot_slip_cost_scale * slip,
+            "angular_velocity": self.cfg.angular_velocity_cost_scale * data.root_ang_vel_b[:, :2].square().sum(-1),
+            "stillness": self.cfg.stillness_penalty_scale * (forward < 0.1 * self.cfg.target_speed).float(),
+        }
+        failed = self._fallen() | self._out_of_bounds
+        terms = {name: rate * self.step_dt for name, rate in rates.items()}
+        terms.update(
+            progress=self.cfg.progress_reward_scale * progress * upright.square(),
+            goal=self.cfg.goal_reward * self._reached_goal.float(),
+            failure=self.cfg.failure_penalty * failed.float(),
+            debris_impact=self.cfg.debris_impact_penalty * self._debris_hit().float(),
+        )
+        for name, value in terms.items():
+            self._episode_sums[name] += value
+        self._previous_goal_distance.copy_(distance)
+        # Capture before auto-reset, so evaluation includes terminal falls and effort.
+        self.step_metrics = {
+            "forward_speed_mps": forward, "mechanical_power_w": costs["power"],
+            "progress_m": progress, "body_contact": body_contact.float(),
+            "joint_limit_cost": costs["joint_limit"], "foot_slip_m2_s2": slip,
+            "goal": self._reached_goal.float(), "fallen": self._fallen().float(),
+            "out_of_bounds": (self._out_of_bounds & ~self._fallen()).float(),
+            "target_rate_rad_s": self._target_velocity.abs().amax(-1),
+        }
+        self.extras["log"].update({f"Metrics/{name}": value.mean() for name, value in self.step_metrics.items()})
+        return torch.stack(tuple(terms.values())).sum(0)
+
+    def _reset_idx(self, env_ids):
+        if env_ids is None:
+            env_ids = self._robot._ALL_INDICES
+        valid = env_ids[self.episode_length_buf[env_ids] > 0]
+        counts = {name: 0 for name in self.completed}
+        counts["episodes"] = len(valid)
+        if len(valid):
+            counts["goal"] = int(self._reached_goal[valid].sum())
+            counts["fallen"] = int(self._fallen()[valid].sum())
+            counts["out_of_bounds"] = int((self._out_of_bounds[valid] & ~self._fallen()[valid]).sum())
+            counts["time_out"] = int((self.reset_time_outs[valid] & ~self.reset_terminated[valid]).sum())
+        for name, count in counts.items():
+            self.completed[name] += count
+        super()._reset_idx(env_ids)
+        for name in ("goal", "fallen", "time_out", "out_of_bounds"):
+            self.extras["log"][f"Episode_Termination/{name}"] = counts[name]
+        # No random episode age and no precomputed gait phase.
+        self.episode_length_buf[env_ids] = 0
+        positions = self._robot.data.joint_pos[env_ids][:, self._joint_ids]
+        limits = self._angle_limits[env_ids]
+        positions = positions.clamp(limits[..., 0], limits[..., 1])
+        full_positions = self._robot.data.joint_pos[env_ids].clone()
+        full_positions[:, self._joint_ids] = positions
+        self._robot.write_joint_state_to_sim(full_positions, torch.zeros_like(full_positions), env_ids=env_ids)
+        self._processed_actions[env_ids] = full_positions
+        self._robot.set_joint_position_target(full_positions, env_ids=env_ids)
+        self._actions[env_ids] = normalize_angles(positions, limits)
+        self._previous_actions[env_ids] = self._actions[env_ids]
+        self._target_velocity[env_ids] = 0
+        self._previous_target_velocity[env_ids] = 0
+        self._best_goal_distance[env_ids] = self._previous_goal_distance[env_ids]
+        self._goal_hold_time[env_ids] = 0
+        self._reached_goal[env_ids] = False

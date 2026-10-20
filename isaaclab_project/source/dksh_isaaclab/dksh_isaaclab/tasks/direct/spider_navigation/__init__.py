@@ -2,6 +2,26 @@
 
 import gymnasium as gym
 
+# v1 absolute-angle policies have different actions/observations from v0 gait
+# residuals. Separate IDs prevent accidental interpretation of old policies.
+for robot, prefix, config in (
+    ("baseline", "Spider", "JointAngleNavigationEnvCfg"),
+    ("cad8", "Spider-CAD8", "Cad8JointAngleEnvCfg"),
+    ("cad6", "Spider-CAD6", "Cad6JointAngleEnvCfg"),
+    ("mg90s", "MG90S", "MG90SJointAngleEnvCfg"),
+    ("mg90s_cad8", "MG90S-CAD8", "MG90SCad8JointAngleEnvCfg"),
+    ("mg90s_cad6", "MG90S-CAD6", "MG90SCad6JointAngleEnvCfg"),
+):
+    gym.register(
+        id=f"Isaac-DKSH-{prefix}-JointAngles-v1",
+        entry_point=f"{__name__}.joint_angle_env:JointAngleNavigationEnv",
+        disable_env_checker=True,
+        kwargs={
+            "env_cfg_entry_point": f"{__name__}.joint_angle_env_cfg:{config}",
+            "rsl_rl_cfg_entry_point": f"{__name__}.joint_angle_env_cfg:JointAnglePPORunnerCfg",
+        },
+    )
+
 gym.register(
     id="Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0",
     entry_point=f"{__name__}.mg90s_cad6:MG90SCad6Env",

@@ -50,6 +50,13 @@ def main() -> None:
         falling_motion_seen = False
         for _ in range(args_cli.steps):
             actions = 0.1 * (2.0 * torch.rand((args_cli.num_envs, dof), device=env.unwrapped.device) - 1.0)
+            direct_angles = getattr(cfg, "action_semantics", None) == "absolute_joint_angles_v1"
+            if direct_angles:
+                from dksh_isaaclab.tasks.direct.spider_navigation.joint_angle_control import normalize_angles
+                # Exercise motor control near a static reset pose during this
+                # simulator smoke test, without executing a reference gait.
+                standing = normalize_angles(base_env._robot.data.default_joint_pos[:, base_env._joint_ids], base_env._angle_limits)
+                actions = standing + 0.2 * actions
             observation, rewards, terminated, truncated, _ = env.step(actions)
             assert torch.isfinite(observation["policy"]).all()
             assert torch.isfinite(rewards).all()
@@ -57,6 +64,13 @@ def main() -> None:
             assert torch.isfinite(base_env._robot.data.joint_pos).all()
             assert terminated.shape == (args_cli.num_envs,)
             assert truncated.shape == (args_cli.num_envs,)
+            if direct_angles:
+                targets = base_env.joint_angle_targets_rad
+                assert torch.isfinite(targets).all()
+                assert (targets >= base_env._angle_limits[..., 0] - 1e-6).all()
+                assert (targets <= base_env._angle_limits[..., 1] + 1e-6).all()
+                assert (base_env.step_metrics["target_rate_rad_s"] <= cfg.target_rate_limit + 1e-5).all()
+                assert base_env._contact_state()[0].shape == (args_cli.num_envs, dof // 3)
             reset_count += torch.count_nonzero(terminated | truncated).item()
             reward_sum += rewards.sum().item()
             if scenario is not None:

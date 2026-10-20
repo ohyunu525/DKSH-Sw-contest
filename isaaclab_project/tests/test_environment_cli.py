@@ -82,8 +82,10 @@ class RunnerConfigurationTests(unittest.TestCase):
                     self.assertEqual((agent.experiment_name, agent.seed), ("chosen_obstacles", 7))
                     self.assertIn("--task=Example", remaining)
                     self.assertIn("--num_envs=4", remaining)
-                    self.assertEqual("--seed=7" in remaining, training)
-                    self.assertEqual(any(arg.startswith("env.") for arg in remaining), training)
+                    # Lazy factories already own these settings. Reinjecting
+                    # env.* overrides breaks Isaac Lab 2.1's Windows trainer.
+                    self.assertNotIn("--seed=7", remaining)
+                    self.assertFalse(any(arg.startswith("env.") for arg in remaining))
 
     def test_config_is_lazy_and_unselected_tasks_are_untouched(self):
         selected, untouched = make_spec(), make_spec()

@@ -12,7 +12,7 @@ import importlib
 import math
 
 
-ENVIRONMENTS = ("flat", "narrow", "vibrating", "falling_debris", "rough", "mixed")
+ENVIRONMENTS = ("flat", "narrow", "vibrating", "falling_debris", "rough", "mixed", "stairs")
 
 
 def difficulty_value(value: str) -> float:
