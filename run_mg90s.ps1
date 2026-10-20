@@ -5,7 +5,12 @@ param(
     [ValidateRange(1, 100000)][int]$MaxIterations = 2000,
     [string]$Checkpoint = '',
     [ValidateSet('cad6', 'legacy8')][string]$RobotModel = 'cad6',
-    [ValidateSet('normal', 'sprint')][string]$SpeedProfile = 'normal',
+    [ValidateSet('normal', 'sprint', 'velocity')][string]$SpeedProfile = 'velocity',
+    [switch]$AllowProvisionalCad,
+    [ValidateSet('0.4', '0.6', '0.8')][string]$Friction = '0.6',
+    [ValidateSet('0.0025', '0.005', '0.01')][string]$PhysicsDt = '0.005',
+    [switch]$SimpleCollisions,
+    [switch]$SelfCollisions,
     [switch]$Gui
 )
 
@@ -22,6 +27,15 @@ if ($RobotModel -eq 'cad6') {
 if ($RobotModel -eq 'cad6' -and $SpeedProfile -eq 'sprint') {
     $taskName = 'Isaac-DKSH-MG90S-CAD6-Sprint-Direct-v0'
 }
+if ($RobotModel -eq 'cad6' -and $SpeedProfile -eq 'velocity') {
+    $taskName = 'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0'
+}
+if ($RobotModel -eq 'legacy8' -and $SpeedProfile -eq 'velocity') {
+    throw 'The velocity command profile is available only for the CAD6 robot.'
+}
+if ($Mode -ne 'check' -and ($Friction -ne '0.6' -or $PhysicsDt -ne '0.005' -or $SimpleCollisions -or $SelfCollisions)) {
+    throw 'Friction, PhysicsDt, SimpleCollisions and SelfCollisions are diagnostic check options only.'
+}
 Push-Location $PSScriptRoot
 try {
     if ($Checkpoint) {
@@ -34,7 +48,10 @@ try {
     }
     if ($Mode -eq 'check') {
         $script = Join-Path $PSScriptRoot 'isaaclab_project\scripts\check_mg90s.py'
-        $arguments = @('-p', $script, "--task=$taskName", "--num_envs=$NumEnvs", '--steps=1000', "--output=logs/mg90s_${RobotModel}_${SpeedProfile}_preflight_${NumEnvs}.json")
+        $conditionName = "mu${Friction}_dt${PhysicsDt}_simple$([int][bool]$SimpleCollisions)_self$([int][bool]$SelfCollisions)"
+        $arguments = @('-p', $script, "--task=$taskName", "--num_envs=$NumEnvs", '--steps=1000', "--friction=$Friction", "--physics_dt=$PhysicsDt", "--output=logs/mg90s_${RobotModel}_${SpeedProfile}_preflight_${NumEnvs}_${conditionName}.json")
+        if ($SimpleCollisions) { $arguments += '--simple_collisions' }
+        if ($SelfCollisions) { $arguments += '--self_collisions' }
     }
     elseif ($Mode -eq 'play') {
         if (-not $Checkpoint) { throw 'Supply -Checkpoint with a compatible MG90S model.' }
@@ -48,6 +65,7 @@ try {
             $script = Join-Path $PSScriptRoot 'isaaclab_project\scripts\train_mg90s_cad6.py'
             $arguments = @('-p', $script, "--task=$taskName", "--num_envs=$NumEnvs", "--max_iterations=$MaxIterations", '--seed=42')
             if ($Checkpoint) { $arguments += "--checkpoint=$checkpointPath" }
+            if ($AllowProvisionalCad) { $arguments += '--allow_provisional_cad' }
         }
         else {
             if ($Checkpoint) { throw 'The legacy eight-leg launcher only supports fresh training.' }

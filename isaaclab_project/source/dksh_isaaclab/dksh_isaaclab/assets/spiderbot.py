@@ -63,10 +63,17 @@ def cad_spiderbot_cfg(leg_count: int) -> ArticulationCfg:
     if leg_count not in (6, 8):
         raise ValueError('CAD spiderbots support 6 or 8 legs')
     cfg = SPIDERBOT_CFG.copy()
-    cfg.spawn.usd_path = str(
-        _PROJECT_ROOT / 'assets' / 'spiderbot_variants' / f'spiderbot_{leg_count}leg'
-        / f'spiderbot_{leg_count}leg.usd'
-    )
-    cfg.init_state.pos = (0.0, 0.0, 0.12004)
+    if leg_count == 6:
+        cfg.spawn.usd_path = str(
+            _PROJECT_ROOT / 'assets' / 'spiderbot_variants' / 'onshape_20260928' / 'onshape_20260928.usd'
+        )
+        # q=0 is the saved Onshape stance. Lowest sole is z=-0.122441 m.
+        cfg.init_state.pos = (0.0, 0.0, 0.1275)
+    else:
+        cfg.spawn.usd_path = str(
+            _PROJECT_ROOT / 'assets' / 'spiderbot_variants' / f'spiderbot_{leg_count}leg'
+            / f'spiderbot_{leg_count}leg.usd'
+        )
+        cfg.init_state.pos = (0.0, 0.0, 0.12004)
     cfg.init_state.joint_pos = {'.*_joint': 0.0}
     return cfg

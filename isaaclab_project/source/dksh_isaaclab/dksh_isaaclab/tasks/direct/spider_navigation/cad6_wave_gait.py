@@ -48,6 +48,51 @@ def blended_foot_targets(phase, speed, period, lift, stride_limit, tripod_weight
     return torch.lerp(wave, tripod, tripod_weight[:, None, None])
 
 
+def directional_foot_targets(
+    phase, command, period=2.4, lift=0.004, stride_limit=0.012, *, offsets=WAVE_OFFSETS, duty=5 / 6
+):
+    """Return CAD6 targets for body-frame ``[vx, vy, yaw_rate]`` commands.
+
+    During stance each foot moves opposite the commanded body twist. The
+    per-foot travel is norm-limited so combined translation and rotation do
+    not exceed the kinematic envelope verified for the forward gait.
+    """
+    if command.ndim != 2 or command.shape[1] != 3:
+        raise ValueError("command must have shape [num_envs, 3]")
+    angles = torch.arange(6, device=phase.device, dtype=phase.dtype) * (math.pi / 3)
+    offsets = torch.tensor(offsets, device=phase.device, dtype=phase.dtype) / 6
+    p = (phase[:, None] + offsets).remainder(1)
+    swing = ((p - duty) / (1 - duty)).clamp(0, 1)
+    travel = torch.where(p < duty, 0.5 - p / duty, -0.5 + swing.square() * (3 - 2 * swing))
+
+    rest_x = STANCE_RADIUS * torch.cos(angles)[None, :]
+    rest_y = STANCE_RADIUS * torch.sin(angles)[None, :]
+    vx, vy, yaw_rate = command.unbind(-1)
+    # The CAD hip axes use the opposite rotation sign to the ROS body yaw
+    # convention; invert the rotational tangent so positive angular.z yields
+    # positive measured root yaw in PhysX.
+    foot_velocity_x = vx[:, None] + yaw_rate[:, None] * rest_y
+    foot_velocity_y = vy[:, None] - yaw_rate[:, None] * rest_x
+    displacement = torch.stack((foot_velocity_x, foot_velocity_y), dim=-1) * (period * duty)
+    scale = (stride_limit / displacement.norm(dim=-1).clamp_min(1e-12)).clamp(max=1.0)
+    displacement = displacement * scale[..., None]
+
+    x = rest_x + displacement[..., 0] * travel
+    y = rest_y + displacement[..., 1] * travel
+    moving = (command.abs().amax(dim=-1) > 1e-9).to(phase.dtype)
+    z = STANCE_Z + lift * moving[:, None] * torch.sin(math.pi * swing).square()
+    return torch.stack((x, y, z), -1)
+
+
+def blended_directional_foot_targets(phase, command, period, lift, stride_limit, tripod_weight):
+    """Blend directional wave and tripod targets continuously."""
+    wave = directional_foot_targets(phase, command, period, lift, stride_limit)
+    tripod = directional_foot_targets(
+        phase, command, period, lift, stride_limit, offsets=TRIPOD_OFFSETS, duty=0.55
+    )
+    return torch.lerp(wave, tripod, tripod_weight[:, None, None])
+
+
 def inverse_kinematics(feet):
     angles = torch.arange(6, device=feet.device, dtype=feet.dtype) * (math.pi / 3)
     x, y, z = feet.unbind(-1)

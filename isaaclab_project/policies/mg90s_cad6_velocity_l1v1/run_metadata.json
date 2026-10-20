@@ -1,0 +1,33 @@
+{
+  "task": "Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0",
+  "legs": 6,
+  "actions": 18,
+  "observations": 68,
+  "seed": 42,
+  "environments": 32,
+  "additional_iterations": 2000,
+  "started_at": "2026-09-22T12:59:06.475088+09:00",
+  "status": "completed",
+  "source_checkpoint": null,
+  "source_sha256": null,
+  "usd": "isaaclab_project\\assets\\spiderbot_variants\\spiderbot_6leg\\spiderbot_6leg.usd",
+  "mass_kg": 2.5436203479766846,
+  "start_iteration": 0,
+  "final_checkpoint": "model_1999.pt",
+  "final_iteration": 1999,
+  "final_sha256": "d6604a43fe5957c8d2d479aa9fe38a4c5d2070b449d1b5544fc36aebb961d184",
+  "completed_episodes": {
+    "episodes": 3072,
+    "fallen": 0,
+    "time_out": 3072,
+    "out_of_bounds": 0
+  },
+  "cad_source": {
+    "training_geometry": "DKSH SW Project/Assets/Prefabs/spiderbot/completeLEG.fbx",
+    "training_geometry_sha256": "208dcdee9c9d47adc933e12fa8a74612a2d9eaaa24f8443706d5102654170ac3",
+    "onshape_release_used": false,
+    "geometry_status": "legacy_provisional",
+    "provenance_added_at": "2026-09-22"
+  },
+  "finished_at": "2026-09-22T13:27:30.374901+09:00"
+}

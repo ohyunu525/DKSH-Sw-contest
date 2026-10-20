@@ -1618,12 +1618,16 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   profile: {fileID: 0}
   settings:
-    horizontalResolution: 180
-    verticalResolution: 8
+    horizontalResolution: 360
+    verticalResolution: 32
     horizontalFovDegrees: 360
-    verticalFovDegrees: 30
-    maxDistance: 12
-    scanFrequencyHz: 10
+    verticalFovDegrees: 96
+    verticalMinAngleDegrees: -6
+    maxDistance: 30
+    minDistance: 0.05
+    measurementAccuracy: 0.02
+    measurementResolution: 0.0045
+    scanFrequencyHz: 5.55
     detectionMask:
       serializedVersion: 2
       m_Bits: 4294967039

@@ -1,0 +1,51 @@
+"""Prevent resuming a flat/privileged policy or a mismatched sensor contract."""
+import importlib.util
+import json
+from pathlib import Path
+import tempfile
+import unittest
+import torch
+
+PATH = Path(__file__).resolve().parents[1] / 'scripts/mg90s_checkpoint.py'
+SPEC = importlib.util.spec_from_file_location('stair_checkpoint_guard', PATH)
+GUARD = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(GUARD)
+TASK = 'Isaac-DKSH-MG90S-CAD6-Stairs-Sensors-Direct-v0'
+
+
+class StairCheckpointTests(unittest.TestCase):
+    def test_sensor_contract_and_task_required_even_when_shapes_match(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'model.pt'
+            torch.save({'iter': 3, 'model_state_dict': {'actor.0.weight': torch.zeros(16, 240),
+                                                       'actor.2.weight': torch.zeros(18, 16)}}, path)
+            metadata = path.parent / 'run_metadata.json'
+            with self.assertRaises(ValueError):
+                GUARD.validate_checkpoint(path, 240, 18, TASK)
+            for record in ({'task': 'Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0'},
+                           {'task': TASK, 'actuator_contract': 'mg996r_4v8_rc920dmg_5v_v1',
+                            'observation_contract': 'simulation_only_privileged_state_v1'}):
+                metadata.write_text(json.dumps(record), encoding='utf-8')
+                with self.assertRaises(ValueError):
+                    GUARD.validate_checkpoint(path, 240, 18, TASK)
+            metadata.write_text(json.dumps({'task': TASK,
+                                           'actuator_contract': 'mg996r_4v8_rc920dmg_5v_v1',
+                                           'observation_contract': 'assumed_l2_bno086_command_history_v1'}), encoding='utf-8')
+            self.assertEqual(GUARD.validate_checkpoint(path, 240, 18, TASK), 3)
+            for old_contract in (None, 'mg90s_4v8_rc920dmg_5v_v1'):
+                metadata.write_text(json.dumps({'task': TASK, 'actuator_contract': old_contract,
+                                               'observation_contract': 'assumed_l2_bno086_command_history_v1'}), encoding='utf-8')
+                with self.assertRaisesRegex(ValueError, 'actuator contract'):
+                    GUARD.validate_checkpoint(path, 240, 18, TASK)
+
+    def test_flat_policy_rejected_before_simulation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'model.pt'
+            torch.save({'iter': 3, 'model_state_dict': {'actor.0.weight': torch.zeros(16, 68),
+                                                       'actor.2.weight': torch.zeros(18, 16)}}, path)
+            with self.assertRaisesRegex(ValueError, 'Incompatible checkpoint'):
+                GUARD.validate_checkpoint(path, 240, 18, TASK)
+
+
+if __name__ == '__main__':
+    unittest.main()

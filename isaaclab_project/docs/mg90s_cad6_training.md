@@ -1,4 +1,59 @@
-# 6족 CAD · MG90S 보행 학습
+# 6족 CAD · MG90S/RC920DMG 혼합 서보 보행 학습
+
+> **2026-10-19 하드웨어 정정:** 몸체–coxa는 MG996R 6개, 나머지는 RC920DMG 12개다.
+> MG90S는 과거의 잘못된 가정이다. task/파일명의 MG90S는 호환용 식별자이며 현재 모터가 아니다.
+> [MG996R 정정·재학습 기록](mg996r_hip_correction.md)을 먼저 확인한다.
+
+> **CAD 준비 상태:** 기본 CAD6 자산은 2026-09-28 Onshape URDF 내보내기 기반의
+> `onshape_20260928.usd`로 갱신됐다. 아래 2026-09-22 학습은 이전 자산의 예비 실험이다.
+> 새 장시간 학습은 모터 포함 질량, 최종 서보 배치와 실측 증빙이 완성될 때까지 기본 차단된다.
+> 상태 확인: `python isaaclab_project/scripts/cad_readiness.py --json`
+
+> 2026-09-22 변경: body-coxa(`hip_joint`)는 MG90S를 유지하고,
+> coxa-femur(`femur_joint`)와 femur-tibia(`tibia_joint`)는 RC920DMG로 교체했다.
+> RC920DMG는 보수적인 5 V 사양인 19 kgf·cm, 0.16 s/60°, 60 g을 사용한다.
+> 이 수치는 저장소에 제조사 데이터시트나 벤치 곡선이 없는 예비 판매처 사양이다.
+> 이 혼합 서보 구성으로 2026-09-22 사전 검사, 2,000 iteration 재학습,
+> 4개 환경·3,000 step 평가를 통과했다.
+
+> 2026-10-10: 기본 LiDAR 환경은 Unitree L2로 전환했다. 아래 2026-09-22 평가 수치와
+> `mg90s_cad6_velocity_l1v1` 파일은 당시 L1 구성의 기록이며 L2 실기 검증 결과로 간주하지 않는다.
+> 저수준 보행 정책은 LiDAR 관측을 직접 받지 않지만 전체 L2 계층은 별도 검증해야 한다.
+
+2026-10-10 체크리스트 반영 후 관측 계약은 `simulation_only_privileged_state_v1`이다.
+관절 상태와 몸체 속도 참값을 사용하는 68개 관측 정책은 실물 배포용으로 검증되지 않았다.
+접촉·슬립 센서는 진단에만 사용한다. 마찰 3단계, 단순 충돌 형상, 자기 충돌과
+시간별 로그의 실행 및 해석은 [체크리스트 반영 기록](hexapod_checklist_review.md)을 따른다.
+
+## Nav2 속도 명령 작업 (권장)
+
+실기 계층은 `L2 → ROS2 SLAM/Nav2 → /cmd_vel → 저수준 보행 정책`으로 고정한다.
+`Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0`는 68개 관측의 `command` 세 값을
+몸체 기준 `[vx, vy, wz]`로 모두 사용하며, 기존 직진 정책과 체크포인트를 공유하지 않는다.
+새 학습 폴더는 `dksh_mg90s_cad6_velocity_l2v1`이다. 명령 범위는 전진
+`-0.006~0.012 m/s`, 횡이동 `±0.006 m/s`, 회전 `±0.08 rad/s`이고 리셋의 15%는
+정지 명령이다. 발 궤적은 각 발의 병진·회전 합성 이동량을 기존 12 mm 도달 범위로 제한한다.
+
+루트 실행기의 기본 프로필은 `velocity`이다. 이전 직진 또는 sprint 정책을 다룰 때만
+각각 `-SpeedProfile normal`, `-SpeedProfile sprint`를 명시한다.
+
+```powershell
+.\run_mg90s.ps1 -Mode check -SpeedProfile velocity -NumEnvs 4
+.\run_mg90s.ps1 -Mode train -SpeedProfile velocity -NumEnvs 32 -MaxIterations 2000
+```
+
+미완성 CAD로 비교 실험이 꼭 필요한 경우에만 `-AllowProvisionalCad`를 명시한다.
+override 여부와 manifest 해시는 새 학습의 `run_metadata.json`에 기록된다.
+
+물리 사전 검사는 정지·전진·횡이동·회전 기준 궤적을 각각 20초 확인한다. 장시간 학습 전
+4→8→16개 환경 검사를 통과하고, 새 작업에서 생성된 `run_metadata.json`과 체크포인트만 사용한다.
+
+2026-09-22 혼합 서보 모델에서 seed 42, 32개 환경의 2,000 iteration 학습을 완료했다.
+3,072개 학습 episode에서
+낙상·영역 이탈은 0회였으며 모두 시간 종료됐다. 최종 `model_1999.pt`의 별도 4환경·3,000 step
+평가도 12 episode 낙상·이탈 0회, 평면 속도 오차 0.00600232 m/s, yaw 오차 0.03714342 rad/s로
+통과했다. 선택 체크포인트와 ONNX/TorchScript 내보내기는
+`isaaclab_project/policies/mg90s_cad6_velocity_l1v1`에 보관한다.
 
 ## 체크포인트 조사 (2026-09-16)
 
@@ -13,17 +68,21 @@
 
 ## 모델과 조건
 
-- 작업: `Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0`.
-- 실제 로드 자산: `assets/spiderbot_variants/spiderbot_6leg/spiderbot_6leg.usd`.
+- 기존 직진 작업: `Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0`.
+- 실제 로드 자산: `assets/spiderbot_variants/onshape_20260928/onshape_20260928.usd`.
 - 6개 다리, 18관절, 19강체, 18행동, 68관측.
 - CAD URDF의 짧은 링크와 조립 영점을 사용한 6족 wave gait + ±0.035 rad 관절 보정.
   기존 primitive 8족의 IK는 이 작업에 사용하지 않는다.
-- 4.8V 가정: 정지 토크 1.8 kgf·cm = 0.1765197 N·m,
-  0.10 s/60° = 10.47198 rad/s 무부하 속도. DCMotor 속도-토크 포화를 적용한다.
-- 최대 출력은 임시로 정지 토크의 75%인 0.13239 N·m로 제한한다.
-  이는 제조사 연속 토크 정격이 아니다. 실물 전압이 확인되지 않아 6V 수치는 적용하지 않았다.
-- 서보 단품 13.4g을 로봇 전체 질량으로 대체하지 않는다. CAD 링크 질량/관성 추정치
-  총 2.31362kg를 유지한다. 실제 배터리 포함 총중량·질량 분포는 미측정이다.
+- body-coxa는 MG90S 4.8 V 사양(1.8 kgf·cm, 0.10 s/60°), 나머지 두 관절은
+  RC920DMG 5 V 사양(19 kgf·cm = 1.8632635 N·m, 0.16 s/60° = 6.54498 rad/s)을 사용한다.
+  각 관절 그룹에 DCMotor 속도-토크 포화를 따로 적용한다.
+- 최대 출력은 두 모터 모두 임시로 정지 토크의 75%로 제한한다. MG90S는
+  0.13239 N·m, RC920DMG는 1.39745 N·m이며 제조사 연속 토크 정격이 아니다.
+  RC920DMG의 7.4 V 사양과 8.4 V 상한은 현재 모델에 적용하지 않았다.
+- 알려진 다리당 서보 질량은 MG90S 13.4 g 하나와 RC920DMG 60 g 두 개로 133.4 g이다.
+  이를 로봇 전체 질량으로 대체하지 않는다. CAD 링크 질량/관성 추정치
+  1.792339kg에 L2 0.230kg를 더한 2.022339kg를 사용한다. 실제 배터리 포함
+  총중량·나머지 질량 분포는 미측정이다.
 - 약 180° 범위 내 기존 ±90° 관절 제한과 95% soft limits를 유지한다.
   dead band 5μs, PWM 보정, 전원/열 특성은 실측 전이므로 아직 모델에 포함하지 않았다.
 - 정책 50Hz, 물리 200Hz, 2.4초 wave 주기, lift 4mm, 직진 명령 0.003–0.006m/s.
@@ -34,20 +93,20 @@
 
 ## 실행
 
-루트 PowerShell에서 `run_mg90s.ps1`의 기본 로봇은 이제 **cad6**이다.
+아래는 기존 직진 정책을 재현하는 명령이므로 `-SpeedProfile normal`을 명시한다.
 
 ```powershell
 # 장면/관측 변경 시 4 → 8 → 16 순으로 통과 후 32개 학습
-.\run_mg90s.ps1 -Mode check -NumEnvs 4
-.\run_mg90s.ps1 -Mode check -NumEnvs 8
-.\run_mg90s.ps1 -Mode check -NumEnvs 16
-.\run_mg90s.ps1 -Mode train -NumEnvs 32 -MaxIterations 2000
+.\run_mg90s.ps1 -Mode check -SpeedProfile normal -NumEnvs 4
+.\run_mg90s.ps1 -Mode check -SpeedProfile normal -NumEnvs 8
+.\run_mg90s.ps1 -Mode check -SpeedProfile normal -NumEnvs 16
+.\run_mg90s.ps1 -Mode train -SpeedProfile normal -NumEnvs 32 -MaxIterations 2000
 
 # 동일 CAD6 작업의 체크포인트에서 추가 학습
-.\run_mg90s.ps1 -Mode train -NumEnvs 32 -MaxIterations 2000 -Checkpoint '.\logs\rsl_rl\dksh_mg90s_cad6_walk\<run>\model_1999.pt'
+.\run_mg90s.ps1 -Mode train -SpeedProfile normal -NumEnvs 32 -MaxIterations 2000 -Checkpoint '.\logs\rsl_rl\dksh_mg90s_cad6_walk\<run>\model_1999.pt'
 
 # 학습된 6족 정책 GUI
-.\run_mg90s.ps1 -Mode play -NumEnvs 1 -Checkpoint '.\logs\rsl_rl\dksh_mg90s_cad6_walk\<run>\model_1999.pt'
+.\run_mg90s.ps1 -Mode play -SpeedProfile normal -NumEnvs 1 -Checkpoint '.\logs\rsl_rl\dksh_mg90s_cad6_walk\<run>\model_1999.pt'
 ```
 
 로그/체크포인트는 `logs/rsl_rl/dksh_mg90s_cad6_walk/<run>/`에 저장된다.
@@ -77,10 +136,10 @@ Isaac 실행 경로의 종료 코드 1은 이 완료 표시가 확인된 경우�
 
 기존 정책은 0.003–0.006m/s만 학습했으므로 빠른 보행 정책으로 사용할 수 없다.
 `Isaac-DKSH-MG90S-CAD6-Sprint-Direct-v0`는 0.012–0.050m/s 명령, 0.6초 gait 주기,
-최대 25mm stride와 10rad/s 목표 변화율을 사용한다. 속도 상한은 기존
+최대 25mm stride와 6.25rad/s 목표 변화율을 사용한다. 속도 상한은 기존
 0.020m/s에서 2.5배 높였다. 0.050m/s × 0.6s × 5/6 = 0.025m이므로
 상한에서도 발 궤적은 기존에 검증한 25mm 도달 범위를 넘지 않는다. 목표
-변화율은 MG90S의 10.47rad/s 무부하 속도 모델 아래로 유지한다. 이 설정은
+변화율은 더 느린 RC920DMG 5 V의 6.545rad/s 무부하 속도 모델 아래로 유지한다. 이 설정은
 고속 가능성을 탐색하기 위한 것이며, 실제 하드웨어의 지속 가능 속도를 보증하지 않는다. 0.025m/s 이하에서는 안정적인
 wave gait를 유지하고, 0.025–0.035m/s에서는 발 목표를 smoothstep으로 섞어, 그 이상에서는 상호교대 tripod gait로 전환한다. 이 전환은 한 프레임에 바뀌지 않아 발 목표와 지지 상태의 불연속을 방지한다.
 

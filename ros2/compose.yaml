@@ -11,6 +11,7 @@ services:
         ROS_BASE_IMAGE: ros:jazzy-ros-base-noble
         ROS_TCP_ENDPOINT_TAG: ROS2v0.7.0
         FRONTIER_EXPLORATION_TAG: v1.6.1
+        UNITREE_LIDAR_COMMIT: 0e3c51f512e6b8ff60b8c32f160b412cb48445c2
     container_name: dksh-ros2-bridge
     init: true
     restart: "no"

@@ -3,6 +3,16 @@
 import gymnasium as gym
 
 gym.register(
+    id='Isaac-DKSH-MG90S-CAD6-Stairs-Sensors-Direct-v0',
+    entry_point=f'{__name__}.mg90s_stairs:MG90SCad6StairsEnv',
+    disable_env_checker=True,
+    kwargs={
+        'env_cfg_entry_point': f'{__name__}.mg90s_stairs:MG90SCad6StairsEnvCfg',
+        'rsl_rl_cfg_entry_point': f'{__name__}.mg90s_stairs:MG90SCad6StairsRunnerCfg',
+    },
+)
+
+gym.register(
     id="Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0",
     entry_point=f"{__name__}.mg90s_cad6:MG90SCad6Env",
     disable_env_checker=True,
@@ -19,6 +29,16 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.mg90s_cad6:MG90SCad6SprintEnvCfg",
         "rsl_rl_cfg_entry_point": f"{__name__}.mg90s_cad6:MG90SCad6SprintRunnerCfg",
+    },
+)
+
+gym.register(
+    id="Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0",
+    entry_point=f"{__name__}.mg90s_cad6:MG90SCad6VelocityEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.mg90s_cad6:MG90SCad6VelocityEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{__name__}.mg90s_cad6:MG90SCad6VelocityRunnerCfg",
     },
 )
 

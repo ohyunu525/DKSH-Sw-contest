@@ -1,0 +1,31 @@
+services:
+  ros2:
+    # The sensor sends UDP to the host's dedicated LiDAR NIC. Bind inside
+    # Docker on all container interfaces and forward only that NIC's port.
+    ports:
+      - "${L2_HOST_IP:-192.168.1.2}:6201:6201/udp"
+    command:
+      - ros2
+      - launch
+      - /opt/dksh/launch/l2_hardware.launch.py
+      - initialize_type:=2
+      - work_mode:=1
+      - local_ip:=0.0.0.0
+      - local_port:=6201
+      - "lidar_ip:=${L2_LIDAR_IP:-192.168.1.62}"
+      - "start_navigation:=${L2_START_NAVIGATION:-false}"
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          source /opt/ros/jazzy/setup.bash &&
+          source /opt/dksh_ros2/install/setup.bash &&
+          ros2 node list 2>/dev/null | grep -qx /unitree_lidar_ros2_node &&
+          ros2 node list 2>/dev/null | grep -qx /l2_cloud_to_scan &&
+          ros2 node list 2>/dev/null | grep -qx /l2_policy_features
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 20s
