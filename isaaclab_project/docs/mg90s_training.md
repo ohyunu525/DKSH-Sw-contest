@@ -1,8 +1,9 @@
 # MG90S 예비 보행 학습
 
-> 2026-09-16 정정: 실물은 **6족**이다. 이 문서와 기존 정책은 8족 예비 실험 기록이다.
-> 현재 기본 실행은 [6족 MG90S 학습](mg90s_cad6_training.md)을 따른다.
-> 아래 과거 실행을 재현할 때만 `run_mg90s.ps1`에 `-RobotModel legacy8`을 명시한다.
+> **역사적 all-MG90S 예비 실험**입니다. 현재 CAD6 task의 servo 가정은 MG996R hip 6개 +
+> RC920DMG femur/tibia 12개이며, 새 task ID를 사용합니다. 현재 수치는
+> [MG996R hip 보정 문서](mg996r_hip_correction.md)를 참고하세요.
+> 이 문서는 당시 MG90S 모델과 체크포인트를 재현할 때만 사용합니다.
 
 ## 범위와 가정
 

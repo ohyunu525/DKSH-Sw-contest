@@ -8,6 +8,14 @@ import torch
 ACTION_SEMANTICS = "absolute_joint_angles_v1"
 
 
+def expected_actuator_contract(task):
+    if "MG996R-Hip-CAD6" in task:
+        return "mg996r_4v8_rc920dmg_5v_v1"
+    if "MG90S" in task:
+        return "mg90s_4v8_historical_v1"
+    return "mg996r_4v8_v1"
+
+
 def expected_dimensions(task, environment):
     actions = 18 if "CAD6" in task else 24
     return 14 + 3 * actions + actions // 3 + (32 if environment != "flat" else 0), actions
@@ -20,8 +28,13 @@ def validate_checkpoint(path, task, environment):
         raise ValueError("Absolute-angle checkpoints require their run_metadata.json; v0 residual policies cannot be reused")
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     expected = expected_dimensions(task, environment)
+    actuator_contract = metadata.get("actuator_contract")
+    # Historical all-MG90S v1 runs predate actuator-contract metadata but retain
+    # the same MG90S model. New or changed MG996R contracts must be explicit.
+    legacy_mg90s_metadata = actuator_contract is None and "MG90S" in task
     if (metadata.get("action_semantics") != ACTION_SEMANTICS or metadata.get("task") != task
-            or (metadata.get("observations"), metadata.get("actions")) != expected):
+            or (metadata.get("observations"), metadata.get("actions")) != expected
+            or (actuator_contract != expected_actuator_contract(task) and not legacy_mg90s_metadata)):
         raise ValueError("Checkpoint robot, servo, terrain observations or action semantics do not match the selected task")
     state = torch.load(path, map_location="cpu", weights_only=True)
     layers = sorted(

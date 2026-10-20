@@ -1,12 +1,16 @@
-"""Physical configuration for the eight-legged DKSH spiderbot."""
+"""Physical configuration for the eight-legged DKSH MG996R spiderbot."""
 
-import math
 import os
 from pathlib import Path
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.actuators import DCMotorCfg
 from isaaclab.assets import ArticulationCfg
+from .servo_specs import (
+    MG996R_NO_LOAD_SPEED_RAD_S,
+    MG996R_STALL_TORQUE_NM,
+    PROVISIONAL_EFFORT_DERATING,
+)
 
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]
@@ -44,18 +48,22 @@ SPIDERBOT_CFG = ArticulationCfg(
         joint_vel={".*": 0.0},
     ),
     actuators={
-        "mg996r_servos": ImplicitActuatorCfg(
+        "mg996r_4v8": DCMotorCfg(
             joint_names_expr=[".*_joint"],
-            effort_limit_sim=0.980665,
-            velocity_limit_sim=math.radians(400.0),
-            stiffness=8.0,
-            damping=0.35,
-            armature=0.002,
+            saturation_effort=MG996R_STALL_TORQUE_NM,
+            effort_limit=PROVISIONAL_EFFORT_DERATING * MG996R_STALL_TORQUE_NM,
+            effort_limit_sim=PROVISIONAL_EFFORT_DERATING * MG996R_STALL_TORQUE_NM,
+            velocity_limit=MG996R_NO_LOAD_SPEED_RAD_S,
+            velocity_limit_sim=MG996R_NO_LOAD_SPEED_RAD_S,
+            stiffness=3.0,
+            damping=0.06,
+            armature=0.0002,
+            friction=0.0,
         )
     },
     soft_joint_pos_limit_factor=0.95,
 )
-"""Eight-leg, 24-DoF articulation using measured MG996R constraints."""
+"""Eight-leg, 24-DoF articulation using nominal MG996R limits."""
 
 
 def cad_spiderbot_cfg(leg_count: int) -> ArticulationCfg:

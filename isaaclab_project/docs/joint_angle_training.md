@@ -18,8 +18,9 @@ target = lower + (clamp(a, -1, 1) + 1) / 2 * (upper - lower)
 `a=0`이면 0.50 rad, `a=1`이면 1.40 rad다. 같은 출력을 유지하면 같은 각도로 수렴한다.
 기본 자세를 더하지 않는다. 범위는 자산의 관절 한계와 교집합을 취한다.
 
-50 Hz 제어에서 목표각은 저역 필터와 변화 속도 제한을 거친다. 기본 상한은
-MG996R 3 rad/s, MG90S 2 rad/s다. 이는 정책의 출력 범위를 좁히는 잔여 보정이 아니라
+50 Hz 제어에서 목표각은 저역 필터와 변화 속도 제한을 거친다. 기존 기본 모델의 상한은
+MG996R 3 rad/s, MG90S 2 rad/s이며, 혼합 CAD6 task는 전체 관절에 1.5 rad/s를 적용한다.
+이는 정책의 출력 범위를 좁히는 잔여 보정이 아니라
 실제 모터에 전달하는 명령의 급격한 변화를 제한하는 장치다. 정책은 현재 적용된 목표각을
 관측하므로 필터 상태를 알 수 있다. `env.joint_angle_targets_rad`로 적용 목표각을 읽을 수 있다.
 관절 작업 범위는 PhysX 관절 한계에도 적용하며 v1에서 자기 충돌을 활성화한다.
@@ -27,8 +28,9 @@ MG996R 3 rad/s, MG90S 2 rad/s다. 이는 정책의 출력 범위를 좁히는 �
 초기 자세는 리셋과 새 정책의 마지막 층 bias 초기화에만 사용한다. 마지막 층은 학습 가능하며
 이후 어떤 고정 보행도 덧붙이지 않는다. 각도 범위·속도·보상 배율은
 `joint_angle_env_cfg.py`에 모아 두었다. CAD와 primitive의 무릎 영점이 달라 범위도 구분한다.
-범위는 시뮬레이션 작업 범위이며 실물 PWM 보정값이 아니다. MG90S는 기존 4.8 V 토크·속도
-모델과 링크 질량 추정치를 유지하며 실제 총중량·연속 토크의 실측을 대체하지 않는다.
+범위는 시뮬레이션 작업 범위이며 실물 PWM 보정값이 아니다. 현재 CAD6 혼합 서보 task는
+MG996R hip과 RC920DMG leg actuator를 적용한다. 가정의 출처와 한계는
+[MG996R hip 보정 문서](mg996r_hip_correction.md)에 기록한다.
 
 ## 학습 의도
 
@@ -48,7 +50,7 @@ Unity를 종료한 뒤 수행한다. 이 변경의 로컬 CPU 단위 검사는 P
 처음에는 4개 환경 smoke, 이후 8 → 16 → 32개 순으로 확인한다.
 
 ```powershell
-# MG90S CAD6: 새 직접 각도 환경의 물리 실행 확인
+# MG996R hip / RC920DMG leg CAD6: 새 직접 각도 환경의 물리 실행 확인
 .\run_mg90s.ps1 -Mode check -Environment stairs -Difficulty 0 -NumEnvs 4
 
 # 가장 낮은 계단부터 새 가중치로 학습
@@ -61,8 +63,8 @@ Unity를 종료한 뒤 수행한다. 이 변경의 로컬 CPU 단위 검사는 P
 .\run_mg90s.ps1 -Mode evaluate -Environment stairs -Difficulty 0.3 -NumEnvs 4 -Steps 12000 -Seed 73 -Checkpoint '<model_N.pt>' -Output 'logs/joint_angle_stairs_evaluation.json'
 .\run_mg90s.ps1 -Mode play -Environment stairs -Difficulty 0.3 -NumEnvs 1 -Checkpoint '<model_N.pt>'
 
-# MG996R 또는 CAD8 등 다른 로봇은 공통 실행기에서 선택
-.\run_isaaclab.ps1 -Mode train -RobotModel cad6 -ServoModel mg996r -Environment stairs -Difficulty 0 -NumEnvs 4
+# 기본 8족 all-MG996R 모델은 공통 실행기에서 별도 선택
+.\run_isaaclab.ps1 -Mode train -RobotModel baseline -ServoModel mg996r -Environment stairs -Difficulty 0 -NumEnvs 4
 ```
 
 `stairs`는 세 개의 연속 상승 단과 위쪽 목표 플랫폼이다. CAD 기준 단 높이는 난이도 0에서
@@ -73,13 +75,15 @@ Unity를 종료한 뒤 수행한다. 이 변경의 로컬 CPU 단위 검사는 P
 Python을 직접 사용할 때는 다음 진입점을 사용한다.
 
 ```powershell
-.\IsaacLab\isaaclab.bat -p .\isaaclab_project\scripts\joint_angle_runner.py --mode=train --task=Isaac-DKSH-MG90S-CAD6-JointAngles-v1 --environment=stairs --difficulty=0 --num_envs=4 --max_iterations=4000 --headless
+.\IsaacLab\isaaclab.bat -p .\isaaclab_project\scripts\joint_angle_runner.py --mode=train --task=Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v1 --environment=stairs --difficulty=0 --num_envs=4 --max_iterations=4000 --headless
 ```
 
 ## 체크포인트와 평가
 
-v1 작업 ID는 `Isaac-DKSH-{Spider|MG90S}[-CAD6|-CAD8]-JointAngles-v1`이다.
-로그는 `logs/rsl_rl/dksh_mg90s_cad6_jointangles_v1_obstacles/<run>/` 등의 전용 경로에 저장한다.
+v1 작업 ID는 `Isaac-DKSH-{Spider|MG90S}[-CAD6|-CAD8]-JointAngles-v1`과
+`Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v1`이다.
+혼합 CAD6 로그는 `logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v1[_obstacles]/<run>/`에,
+MG90S 보존 실험은 해당 MG90S 전용 경로에 저장한다.
 `run_metadata.json`은 작업 ID, 출력 의미, 관절 순서·각도 범위, 관측 수, 시드, 부모 체크포인트,
 학습 시작·완료 상태와 최종 체크포인트 해시를 기록한다. **모델 파일과 metadata를 함께 보관한다.**
 

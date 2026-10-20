@@ -5,9 +5,15 @@ from __future__ import annotations
 import math
 import tempfile
 from pathlib import Path
+from .servo_specs import (
+    MG996R_NO_LOAD_SPEED_RAD_S,
+    MG996R_STALL_TORQUE_NM,
+    PROVISIONAL_EFFORT_DERATING,
+)
 
 
-_URDF_VERSION = "2"
+_URDF_VERSION = "3"
+_MG996R_EFFORT_LIMIT = PROVISIONAL_EFFORT_DERATING * MG996R_STALL_TORQUE_NM
 
 
 def _inertial(mass: float, ixx: float, iyy: float, izz: float, center_x: float = 0.0) -> str:
@@ -46,7 +52,7 @@ def _joint(name: str, parent: str, child: str, xyz: tuple[float, float, float], 
     <child link="{child}"/>
     <origin xyz="{xyz[0]:.6f} {xyz[1]:.6f} {xyz[2]:.6f}" rpy="0 0 {yaw:.8f}"/>
     <axis xyz="{axis}"/>
-    <limit lower="{-math.pi / 2:.8f}" upper="{math.pi / 2:.8f}" effort="0.980665" velocity="6.981317"/>
+    <limit lower="{-math.pi / 2:.8f}" upper="{math.pi / 2:.8f}" effort="{_MG996R_EFFORT_LIMIT:.8f}" velocity="{MG996R_NO_LOAD_SPEED_RAD_S:.8f}"/>
     <dynamics damping="0.05" friction="0.01"/>
   </joint>"""
 

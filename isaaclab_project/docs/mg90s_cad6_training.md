@@ -1,8 +1,11 @@
 # 6족 CAD · MG90S 보행 학습
 
-현재 `run_mg90s.ps1`의 기본값은 [관절 절대각 직접 출력 v1](joint_angle_training.md)입니다.
-아래는 기존 gait 보정(v0)의 기록이며, 이 문서의 기존 launcher 명령에는
-`-ControlMode legacy`를 추가해야 합니다. 아래 v0 모델을 v1 직접 각도 학습에 재사용할 수 없습니다.
+> **역사적 all-MG90S 실험 기록:** 현재 CAD6 hardware task는 MG996R hip 6개 +
+> RC920DMG femur/tibia 12개 혼합 모델을 사용합니다. 사양과 현재 launcher는
+> [MG996R hip 보정](mg996r_hip_correction.md)을 참고하세요.
+>
+> 아래 gait 보정(v0) 설정과 결과는 당시 MG90S 가정으로 남겨 둔 기록입니다.
+> 이 체크포인트는 혼합 서보 또는 관절 절대각 직접 출력 v1에 재사용할 수 없습니다.
 
 ## 체크포인트 조사 (2026-09-16)
 

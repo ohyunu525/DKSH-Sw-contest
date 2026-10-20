@@ -23,6 +23,16 @@ for robot, prefix, config in (
     )
 
 gym.register(
+    id="Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v1",
+    entry_point=f"{__name__}.joint_angle_env:JointAngleNavigationEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.joint_angle_env_cfg:MG996RHipCad6JointAngleEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{__name__}.joint_angle_env_cfg:JointAnglePPORunnerCfg",
+    },
+)
+
+gym.register(
     id="Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0",
     entry_point=f"{__name__}.mg90s_cad6:MG90SCad6Env",
     disable_env_checker=True,

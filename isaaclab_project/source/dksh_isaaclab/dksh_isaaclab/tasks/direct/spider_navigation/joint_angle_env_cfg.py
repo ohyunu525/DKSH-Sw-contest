@@ -1,13 +1,25 @@
 """Motor-level policies that choose absolute joint angles, without a reference gait."""
 
-import math
-
 from isaaclab.utils import configclass
 from dksh_isaaclab.assets import SPIDERBOT_CFG
 from dksh_isaaclab.assets.spiderbot import cad_spiderbot_cfg
 from .spider_navigation_env_cfg import SpiderNavigationEnvCfg
 from .agents.rsl_rl_ppo_cfg import SpiderNavigationPPORunnerCfg
-from .mg90s_env_cfg import mg90s_robot_cfg, MG90S_NO_LOAD_SPEED
+from .mg90s_env_cfg import mg90s_robot_cfg, mixed_servo_robot_cfg, MG90S_NO_LOAD_SPEED
+from dksh_isaaclab.assets.servo_specs import (
+    ACTUATOR_CONTRACT,
+    MG996R_MASS_KG,
+    MG996R_NO_LOAD_SPEED_RAD_S,
+    MG996R_REFERENCE_VOLTAGE_V,
+    MG996R_STALL_TORQUE_NM,
+    MG90S_MASS_KG,
+    MG90S_REFERENCE_VOLTAGE_V,
+    MG90S_STALL_TORQUE_NM,
+    RC920DMG_MASS_KG,
+    RC920DMG_NO_LOAD_SPEED_RAD_S_5V,
+    RC920DMG_REFERENCE_VOLTAGE_V,
+    RC920DMG_STALL_TORQUE_NM_5V,
+)
 
 CAD_ANGLE_RANGES = {"hip": (-1.40, 1.40), "femur": (-1.10, 1.40), "tibia": (-0.40, 1.40)}
 CAD_SOLE_OFFSET = (0.016120809, 0.0, -0.0803304305)
@@ -17,6 +29,13 @@ CAD_SOLE_OFFSET = (0.016120809, 0.0, -0.0803304305)
 class JointAngleNavigationEnvCfg(SpiderNavigationEnvCfg):
     action_semantics = "absolute_joint_angles_v1"
     robot = SPIDERBOT_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    actuator_contract = "mg996r_4v8_v1"
+    servo_model = "MG996R"
+    supply_voltage = MG996R_REFERENCE_VOLTAGE_V
+    servo_reference_voltage_v = MG996R_REFERENCE_VOLTAGE_V
+    servo_stall_torque_nm = MG996R_STALL_TORQUE_NM
+    servo_effort_limit_nm = 0.75 * MG996R_STALL_TORQUE_NM
+    servo_mass_kg = MG996R_MASS_KG
     observation_space = 94
     episode_length_s = 60.0
     # Working limits intersect the asset limits. The knee stays on its assembled
@@ -24,7 +43,7 @@ class JointAngleNavigationEnvCfg(SpiderNavigationEnvCfg):
     joint_angle_ranges = {"hip": (-1.40, 1.40), "femur": (-1.10, 1.40), "tibia": (0.10, 1.45)}
     target_rate_limit = 3.0  # rad/s, below the modeled MG996R no-load speed
     target_smoothing = 0.35
-    servo_velocity_limit = math.radians(400)
+    servo_velocity_limit = MG996R_NO_LOAD_SPEED_RAD_S
     sole_offset = (0.120, 0.0, 0.0)
     contact_threshold = 1.0
     minimum_support_feet = 3
@@ -80,6 +99,13 @@ def _mg90s_cad_robot(leg_count):
 @configclass
 class MG90SJointAngleEnvCfg(JointAngleNavigationEnvCfg):
     robot = mg90s_robot_cfg()
+    actuator_contract = "mg90s_4v8_historical_v1"
+    servo_model = "MG90S"
+    supply_voltage = MG90S_REFERENCE_VOLTAGE_V
+    servo_reference_voltage_v = MG90S_REFERENCE_VOLTAGE_V
+    servo_stall_torque_nm = MG90S_STALL_TORQUE_NM
+    servo_effort_limit_nm = 0.75 * MG90S_STALL_TORQUE_NM
+    servo_mass_kg = MG90S_MASS_KG
     target_rate_limit = 2.0
     servo_velocity_limit = MG90S_NO_LOAD_SPEED
     minimum_base_height = 0.09
@@ -106,6 +132,45 @@ class MG90SCad6JointAngleEnvCfg(MG90SCad8JointAngleEnvCfg):
     robot = _mg90s_cad_robot(6)
     action_space = 18
     observation_space = 74
+
+
+def _mg996r_hip_cad6_robot():
+    robot = cad_spiderbot_cfg(6)
+    robot.actuators = mixed_servo_robot_cfg().actuators
+    robot.init_state.pos = (0, 0, 0.132)
+    robot.init_state.joint_pos = {".*_hip_joint": 0.0, ".*_femur_joint": 0.60, ".*_tibia_joint": -0.20}
+    return robot.replace(prim_path="/World/envs/env_.*/Robot")
+
+
+@configclass
+class MG996RHipCad6JointAngleEnvCfg(MG90SCad6JointAngleEnvCfg):
+    """Six MG996R hip servos and twelve provisional RC920DMG leg servos."""
+    robot = _mg996r_hip_cad6_robot()
+    target_rate_limit = 1.5
+    servo_velocity_limit = tuple(
+        speed
+        for _ in range(6)
+        for speed in (MG996R_NO_LOAD_SPEED_RAD_S,
+                      RC920DMG_NO_LOAD_SPEED_RAD_S_5V,
+                      RC920DMG_NO_LOAD_SPEED_RAD_S_5V)
+    )
+    actuator_contract = ACTUATOR_CONTRACT
+    supply_voltage = None  # Distinct 4.8 V / 5.0 V reference assumptions; rail topology unverified.
+    hip_servo_model = "MG996R"
+    leg_servo_model = "RC920DMG"
+    hip_servo_reference_voltage_v = MG996R_REFERENCE_VOLTAGE_V
+    leg_servo_reference_voltage_v = RC920DMG_REFERENCE_VOLTAGE_V
+    hip_servo_stall_torque_nm = MG996R_STALL_TORQUE_NM
+    leg_servo_stall_torque_nm = RC920DMG_STALL_TORQUE_NM_5V
+    hip_servo_effort_limit_nm = 0.75 * MG996R_STALL_TORQUE_NM
+    leg_servo_effort_limit_nm = 0.75 * RC920DMG_STALL_TORQUE_NM_5V
+    hip_servo_mass_kg = MG996R_MASS_KG
+    leg_servo_mass_kg = RC920DMG_MASS_KG
+    known_servo_mass_per_leg_kg = MG996R_MASS_KG + 2 * RC920DMG_MASS_KG
+    mass_assumption = (
+        "Existing CAD6 link mass/inertia estimates retained; mixed-servo mass is recorded, "
+        "not redistributed into link inertias"
+    )
 
 
 @configclass

@@ -11,7 +11,7 @@ param(
     [string]$Checkpoint = "",
     [ValidateSet('baseline', 'cad8', 'cad6')]
     [string]$RobotModel = 'baseline',
-    [ValidateSet('mg996r', 'mg90s')]
+    [ValidateSet('mg996r', 'mg90s', 'mg996r_hip')]
     [string]$ServoModel = 'mg996r',
     [ValidateSet('direct', 'legacy')]
     [string]$ControlMode = 'direct',
@@ -40,12 +40,22 @@ if ($Environment -ne 'flat') {
     $experimentName += '_obstacles'
 }
 if ($ControlMode -eq 'direct') {
-    $taskPrefix = if ($ServoModel -eq 'mg90s') { 'MG90S' } else { 'Spider' }
+    if ($ServoModel -eq 'mg996r_hip' -and $RobotModel -ne 'cad6') {
+        throw 'The mixed MG996R-hip/RC920DMG-leg actuator contract is defined for CAD6 only.'
+    }
+    $taskPrefix = switch ($ServoModel) {
+        'mg90s' { 'MG90S' }
+        'mg996r_hip' { 'MG996R-Hip' }
+        default { 'Spider' }
+    }
     if ($RobotModel -ne 'baseline') { $taskPrefix += "-$($RobotModel.ToUpperInvariant())" }
     $taskName = "Isaac-DKSH-$taskPrefix-JointAngles-v1"
 }
 elseif ($ServoModel -eq 'mg90s') {
     throw 'Use run_mg90s.ps1 -ControlMode legacy for an old residual MG90S policy.'
+}
+elseif ($ServoModel -eq 'mg996r_hip') {
+    throw 'MG996R-hip/RC920DMG-leg actuators are supported by the CAD6 direct-angle task only.'
 }
 $difficultyText = $Difficulty.ToString([System.Globalization.CultureInfo]::InvariantCulture)
 $environmentArguments = @("--environment=$Environment", "--difficulty=$difficultyText")

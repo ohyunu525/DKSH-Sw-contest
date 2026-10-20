@@ -132,8 +132,10 @@ git submodule update --init --recursive
 500회 PPO 학습으로 20초 자세 유지를 검증한 시작점이며, 목표 보행을 완성한 모델은 아닙니다.
 
 등록된 환경 ID는 `Isaac-DKSH-Spider-Navigation-Direct-v0`입니다. 로봇은 실제 설계값을 반영한
-8개 다리, 24개 MG996R 서보 articulation이며, 링크 길이(86.17/100/120 mm), 서보 토크
-(0.980665 N·m), 질량과 관절 속도가 Isaac Lab 물리에 반영되어 있습니다.
+8개 다리, 24관절의 primitive baseline 모델입니다. CAD6 학습의 현재 혼합 서보 가정은
+몸통 hip 6개 MG996R, femur/tibia 12개 RC920DMG입니다. MG996R 사양과 임시 토크 한도,
+RC920DMG 데이터의 검증 상태 및 질량 가정은 [MG996R hip 보정 문서](isaaclab_project/docs/mg996r_hip_correction.md)를
+참고하세요. 과거 all-MG90S 실험과 체크포인트는 별도 task ID로 보존됩니다.
 
 Unity 프로젝트는 `DKSH SW Project`에 유지됩니다. Unity의 FBX는 외형 참고용이고, Isaac Lab은
 안정적인 학습을 위해 동일 치수의 primitive URDF에서 변환한 로컬 USD를 사용합니다. URDF 생성

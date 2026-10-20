@@ -51,6 +51,11 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         self._sensor_body = [i for i, name in enumerate(self._contacts.body_names) if not name.endswith("_tibia")]
         self._sole_offset = torch.tensor(cfg.sole_offset, device=self.device).expand(self.num_envs, len(self._feet), 3)
         self._effort_limits = self._robot.data.joint_effort_limits[:, self._joint_ids]
+        self._servo_velocity_limits = torch.as_tensor(
+            cfg.servo_velocity_limit, dtype=torch.float32, device=self.device
+        ).reshape(1, -1)
+        if self._servo_velocity_limits.shape[-1] not in (1, cfg.action_space):
+            raise ValueError("servo_velocity_limit must be scalar or provide one value per action")
         self.completed = {name: 0 for name in ("episodes", "goal", "fallen", "time_out", "out_of_bounds")}
         self._episode_sums = {name: torch.zeros(self.num_envs, device=self.device) for name in (
             "progress", "speed", "upright", "joint_limit", "joint_velocity", "torque", "power",
@@ -117,7 +122,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             data.root_lin_vel_b, data.root_ang_vel_b, data.projected_gravity_b,
             direction_b[:, :2], (distance / self.cfg.goal_max_distance).unsqueeze(-1),
             normalize_angles(data.joint_pos[:, self._joint_ids], self._angle_limits),
-            data.joint_vel[:, self._joint_ids] / self.cfg.servo_velocity_limit,
+            data.joint_vel[:, self._joint_ids] / self._servo_velocity_limits,
             normalize_angles(self._processed_actions[:, self._joint_ids], self._angle_limits),
             feet.float(), (clearance / self.cfg.robot_height).unsqueeze(-1),
             ((goal_surface - data.root_pos_w[:, 2]) / self.cfg.robot_height).unsqueeze(-1),
@@ -159,7 +164,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         costs = motion_costs(
             data.joint_pos[:, self._joint_ids], data.joint_vel[:, self._joint_ids],
             data.applied_torque[:, self._joint_ids], self._angle_limits,
-            self._effort_limits, self.cfg.servo_velocity_limit,
+            self._effort_limits, self._servo_velocity_limits,
         )
         feet, body_contact = self._contact_state()
         offset = quat_rotate(data.body_link_quat_w[:, self._feet].reshape(-1, 4), self._sole_offset.reshape(-1, 3)).reshape_as(self._sole_offset)

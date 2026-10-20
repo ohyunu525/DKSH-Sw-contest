@@ -22,8 +22,11 @@ if ($ControlMode -eq 'direct') {
     }
     $directMode = if ($Mode -eq 'check') { 'smoke' } else { $Mode }
     $directRobot = if ($RobotModel -eq 'legacy8') { 'baseline' } else { 'cad6' }
+    $directServo = if ($RobotModel -eq 'legacy8') { 'mg996r' } else { 'mg996r_hip' }
     $options = @{
-        Mode = $directMode; RobotModel = $directRobot; ServoModel = 'mg90s'; ControlMode = 'direct'
+        # Current CAD6 hardware uses MG996R at the hip and RC920DMG on the distal joints.
+        # The old all-MG90S runner remains available only through ControlMode=legacy.
+        Mode = $directMode; RobotModel = $directRobot; ServoModel = $directServo; ControlMode = 'direct'
         Environment = $Environment; Difficulty = $Difficulty; NumEnvs = $NumEnvs
         MaxIterations = $MaxIterations; Seed = $Seed; Checkpoint = $Checkpoint; Output = $Output; Gui = $Gui
     }

@@ -5,7 +5,6 @@ Servo mass is known; the allocation of old servo/structure masses is not.
 Do not subtract an assumed MG996R mass or treat this as a measured robot twin.
 """
 
-import math
 from isaaclab.actuators import DCMotorCfg
 from isaaclab.envs import DirectRLEnvCfg, ViewerCfg
 from isaaclab.scene import InteractiveSceneCfg
@@ -14,9 +13,18 @@ from isaaclab.utils import configclass
 from .wave_gait import STANCE_DEPTH, STANCE_FEMUR, STANCE_TIBIA
 from dksh_isaaclab.assets import SPIDERBOT_CFG
 from .agents.rsl_rl_ppo_cfg import SpiderNavigationPPORunnerCfg
+from dksh_isaaclab.assets.servo_specs import (
+    MG996R_NO_LOAD_SPEED_RAD_S,
+    MG996R_STALL_TORQUE_NM,
+    MG90S_NO_LOAD_SPEED_RAD_S,
+    MG90S_STALL_TORQUE_NM,
+    PROVISIONAL_EFFORT_DERATING,
+    RC920DMG_NO_LOAD_SPEED_RAD_S_5V,
+    RC920DMG_STALL_TORQUE_NM_5V,
+)
 
-MG90S_STALL_TORQUE = 1.8 * 0.0980665
-MG90S_NO_LOAD_SPEED = math.radians(60) / 0.10
+MG90S_STALL_TORQUE = MG90S_STALL_TORQUE_NM
+MG90S_NO_LOAD_SPEED = MG90S_NO_LOAD_SPEED_RAD_S
 
 
 def mg90s_robot_cfg():
@@ -36,6 +44,36 @@ def mg90s_robot_cfg():
             velocity_limit_sim=MG90S_NO_LOAD_SPEED,
             stiffness=3.0, damping=0.06, armature=0.0002, friction=0.0,
         )
+    }
+    return robot.replace(prim_path="/World/envs/env_.*/Robot")
+
+
+def mixed_servo_robot_cfg():
+    """MG996R body-coxa joints and RC920DMG distal joints, as in the hip-fix branch."""
+    robot = SPIDERBOT_CFG.copy()
+    robot.init_state.pos = (0.0, 0.0, STANCE_DEPTH + 0.004)
+    robot.init_state.joint_pos = {
+        ".*_hip_joint": 0.0, ".*_femur_joint": STANCE_FEMUR, ".*_tibia_joint": STANCE_TIBIA,
+    }
+    robot.actuators = {
+        "mg996r_4v8_hip": DCMotorCfg(
+            joint_names_expr=[".*_hip_joint"],
+            saturation_effort=MG996R_STALL_TORQUE_NM,
+            effort_limit=PROVISIONAL_EFFORT_DERATING * MG996R_STALL_TORQUE_NM,
+            effort_limit_sim=PROVISIONAL_EFFORT_DERATING * MG996R_STALL_TORQUE_NM,
+            velocity_limit=MG996R_NO_LOAD_SPEED_RAD_S,
+            velocity_limit_sim=MG996R_NO_LOAD_SPEED_RAD_S,
+            stiffness=3.0, damping=0.06, armature=0.0002, friction=0.0,
+        ),
+        "rc920dmg_5v_leg": DCMotorCfg(
+            joint_names_expr=[".*_femur_joint", ".*_tibia_joint"],
+            saturation_effort=RC920DMG_STALL_TORQUE_NM_5V,
+            effort_limit=PROVISIONAL_EFFORT_DERATING * RC920DMG_STALL_TORQUE_NM_5V,
+            effort_limit_sim=PROVISIONAL_EFFORT_DERATING * RC920DMG_STALL_TORQUE_NM_5V,
+            velocity_limit=RC920DMG_NO_LOAD_SPEED_RAD_S_5V,
+            velocity_limit_sim=RC920DMG_NO_LOAD_SPEED_RAD_S_5V,
+            stiffness=3.0, damping=0.06, armature=0.0002, friction=0.0,
+        ),
     }
     return robot.replace(prim_path="/World/envs/env_.*/Robot")
 
