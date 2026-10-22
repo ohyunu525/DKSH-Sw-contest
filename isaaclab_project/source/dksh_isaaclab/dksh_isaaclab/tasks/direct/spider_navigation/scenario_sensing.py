@@ -273,7 +273,7 @@ def sample_box_heights(
 
     ``points_w`` has shape ``(N, P, 2)``, ``centers_w`` has shape ``(N, B, 3)``,
     and ``half_sizes`` has shape ``(B, 3)`` or ``(N, B, 3)``. The optional base
-    plane height has shape ``(N,)`` and defaults to zero. Returns ``(N, P)``.
+    plane height has shape ``(N,)`` or ``(N, P)`` and defaults to zero. Returns ``(N, P)``.
     Box edges count as supported. Callers should supply only terrain/support
     boxes: this top-surface query does not distinguish ceilings or falling debris.
     """
@@ -282,9 +282,12 @@ def sample_box_heights(
         raise ValueError("points_w must have shape (num_envs, num_points, 2)")
     if default_height is None:
         default_height = points_w.new_zeros(points_w.shape[0])
-    elif default_height.shape != points_w.shape[:1]:
-        raise ValueError("default_height must have shape (num_envs,)")
-    base = default_height[:, None].expand(points_w.shape[:2])
+    if default_height.shape == points_w.shape[:1]:
+        base = default_height[:, None].expand(points_w.shape[:2])
+    elif default_height.shape == points_w.shape[:2]:
+        base = default_height
+    else:
+        raise ValueError("default_height must have shape (num_envs,) or (num_envs, num_points)")
     if centers_w.shape[1] == 0:
         return base.clone()
 

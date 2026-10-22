@@ -56,11 +56,11 @@ tailnet 안에서만 허용됩니다. 자세한 조건과 해제 방법은 [ROS2
 
 ## Isaac Lab 빠른 시작
 
-기본 학습은 이제 **관절 절대각 직접 출력(v1)** 방식입니다. 기본 gait에 작은 각도를 더하는
+기본 학습은 **관절 절대각 직접 출력(v2)** 방식입니다. 기본 gait에 작은 각도를 더하는
 방식을 사용하지 않으며, 정책이 허용 범위 전체에서 각 관절의 목표각을 선택합니다.
 관절 제한·명령 변화 속도·접지·에너지 비용과 연속 계단 코스를 포함합니다.
 [직접 관절각 학습과 단계별 실행](isaaclab_project/docs/joint_angle_training.md)을 먼저 참고하세요.
-기존 v0 정책은 `-ControlMode legacy`로 선택하며 새 v1 정책에는 사용할 수 없습니다.
+기존 v0 정책은 `-ControlMode legacy`로 선택합니다. v1 모델은 v2에서 새로 학습해야 합니다.
 
 현재 구성은 Isaac Sim 4.5.0과 호환되는 Isaac Lab 2.1.0/Python 3.10을 사용합니다. NVIDIA GPU와
 Isaac Sim 4.5 standalone 설치가 필요하며, 기본 설치 위치가 다르면 경로를 지정합니다.
@@ -90,7 +90,7 @@ git submodule update --init --recursive
 .\run_isaaclab.ps1 -Mode train -NumEnvs 32 -MaxIterations 1000
 ```
 
-기본 직접 각도 학습 결과는 `logs/rsl_rl/dksh_spider_jointangles_v1` 아래에 저장됩니다.
+기본 직접 각도 학습 결과는 `logs/rsl_rl/dksh_spider_jointangles_v2` 아래에 저장됩니다.
 `-ControlMode legacy`의 v0 로그 경로는 `logs/rsl_rl/dksh_spider_navigation_l2v1`입니다.
 
 ## 학습 환경 선택
@@ -112,8 +112,9 @@ git submodule update --init --recursive
 .\run_isaaclab.ps1 -Mode evaluate -Environment falling_debris -NumEnvs 4 -Steps 1000
 ```
 
-v0 정책은 모든 환경에서 Unitree L2 거리 16개와 유효값 16개를 입력받습니다. 직접 각도 v1 정책은
-비평지에서 이 32개 값을 사용하며 평지에서는 자체 관절·접지 관측을 사용합니다. 비평지 환경은 별도
+v0 정책은 모든 환경에서 Unitree L2 거리 16개와 유효값 16개를 입력받습니다. 직접 각도 v2 정책은
+이 32개 값과 지형 높이 9개·바닥 속도·낙하물 정보를 포함합니다. 모든 환경에서 CAD6 140개,
+8족 166개의 동일한 입력 구조를 사용합니다. 비평지 환경은 별도
 `*_obstacles` 로그 폴더를 사용합니다. L2의 360°×96° NEGA 시야(-6°~90°), 수평 5.55 Hz,
 4.5 mm 분해능을 반영합니다. 기존 L1 탐색 체크포인트는 관측 의미가 달라 다시 학습해야 합니다.
 `preview`는 기본 자세로 환경을 확인하는 모드입니다. 학습한 보행을 보려면 `play`를 사용합니다.

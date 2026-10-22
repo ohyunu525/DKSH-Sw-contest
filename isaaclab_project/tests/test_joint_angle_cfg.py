@@ -83,6 +83,7 @@ def load_cfg():
         @configclass
         class Runner:
             policy = Policy()
+            algorithm = Policy()
 
         path = ROOT / "isaaclab_project/source/dksh_isaaclab/dksh_isaaclab/tasks/direct/spider_navigation/joint_angle_env_cfg.py"
         tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -105,9 +106,13 @@ class JointAngleConfigurationTests(unittest.TestCase):
             with self.subTest(name=name):
                 cfg = getattr(module, name)()
                 self.assertEqual(cfg.robot.prim_path, "/World/envs/env_.*/Robot")
-                self.assertEqual(cfg.action_semantics, "absolute_joint_angles_v1")
+                self.assertEqual(cfg.action_semantics, "absolute_joint_angles_v2")
                 self.assertEqual(cfg.action_space, 18 if "Cad6" in name else 24)
                 self.assertGreater(cfg.target_rate_limit, 0)
+                self.assertEqual(cfg.observation_space, 140 if "Cad6" in name else 166)
+                self.assertEqual(cfg.joint_reset_noise, 0)
+                self.assertGreaterEqual(cfg.goal_min_distance, 0.5)
+                self.assertLess(cfg.speed_cost_scale, 0)
                 speed = cfg.servo_velocity_limit
                 self.assertLess(cfg.target_rate_limit, min(speed) if isinstance(speed, tuple) else speed)
                 for lower, upper in cfg.joint_angle_ranges.values():
@@ -120,7 +125,9 @@ class JointAngleConfigurationTests(unittest.TestCase):
     def test_policy_noise_and_mutable_ranges_do_not_modify_parent_or_other_instances(self):
         module, original = load_cfg()
         policy = module.JointAnglePPORunnerCfg()
-        self.assertEqual(policy.policy.init_noise_std, 0.12)
+        self.assertEqual(policy.policy.init_noise_std, 0.02)
+        self.assertEqual(policy.algorithm.gamma, 0.9995)
+        self.assertEqual(policy.num_steps_per_env, 128)
         self.assertEqual(original.policy.init_noise_std, 0.35)
         first, second = module.Cad6JointAngleEnvCfg(), module.Cad6JointAngleEnvCfg()
         first.joint_angle_ranges["hip"] = (0, 1)
@@ -132,10 +139,11 @@ class JointAngleConfigurationTests(unittest.TestCase):
         asset = ROOT / "isaaclab_project/assets/spiderbot_variants/onshape_20260928/robot.training.urdf"
         robot = ET.parse(asset).getroot()
         self.assertEqual(Path(cfg.robot.spawn.usd_path), asset.with_name("onshape_20260928.usd"))
-        self.assertEqual(cfg.robot.init_state.pos, (0, 0, 0.1275))
+        self.assertEqual(cfg.robot.init_state.pos, (0, 0, 0.1375))
         self.assertEqual(cfg.robot.init_state.joint_pos, {".*_joint": 0.0})
         self.assertTrue(cfg.use_asset_joint_limits)
-        self.assertFalse(cfg.enable_self_collisions)
+        self.assertTrue(cfg.enable_self_collisions)
+        self.assertGreater(cfg.robot_width, 0.556867)
         for leg in range(6):
             foot = robot.find(f"joint[@name='leg_{leg}_foot_fixed']/origin")
             self.assertEqual(cfg.sole_offset[leg], tuple(map(float, foot.get("xyz").split())))

@@ -50,7 +50,7 @@ if ($ControlMode -eq 'direct') {
         default { 'Spider' }
     }
     if ($RobotModel -ne 'baseline') { $taskPrefix += "-$($RobotModel.ToUpperInvariant())" }
-    $taskName = "Isaac-DKSH-$taskPrefix-JointAngles-v1"
+    $taskName = "Isaac-DKSH-$taskPrefix-JointAngles-v2"
 }
 elseif ($ServoModel -eq 'mg90s') {
     throw 'Use run_mg90s.ps1 -ControlMode legacy for an old residual MG90S policy.'

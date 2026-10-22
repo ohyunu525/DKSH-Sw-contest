@@ -4,23 +4,25 @@
 현재 6족은 MG996R 6개 + RC920DMG 12개 + Unitree L2 + BNO086 가정이다.
 과거 MG90S 체크포인트와 평가는 새 하드웨어의 검증으로 간주하지 않는다.
 
-## 직접 관절각 v1과 main CAD 통합 — 2026-10-22
+## 직접 관절각 v2 수정 — 2026-10-23
 
-현재 브랜치의 절대 관절각 학습은 `Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v1`로
+현재 브랜치의 절대 관절각 학습은 `Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2`로
 유지한다. `run_mg90s.ps1`의 기본 direct 모드는 이 작업을 선택하고, legacy 모드는
 아래에 기록된 main의 v0 혼합 서보 gait 작업을 선택한다.
 
-v1 CAD6도 main의 Onshape URDF/USD, 모든 관절 q=0 조립 자세, 초기 높이 0.1275 m,
-±90° 위치 한계, 다리별 고정 발 좌표, 비활성 자기충돌 설정을 사용한다. 모터와 질량은
-아래 main 명세를 따른다. 과거 all-MG90S v1 task는 예전 CAD 형상과 별도로 보존한다.
+v2 CAD6는 main의 Onshape URDF/USD, 모든 관절 q=0 조립 자세와 ±90° 한계를 사용한다.
+초기 높이는 0.1375 m, 로봇 폭은 0.56 m로 보정하고 자기충돌을 활성화한다.
+관절 리셋 잡음은 없으며, 고정 보행각을 정책 출력에 더하지 않는다. 모터와 질량 가정은
+아래 main 명세를 따른다. 과거 all-MG90S 형상·모터는 별도 v2 task로 선택할 수 있다.
 
 ```powershell
 .\run_mg90s.ps1 -Mode check -NumEnvs 4
 .\run_mg90s.ps1 -Mode train -NumEnvs 4 -MaxIterations 400 -AllowProvisionalCad
 ```
 
-v1 체크포인트는 CAD URDF 해시, 관절 순서·범위, actuator 계약, 지형 관측 계약을 검사한다.
-main 병합 전 CAD6 및 비평지 체크포인트는 새 CAD/L2 입력과 호환되지 않아 새로 학습한다.
+v2는 왕복 보상 허점, 과도한 탐색 잡음, 짧은 목표 거리, 누락된 지형 높이와 잘못된 GUI
+복제 형상을 수정한다. CAD6 관측은 평지·계단 모두 140개이며, v1 체크포인트는 재사용하지 않는다.
+CAD URDF 해시, 관절 순서·범위, actuator·보상·접촉·관측·제어 계약을 검사한다.
 직접 각도 학습의 보상·평가 계약은 [별도 안내](joint_angle_training.md)를 따른다.
 
 ## 모델 수정

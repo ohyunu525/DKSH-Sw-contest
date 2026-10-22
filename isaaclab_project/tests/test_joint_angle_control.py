@@ -1,6 +1,7 @@
 """Behavioral tests for direct angles, safety limits and effort rewards (CPU only)."""
 
 import importlib.util
+import math
 from pathlib import Path
 import unittest
 
@@ -83,11 +84,102 @@ class JointAngleControlTests(unittest.TestCase):
         torch.testing.assert_close(CONTROL.point_velocity(link_velocity, omega, offset), torch.zeros((1, 1, 3)))
 
     def test_robot_dimensions_and_leg_major_action_order(self):
-        self.assertEqual(CONTROL.observation_size(18, "flat"), 74)
-        self.assertEqual(CONTROL.observation_size(18, "stairs"), 106)
-        self.assertEqual(CONTROL.observation_size(24, "flat"), 94)
-        self.assertEqual(CONTROL.observation_size(24, "stairs"), 126)
+        self.assertEqual(CONTROL.ACTION_SEMANTICS, "absolute_joint_angles_v2")
+        for environment in ("flat", "stairs", "rough", "mixed"):
+            self.assertEqual(CONTROL.observation_size(18, environment), 140)
+            self.assertEqual(CONTROL.observation_size(24, environment), 166)
         self.assertEqual(CONTROL.joint_names(6)[:4], ["leg_0_hip_joint", "leg_0_femur_joint", "leg_0_tibia_joint", "leg_1_hip_joint"])
+
+    def test_signed_progress_never_caps_large_backward_motion(self):
+        progress = CONTROL.signed_progress(torch.tensor([1.0, 1.0]), torch.tensor([0.2, 1.8]), 0.01)
+        torch.testing.assert_close(progress, torch.tensor([0.01, -0.8]))
+        for invalid in (0, -1, math.nan, math.inf):
+            with self.subTest(cap=invalid), self.assertRaises(ValueError):
+                CONTROL.signed_progress(torch.tensor([1.0]), torch.tensor([0.9]), invalid)
+
+    def test_closed_distance_loops_have_no_positive_progress_for_asymmetric_speeds(self):
+        # Slow forward / fast backward exposes the old symmetric-clipping exploit.
+        for forward_count, backward_count in ((40, 40), (80, 10), (10, 80)):
+            forward = torch.full((forward_count,), 0.016 / forward_count, dtype=torch.float64)
+            backward = torch.full((backward_count,), -0.016 / backward_count, dtype=torch.float64)
+            displacements = torch.cat((forward, backward))
+            distances = 1.0 - torch.cat((torch.zeros(1, dtype=torch.float64), displacements.cumsum(0)))
+            progress = CONTROL.signed_progress(distances[:-1], distances[1:], 0.0008)
+            with self.subTest(forward_count=forward_count, backward_count=backward_count):
+                self.assertAlmostEqual(float(displacements.sum()), 0, places=12)
+                self.assertLessEqual(float(progress.sum()), 1e-12)
+
+    def test_speed_cost_is_nonnegative_unclipped_and_convex(self):
+        velocity = torch.tensor([0.02, -0.02, 0.0, 1.0], dtype=torch.float64)
+        cost = CONTROL.speed_tracking_cost(velocity, 0.02, 0.015)
+        self.assertTrue((cost >= 0).all())
+        self.assertEqual(float(cost[0]), 0)
+        self.assertGreater(float(cost[-1]), 1000)
+        self.assertGreaterEqual(float(cost[:2].mean()), float(cost[2]))
+        for invalid in (0, -1, math.nan, math.inf):
+            with self.subTest(sigma=invalid), self.assertRaises(ValueError):
+                CONTROL.speed_tracking_cost(velocity, 0.02, invalid)
+
+    def test_zero_net_oscillation_cannot_collect_locomotion_reward(self):
+        dt = 0.02
+        for forward_speed, forward_count, backward_speed, backward_count in (
+            (0.02, 40, -0.02, 40), (0.08, 10, -0.02, 40), (0.01, 80, -0.08, 10),
+        ):
+            velocity = torch.cat((
+                torch.full((forward_count,), forward_speed, dtype=torch.float64),
+                torch.full((backward_count,), backward_speed, dtype=torch.float64),
+            ))
+            distance = 1.0 - torch.cat((torch.zeros(1, dtype=torch.float64), (velocity * dt).cumsum(0)))
+            progress = CONTROL.signed_progress(distance[:-1], distance[1:], 0.0008)
+            cost = CONTROL.speed_tracking_cost(velocity, 0.02, 0.015)
+            for orientation in ("upright", "tilted_during_retreat", "tilted_during_advance"):
+                upright = torch.ones_like(velocity)
+                if orientation == "tilted_during_retreat":
+                    upright[forward_count:] = 0.1
+                elif orientation == "tilted_during_advance":
+                    upright[:forward_count] = 0.1
+                # Signed potential progress is intentionally not posture-gated.
+                reward = 25 * progress - 2 * cost * dt - 2 * (1 - upright).square() * dt
+                with self.subTest(forward=forward_speed, backward=backward_speed, orientation=orientation):
+                    self.assertAlmostEqual(float((velocity * dt).sum()), 0, places=12)
+                    self.assertLessEqual(float(reward.sum()), 1e-12)
+                    self.assertGreaterEqual(float(cost.mean()), float(CONTROL.speed_tracking_cost(velocity.mean(), 0.02, 0.015)) - 1e-12)
+
+    def test_exploration_noise_satisfies_per_joint_gaussian_tail_budget(self):
+        limits = torch.tensor([[-math.pi / 2, math.pi / 2], [-1.1, 1.4], [-0.4, 1.4]], dtype=torch.float64)
+        std = CONTROL.exploration_std(limits, dt=0.02, rate_limit=1.5, smoothing=0.35)
+        self.assertGreater(std, 0)
+        self.assertLess(std, 0.03)
+        for span in limits[:, 1] - limits[:, 0]:
+            angle_std = float(span) * 0.5 * std
+            tail = math.erfc((1.5 * 0.02) / (0.35 * angle_std * math.sqrt(2)))
+            self.assertLessEqual(tail, 0.01 + 1e-12)
+        tighter = CONTROL.exploration_std(limits, dt=0.02, rate_limit=1.5, smoothing=0.35, saturation_probability=0.001)
+        self.assertLess(tighter, std)
+        doubled_dt = CONTROL.exploration_std(limits, dt=0.04, rate_limit=1.5, smoothing=0.35)
+        self.assertAlmostEqual(doubled_dt, 2 * std)
+
+    def test_exploration_noise_tail_matches_requested_rate_saturation(self):
+        limits = torch.tensor([[-math.pi / 2, math.pi / 2]], dtype=torch.float64)
+        std = CONTROL.exploration_std(limits, dt=0.02, rate_limit=1.5, smoothing=0.35)
+        generator = torch.Generator().manual_seed(80421)
+        actions = std * torch.randn((500_000, 1), generator=generator, dtype=torch.float64)
+        requested = CONTROL.action_to_angles(actions, limits)
+        saturation = (0.35 * requested.abs() > 1.5 * 0.02).double().mean()
+        self.assertLess(float(saturation), 0.0108)
+        self.assertGreater(float(saturation), 0.0092)
+        # Tuning exploration must never shrink the policy's full angle range.
+        torch.testing.assert_close(CONTROL.action_to_angles(torch.tensor([[-1.0], [1.0]]), limits).flatten(), limits.flatten())
+
+    def test_exploration_noise_rejects_invalid_ranges_or_tail_budgets(self):
+        for limits in (torch.empty((0, 2)), torch.tensor([0.0]), torch.tensor([[1.0, -1.0]]), torch.tensor([[0.0, math.inf]])):
+            with self.subTest(limits=limits), self.assertRaises(ValueError):
+                CONTROL.exploration_std(limits, dt=0.02, rate_limit=1.5, smoothing=0.35)
+        for key, invalid in (("dt", 0), ("rate_limit", -1), ("smoothing", 0), ("smoothing", 1.1), ("saturation_probability", 0), ("saturation_probability", 1), ("saturation_probability", math.nan)):
+            options = dict(dt=0.02, rate_limit=1.5, smoothing=0.35, saturation_probability=0.01)
+            options[key] = invalid
+            with self.subTest(key=key, invalid=invalid), self.assertRaises(ValueError):
+                CONTROL.exploration_std(self.limits, **options)
 
 
 if __name__ == "__main__":

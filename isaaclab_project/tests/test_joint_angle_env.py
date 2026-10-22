@@ -24,7 +24,7 @@ def load_helper(name):
 
 
 CONTROL = load_helper("joint_angle_control")
-REWARDS = load_helper("mg90s_rewards")
+CONTACT = load_helper("joint_angle_contact")
 
 
 class Robot:
@@ -39,6 +39,10 @@ class Robot:
         pos[:, [i for i, name in enumerate(self.joint_names) if "femur" in name]] = 0.6
         quat = torch.zeros((count, len(self.body_names), 4))
         quat[..., 0] = 1
+        body_pos = torch.zeros((count, len(self.body_names), 3))
+        body_pos[..., 0] = -0.120  # Default sole offset lands on the flat surface.
+        root_state = torch.zeros((count, 13))
+        root_state[:, 2], root_state[:, 3] = 0.132, 1
         self.data = NS(
             soft_joint_pos_limits=limits.clone(), joint_pos_limits=limits.clone(),
             default_joint_pos=pos.clone(), joint_pos=pos.clone(), joint_vel=torch.zeros_like(pos),
@@ -48,11 +52,15 @@ class Robot:
             root_ang_vel_b=torch.zeros((count, 3)), projected_gravity_b=torch.tensor([[0, 0, -1.0]]).expand(count, 3).clone(),
             body_link_quat_w=quat, body_link_lin_vel_w=torch.zeros((count, len(self.body_names), 3)),
             body_link_ang_vel_w=torch.zeros((count, len(self.body_names), 3)),
+            body_link_pos_w=body_pos, default_root_state=root_state,
         )
         self.targets = pos.clone()
 
     def write_joint_position_limit_to_sim(self, limits):
         self.data.joint_pos_limits.copy_(limits)
+
+    def write_root_state_to_sim(self, state, env_ids):
+        self.data.root_pos_w[env_ids] = state[:, :3]
 
     def write_joint_state_to_sim(self, pos, vel, env_ids):
         self.data.joint_pos[env_ids] = pos
@@ -112,10 +120,10 @@ def quat_rotate(q, v):
 tree = ast.parse((FOLDER / "joint_angle_env.py").read_text(encoding="utf-8"))
 definition = next(node for node in tree.body if isinstance(node, ast.ClassDef))
 namespace = {"torch": torch, "SpiderNavigationEnv": Parent, "quat_rotate": quat_rotate,
-             "speed_tracking_reward": REWARDS.speed_tracking_reward,
+             "sole_contact_state": CONTACT.sole_contact_state,
              **{name: getattr(CONTROL, name) for name in (
-                 "bounded_angle_targets", "frontier_progress", "joint_names", "motion_costs",
-                 "normalize_angles", "observation_size", "point_velocity",
+                 "action_to_angles", "bounded_angle_targets", "joint_names", "motion_costs",
+                 "normalize_angles", "observation_size", "point_velocity", "signed_progress", "speed_tracking_cost",
              )}}
 exec(compile(ast.Module(body=[definition], type_ignores=[]), "joint_angle_env.py", "exec"), namespace)
 Environment = namespace["JointAngleNavigationEnv"]
@@ -164,17 +172,19 @@ class JointAngleEnvironmentTests(unittest.TestCase):
             self.assertEqual(env.spaces_observations, observation.shape[-1])
             target_section = observation[:, 12 + 2 * actions:12 + 3 * actions]
             torch.testing.assert_close(target_section, CONTROL.normalize_angles(env._processed_actions[:, env._joint_ids], env._angle_limits))
+            torch.testing.assert_close(observation[:, 12 + 3 * actions:12 + 4 * actions], env._target_velocity / env.cfg.target_rate_limit)
+            torch.testing.assert_close(observation[:, -48:-32], torch.ones((2, 16)))
 
-    def test_main_terrain_features_keep_v1_actor_dimensions_without_privileged_state(self):
+    def test_stair_heights_and_hazards_reach_actor_with_same_schema_as_flat(self):
         env = make_env()
         env.cfg.environment_preset = "stairs"
         features = torch.arange(48, dtype=torch.float32).expand(2, -1)
-        env._scenario = NS(observations=lambda: features, ground_height=lambda _: torch.zeros(2))
+        env._scenario = NS(observations=lambda: features, ground_height=lambda _: torch.zeros(2), surface_heights=lambda p: torch.zeros(p.shape[:2]))
         env._configure_gym_env_spaces()
         observation = env._get_observations()["policy"]
-        self.assertEqual(observation.shape, (2, 106))
+        self.assertEqual(observation.shape, (2, 140))
         self.assertEqual(env.cfg.state_space, 0)
-        torch.testing.assert_close(observation[:, -32:], features[:, :32])
+        torch.testing.assert_close(observation[:, -48:], features)
 
     def support_at_goal(self, env):
         env._target_positions_w[:, :2] = env._robot.data.root_pos_w[:, :2] + torch.tensor([0.01, 0])
@@ -189,7 +199,7 @@ class JointAngleEnvironmentTests(unittest.TestCase):
         self.assertTrue(done.all())
         env._goal_hold_time.zero_()
         env._target_positions_w[:, 2] = 0.30  # Reaching XY beneath a platform is not a goal.
-        env._scenario = NS(collect_impacts=lambda: None, layout=NS(corridor_width=1.6))
+        env._scenario = NS(collect_impacts=lambda: None, layout=NS(corridor_width=1.6), surface_heights=lambda p: torch.zeros(p.shape[:2]))
         for _ in range(12):
             done, _ = env._get_dones()
         self.assertFalse(done.any())
@@ -220,9 +230,8 @@ class JointAngleEnvironmentTests(unittest.TestCase):
         env = make_env()
         env._pre_physics_step(torch.ones((2, 18)))
         env._goal_hold_time.fill_(0.10)
-        env._best_goal_distance[:] = torch.tensor([0.4, 0.3])
         before = {name: getattr(env, name).clone() for name in (
-            "_processed_actions", "_actions", "_target_velocity", "_goal_hold_time", "_best_goal_distance",
+            "_processed_actions", "_actions", "_target_velocity", "_goal_hold_time", "_previous_root_xy",
         )}
         env._reset_idx(torch.tensor([0]))
         for name, old in before.items():
@@ -230,6 +239,61 @@ class JointAngleEnvironmentTests(unittest.TestCase):
         self.assertEqual(float(env._goal_hold_time[0]), 0)
         self.assertTrue((env._target_velocity[0] == 0).all())
         torch.testing.assert_close(env._robot.targets[0], env._robot.data.joint_pos[0])
+
+    def test_stationary_rocking_earns_no_positive_motion_reward(self):
+        env = make_env()
+        # No contact/effort differences: vary only the trajectory and posture.
+        total = torch.zeros(2)
+        for x, speed, gravity_z in ((0.0004, 0.02, -1.0), (0.0, -0.02, -0.5)):
+            env._robot.data.root_pos_w[:, 0] = x
+            env._robot.data.root_lin_vel_w[:, 0] = speed
+            env._robot.data.projected_gravity_b[:, 2] = gravity_z
+            env._get_dones()
+            total += env._get_rewards()
+        self.assertTrue((total <= 0).all())
+        self.assertFalse(hasattr(env, "_best_goal_distance"))
+
+    def test_fixed_evaluation_reset_requires_a_sustained_one_metre_route(self):
+        env = make_env()
+        env.cfg.evaluation_mode = True
+        env._reset_idx(torch.tensor([0]))
+        self.assertAlmostEqual(env._goal_data()[0][0].item(), 1.0)
+        torch.testing.assert_close(env._target_positions_w[0, :2], torch.tensor([1.0, 0.0]))
+        self.assertAlmostEqual(env._previous_goal_distance[0].item(), 1.0)
+
+    def test_small_and_command_speed_cycles_are_worse_than_standing(self):
+        for speed in (0.002, 0.02):
+            env = make_env()
+            env.cfg.target_speed, env.cfg.speed_tracking_sigma = 0.02, 0.015
+            env._get_dones()
+            standing = env._get_rewards().clone()
+            cycle = torch.zeros(2)
+            for x, velocity in ((speed * env.step_dt, speed), (0.0, -speed)):
+                env._robot.data.root_pos_w[:, 0] = x
+                env._robot.data.root_lin_vel_w[:, 0] = velocity
+                cycle += env._get_rewards()
+            self.assertTrue((cycle / 2 <= standing + 1e-7).all())
+
+    def test_shaft_contact_near_goal_is_not_stable_support(self):
+        env = make_env()
+        self.support_at_goal(env)
+        env._robot.data.body_link_pos_w[:, env._feet, 2] = 0.05
+        for _ in range(12):
+            env._get_dones()
+        self.assertFalse(env._reached_goal.any())
+        feet, body = env._contact_state()
+        self.assertFalse(feet.any())
+        self.assertTrue(body.all())
+
+    def test_terminal_rate_saturation_metric_survives_auto_reset(self):
+        env = make_env()
+        env._pre_physics_step(torch.ones((2, 18)))
+        env._get_rewards()
+        terminal = env.step_metrics["target_rate_saturation"].clone()
+        self.assertTrue((terminal > 0).all())
+        env._reset_idx(torch.tensor([0]))
+        torch.testing.assert_close(env.step_metrics["target_rate_saturation"], terminal)
+        self.assertEqual(env._rate_saturation[0].item(), 0)
 
 
 if __name__ == "__main__":

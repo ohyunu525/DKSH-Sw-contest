@@ -364,6 +364,90 @@ class ScenarioRuntimeTests(unittest.TestCase):
         tops = [box.position[2] + box.size[2] / 2 for box in stairs]
         torch.testing.assert_close(runtime.ground_height(positions), runtime.env.scene.env_origins[:, 2] + torch.tensor([0, *tops]))
 
+    def test_individual_feet_can_straddle_stair_heights_in_each_clone(self):
+        runtime = self.make_runtime("stairs", difficulty=0.5, count=2)
+        local_feet = torch.tensor([
+            [-0.9, -0.1, 0.2], [-0.8, 0.1, 0.2], [-0.35, -0.1, 0.2],
+            [-0.25, 0.1, 0.2], [0.2, -0.1, 0.2], [0.3, 0.1, 0.2],
+        ])
+        feet = runtime.env.scene.env_origins[:, None, :] + local_feet[None, :, :]
+        stairs = [box for box in runtime.layout.boxes if box.kind == "stairs"]
+        tops = [box.position[2] + box.size[2] / 2 for box in stairs]
+        expected_local = torch.tensor([0, tops[0], tops[0], tops[1], tops[1], tops[2]])
+        expected = runtime.env.scene.env_origins[:, 2:3] + expected_local[None, :]
+
+        heights = runtime.surface_heights(feet)
+
+        self.assertEqual(heights.shape, (2, 6))
+        torch.testing.assert_close(heights, expected)
+        self.assertAlmostEqual(float(heights[1, 0] - heights[0, 0]), 0.25)
+        torch.testing.assert_close(runtime.ground_height(feet[:, 3]), heights[:, 3])
+
+    def test_per_foot_floor_defaults_are_zero_outside_vibrating_platform(self):
+        runtime = self.make_runtime("vibrating", count=2)
+        runtime.floor_height[:] = torch.tensor([0.09, 0.11])
+        half_width = runtime.layout.corridor_width / 2
+        local_points = torch.tensor([
+            [0, 0, 0.3], [2.7, 0, 0.3], [2.81, 0, 0.3],
+            [0, half_width + 0.1, 0.3], [-2.81, 0, 0.3],
+        ])
+        points = runtime.env.scene.env_origins[:, None, :] + local_points[None, :, :]
+        expected_local = torch.tensor([[0.09, 0.09, 0, 0, 0], [0.11, 0.11, 0, 0, 0]])
+
+        heights = runtime.surface_heights(points)
+
+        torch.testing.assert_close(heights, runtime.env.scene.env_origins[:, 2:3] + expected_local)
+        # A neighbouring point on the platform must not lend its floor height
+        # to a foot beyond either the platform's longitudinal or lateral edge.
+        self.assertTrue((heights[:, 2:] == runtime.env.scene.env_origins[:, 2:3]).all())
+
+    def test_height_observation_grid_straddles_vibrating_platform_edge(self):
+        runtime = self.make_runtime("vibrating", count=2)
+        runtime.floor_height[:] = torch.tensor([0.09, 0.11])
+        # The root stays 10 cm inside the lateral edge. Each x-row of the
+        # +/-30 cm grid has two points on the platform and one beyond it.
+        root_local = torch.tensor([0.0, runtime.layout.corridor_width / 2 - 0.1, 0.2])
+        runtime.env._robot.data.root_pos_w[:] = runtime.env.scene.env_origins + root_local
+
+        features = runtime.observations()[:, 32:41]
+
+        expected_surfaces = torch.tensor([[0.09, 0.09, 0.0] * 3, [0.11, 0.11, 0.0] * 3])
+        torch.testing.assert_close(features, (expected_surfaces - 0.2) / 0.5)
+        torch.testing.assert_close(features[:, [2, 5, 8]], torch.full((2, 3), -0.4))
+
+    def test_individual_surface_queries_ignore_walls_and_roof(self):
+        runtime = self.make_runtime("narrow", count=2)
+        half_width = runtime.layout.corridor_width / 2
+        local_points = torch.tensor([
+            [0, 0, 0.2], [0, half_width + 0.08, 0.2], [0, -half_width - 0.08, 0.2],
+        ])
+        points = runtime.env.scene.env_origins[:, None, :] + local_points[None, :, :]
+
+        heights = runtime.surface_heights(points)
+
+        torch.testing.assert_close(heights, runtime.env.scene.env_origins[:, 2:3].expand(2, 3))
+
+    def test_local_height_features_reveal_near_stair_that_lidar_does_not(self):
+        runtime = self.make_runtime("stairs", difficulty=0, count=1)
+        # Saved Onshape reset height plus 30 mm L2 mount. The first edge is at
+        # x=-0.85: here it is only 10 cm ahead of the robot centre.
+        runtime.env._robot.data.root_pos_w[:] = torch.tensor([[-0.95, 0.0, 0.1275]])
+        full = runtime.observations().clone()
+        first_index = next(index for index, box in enumerate(runtime.layout.boxes) if box.name == "stair_0")
+        first_top = runtime.layout.boxes[first_index].position[2] + runtime.layout.boxes[first_index].size[2] / 2
+        # Counterfactual terrain query: remove just the first stair from both
+        # range and height geometry, leaving identical walls, other steps,
+        # robot pose and sensor parameters. Recompute rather than hold the scan.
+        runtime._centers[first_index, :] += 100.0
+        runtime._lidar_next_update.zero_()
+        missing_first = runtime.observations()
+
+        torch.testing.assert_close(full[:, :32], missing_first[:, :32], atol=0, rtol=0)
+        self.assertGreater(float(full[0, 0]), 0.0)  # A real distant return, not an invalid all-zero scan.
+        expected_difference = torch.tensor([[0.0] * 6 + [first_top / 0.5] * 3])
+        torch.testing.assert_close(full[:, 32:41] - missing_first[:, 32:41], expected_difference)
+        self.assertGreater(float(full[0, 39] - missing_first[0, 39]), 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()

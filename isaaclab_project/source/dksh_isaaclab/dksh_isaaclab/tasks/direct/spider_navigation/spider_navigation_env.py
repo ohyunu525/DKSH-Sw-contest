@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from pathlib import Path
 
 import gymnasium as gym
 import torch
@@ -116,55 +115,25 @@ class SpiderNavigationEnv(DirectRLEnv):
         return distance, direction_w, direction_b
 
     def _sync_cad_visual_for_gui(self) -> None:
-        """Show a visual-only CAD copy at the GPU articulation's body poses.
-
-        Isaac Sim on this host keeps the referenced CAD USD hierarchy at its
-        source pose while Direct GPU PhysX moves the articulation.  Editing that
-        physics hierarchy is forbidden by PhysX, so the viewport receives a
-        separate, mesh-only copy instead.  It is created only for an interactive
-        GUI and has no collision or physics schemas.
-        """
+        """Render the active robot's actual visuals at simulated link poses."""
         if not self.sim.has_gui():
+            if self._viewer_visuals is not None:
+                self._viewer_visuals.restore()
+                self._viewer_visuals = None
             return
         if self._viewer_visuals is None:
             import omni.usd
-            from pxr import UsdGeom
+            from .cad_visuals import LinkVisualCopies
 
             stage = omni.usd.get_context().get_stage()
-            display_root = "/World/envs/env_0/RobotDisplay"
-            stage.DefinePrim(display_root, "Xform")
-            asset_path = (
-                Path(__file__).resolve().parents[6]
-                / "assets"
-                / "spiderbot_variants"
-                / "spiderbot_6leg"
-                / "visuals.usdc"
+            self._viewer_visuals = LinkVisualCopies(
+                stage, "/World/envs/env_0/Robot", self._robot.body_names,
+                "/World/envs/env_0/RobotDisplay",
             )
-            mesh_for_body = {
-                "base": "base",
-                "hip": "hip",
-                "femur": "femur",
-                "tibia": "tibia",
-            }
-            self._viewer_visuals = []
-            for index, body_name in enumerate(self._robot.body_names):
-                mesh_name = next(kind for kind in mesh_for_body if body_name == "base" or body_name.endswith(kind))
-                prim = stage.DefinePrim(f"{display_root}/{body_name}", "Mesh")
-                prim.GetReferences().AddReference(str(asset_path), f"/{mesh_for_body[mesh_name]}")
-                xformable = UsdGeom.Xformable(prim)
-                self._viewer_visuals.append((index, xformable.MakeMatrixXform()))
-
-        from pxr import Gf
-
-        body_positions = self._robot.data.body_pos_w[0].detach().cpu().tolist()
-        body_quaternions = self._robot.data.body_quat_w[0].detach().cpu().tolist()
-        for index, transform_op in self._viewer_visuals:
-            position = body_positions[index]
-            quaternion = body_quaternions[index]
-            transform = Gf.Matrix4d(1.0)
-            transform.SetRotate(Gf.Quatd(quaternion[0], Gf.Vec3d(quaternion[1], quaternion[2], quaternion[3])))
-            transform.SetTranslateOnly(Gf.Vec3d(*position))
-            transform_op.Set(transform)
+        self._viewer_visuals.update_world_poses(
+            self._robot.data.body_link_pos_w[0].detach().cpu().tolist(),
+            self._robot.data.body_link_quat_w[0].detach().cpu().tolist(),
+        )
 
     def _get_observations(self) -> dict[str, torch.Tensor]:
         self._sync_cad_visual_for_gui()
@@ -293,7 +262,7 @@ class SpiderNavigationEnv(DirectRLEnv):
             self._scenario.reset(env_ids)
 
         joint_pos = self._robot.data.default_joint_pos[env_ids].clone()
-        joint_pos += 0.03 * (2.0 * torch.rand_like(joint_pos) - 1.0)
+        joint_pos += getattr(self.cfg, "joint_reset_noise", 0.03) * (2.0 * torch.rand_like(joint_pos) - 1.0)
         joint_vel = torch.zeros_like(self._robot.data.default_joint_vel[env_ids])
 
         root_state = self._robot.data.default_root_state[env_ids].clone()

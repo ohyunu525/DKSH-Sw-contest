@@ -2,8 +2,8 @@
 
 import gymnasium as gym
 
-# v1 absolute-angle policies have different actions/observations from v0 gait
-# residuals. Separate IDs prevent accidental interpretation of old policies.
+# v2 includes filter velocity and terrain heights and uses signed progress.
+# Separate IDs prevent reuse of incompatible v1 policies or v0 gait residuals.
 for robot, prefix, config in (
     ("baseline", "Spider", "JointAngleNavigationEnvCfg"),
     ("cad8", "Spider-CAD8", "Cad8JointAngleEnvCfg"),
@@ -13,7 +13,7 @@ for robot, prefix, config in (
     ("mg90s_cad6", "MG90S-CAD6", "MG90SCad6JointAngleEnvCfg"),
 ):
     gym.register(
-        id=f"Isaac-DKSH-{prefix}-JointAngles-v1",
+        id=f"Isaac-DKSH-{prefix}-JointAngles-v2",
         entry_point=f"{__name__}.joint_angle_env:JointAngleNavigationEnv",
         disable_env_checker=True,
         kwargs={
@@ -23,7 +23,7 @@ for robot, prefix, config in (
     )
 
 gym.register(
-    id="Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v1",
+    id="Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2",
     entry_point=f"{__name__}.joint_angle_env:JointAngleNavigationEnv",
     disable_env_checker=True,
     kwargs={

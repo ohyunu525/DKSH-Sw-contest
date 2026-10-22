@@ -4,6 +4,19 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import runpy
+import sys
+
+
+selector = argparse.ArgumentParser(add_help=False)
+selector.add_argument("--task", default="Isaac-DKSH-Spider-JointAngles-v2")
+selected, _ = selector.parse_known_args()
+if selected.task.endswith("-JointAngles-v1"):
+    selector.error("JointAngles-v1 is retired because the evaluation/observation contract changed; retrain a v2 policy")
+if selected.task.endswith("-JointAngles-v2"):
+    sys.argv = [sys.argv[0], "--mode=evaluate", f"--task={selected.task}"] + sys.argv[1:]
+    runpy.run_path(str(Path(__file__).with_name("joint_angle_runner.py")), run_name="__main__")
+    raise SystemExit(0)
 
 from isaaclab.app import AppLauncher
 from environment_cli import add_environment_args, apply_environment_cfg, experiment_for_environment

@@ -124,6 +124,36 @@ class ScenarioSensingTests(unittest.TestCase):
         )
         torch.testing.assert_close(heights, self.tensor([[0.4, 0.0], [0.4, 0.4]]))
 
+    def test_empty_terrain_preserves_each_points_floor_default(self):
+        points = torch.zeros((2, 3, 2), dtype=torch.float64)
+        centers = torch.empty((2, 0, 3), dtype=torch.float64)
+        sizes = torch.empty((0, 3), dtype=torch.float64)
+        floors = self.tensor([[0.08, 0.0, 0.08], [0.25, 0.36, 0.25]])
+
+        heights = SENSING.sample_box_heights(points, centers, sizes, floors)
+
+        torch.testing.assert_close(heights, floors)
+        heights[0, 0] = 9
+        self.assertEqual(float(floors[0, 0]), 0.08)
+
+    def test_terrain_tops_combine_with_per_point_floor_defaults(self):
+        points = self.tensor([[[0, 0], [2, 0], [0, 0]], [[0, 0], [2, 0], [0, 0]]])
+        centers = self.tensor([[[0, 0, 0.1]], [[0, 0, 0.5]]])
+        sizes = self.tensor([[0.5, 0.5, 0.1]])
+        floors = self.tensor([[0.0, 0.3, 0.4], [0.7, 0.8, 0.0]])
+
+        heights = SENSING.sample_box_heights(points, centers, sizes, floors)
+
+        torch.testing.assert_close(heights, self.tensor([[0.2, 0.3, 0.4], [0.7, 0.8, 0.6]]))
+
+    def test_height_sampling_rejects_malformed_per_point_defaults(self):
+        points = torch.zeros((2, 3, 2), dtype=torch.float64)
+        centers = torch.empty((2, 0, 3), dtype=torch.float64)
+        sizes = torch.empty((0, 3), dtype=torch.float64)
+        for shape in ((2, 1), (3,), (2, 3, 1)):
+            with self.subTest(shape=shape), self.assertRaises(ValueError):
+                SENSING.sample_box_heights(points, centers, sizes, torch.zeros(shape, dtype=torch.float64))
+
     def test_invalid_configuration_is_rejected(self):
         args = (self.tensor([[0.0, 0.0, 0.0]]), self.tensor([0.0]), self.tensor([[[0.0, 0.0, 0.0]]]), self.tensor([[0.5, 0.5, 0.5]]))
         for distance in (0.0, -1.0, math.inf, math.nan):

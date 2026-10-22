@@ -16,6 +16,8 @@ AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 if args_cli.steps < 1 or args_cli.num_envs < 1:
     parser.error("--steps and --num_envs must be positive")
+if args_cli.task.endswith("-JointAngles-v1"):
+    parser.error("JointAngles-v1 is retired; retrain and use the v2 absolute-angle task")
 
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
@@ -25,6 +27,7 @@ import torch
 
 import dksh_isaaclab  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
+from joint_angle_runner_utils import validate_observation_batch
 
 
 def main() -> None:
@@ -38,10 +41,9 @@ def main() -> None:
         base_env = env.unwrapped
         policy_obs = observation["policy"]
         dof = cfg.action_space
-        assert policy_obs.shape == (args_cli.num_envs, cfg.observation_space), policy_obs.shape
-        assert observation["critic"].shape == (args_cli.num_envs, cfg.state_space)
+        validate_observation_batch(observation, num_envs=args_cli.num_envs,
+                                   actor_size=cfg.observation_space, critic_size=cfg.state_space)
         assert base_env.num_states == cfg.state_space
-        torch.testing.assert_close(observation["critic"][:, :cfg.observation_space], policy_obs)
         assert base_env._robot.num_joints == dof, base_env._robot.num_joints
         assert base_env._robot.num_bodies == dof + 1, base_env._robot.num_bodies
         base_index = base_env._robot.body_names.index("base")
@@ -58,7 +60,7 @@ def main() -> None:
         falling_motion_seen = False
         for _ in range(args_cli.steps):
             actions = 0.1 * (2.0 * torch.rand((args_cli.num_envs, dof), device=env.unwrapped.device) - 1.0)
-            direct_angles = getattr(cfg, "action_semantics", None) == "absolute_joint_angles_v1"
+            direct_angles = getattr(cfg, "action_semantics", None) == "absolute_joint_angles_v2"
             if direct_angles:
                 from dksh_isaaclab.tasks.direct.spider_navigation.joint_angle_control import normalize_angles
                 # Exercise motor control near a static reset pose during this
@@ -66,11 +68,8 @@ def main() -> None:
                 standing = normalize_angles(base_env._robot.data.default_joint_pos[:, base_env._joint_ids], base_env._angle_limits)
                 actions = standing + 0.2 * actions
             observation, rewards, terminated, truncated, _ = env.step(actions)
-            assert torch.isfinite(observation["policy"]).all()
-            assert torch.isfinite(observation["critic"]).all()
-            torch.testing.assert_close(
-                observation["critic"][:, :cfg.observation_space], observation["policy"]
-            )
+            validate_observation_batch(observation, num_envs=args_cli.num_envs,
+                                       actor_size=cfg.observation_space, critic_size=cfg.state_space)
             assert torch.isfinite(rewards).all()
             assert torch.isfinite(base_env._robot.data.root_state_w).all()
             assert torch.isfinite(base_env._robot.data.joint_pos).all()

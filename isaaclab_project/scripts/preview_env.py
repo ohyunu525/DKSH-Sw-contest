@@ -17,6 +17,8 @@ AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 if args.steps < 1 or args.num_envs < 1:
     parser.error("--steps and --num_envs must be positive")
+if args.task.endswith("-JointAngles-v1"):
+    parser.error("JointAngles-v1 is retired; retrain and use the v2 absolute-angle task")
 app = AppLauncher(args).app
 
 import gymnasium as gym
@@ -33,7 +35,7 @@ def main():
     try:
         env.reset()
         actions = torch.zeros((cfg.scene.num_envs, cfg.action_space), device=env.unwrapped.device)
-        if getattr(cfg, "action_semantics", None) == "absolute_joint_angles_v1":
+        if getattr(cfg, "action_semantics", None) == "absolute_joint_angles_v2":
             from dksh_isaaclab.tasks.direct.spider_navigation.joint_angle_control import normalize_angles
             base = env.unwrapped
             actions = normalize_angles(base._robot.data.default_joint_pos[:, base._joint_ids], base._angle_limits)

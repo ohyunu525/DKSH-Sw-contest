@@ -9,10 +9,10 @@ from isaaclab.utils.math import quat_rotate
 
 from .spider_navigation_env import SpiderNavigationEnv
 from .joint_angle_control import (
-    bounded_angle_targets, frontier_progress, joint_names, motion_costs,
-    normalize_angles, observation_size, point_velocity,
+    action_to_angles, bounded_angle_targets, joint_names, motion_costs,
+    normalize_angles, observation_size, point_velocity, signed_progress, speed_tracking_cost,
 )
-from .mg90s_rewards import speed_tracking_reward
+from .joint_angle_contact import sole_contact_state
 
 
 class JointAngleNavigationEnv(SpiderNavigationEnv):
@@ -21,7 +21,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         cfg.robot.spawn.activate_contact_sensors = True
         cfg.robot.spawn.articulation_props.enabled_self_collisions = cfg.enable_self_collisions
         super().__init__(cfg, render_mode, **kwargs)
-        # Parent retains its v0 observation contract. Set the v1 space before
+        # Parent retains its v0 observation contract. Set the v2 space before
         # DirectRLEnv configures Gym spaces, via _configure_gym_env_spaces below.
         self._joint_ids = [self._robot.joint_names.index(name) for name in joint_names(cfg.action_space // 3)]
         limits = (self._robot.data.joint_pos_limits if cfg.use_asset_joint_limits
@@ -45,8 +45,9 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         self._processed_actions = self._robot.data.default_joint_pos.clone()
         self._target_velocity = torch.zeros_like(self._actions)
         self._previous_target_velocity = torch.zeros_like(self._actions)
-        self._best_goal_distance = torch.zeros(self.num_envs, device=self.device)
-        self._goal_hold_time = torch.zeros_like(self._best_goal_distance)
+        self._goal_hold_time = torch.zeros(self.num_envs, device=self.device)
+        self._rate_saturation = torch.zeros_like(self._goal_hold_time)
+        self._previous_root_xy = self._robot.data.root_pos_w[:, :2].clone()
         self._reached_goal = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self._feet = [self._robot.body_names.index(f"leg_{leg}_tibia") for leg in range(cfg.action_space // 3)]
         self._sensor_feet = [self._contacts.body_names.index(self._robot.body_names[i]) for i in self._feet]
@@ -92,6 +93,8 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         self._previous_actions.copy_(self._actions)
         previous = self._processed_actions[:, self._joint_ids]
         self._actions.copy_(torch.where(torch.isfinite(actions), actions, normalize_angles(previous, self._angle_limits)).clamp(-1, 1))
+        requested_step = self.cfg.target_smoothing * (action_to_angles(self._actions, self._angle_limits) - previous)
+        self._rate_saturation = (requested_step.abs() > self.cfg.target_rate_limit * self.step_dt).float().mean(-1)
         targets = bounded_angle_targets(
             self._actions, previous, self._angle_limits, dt=self.step_dt,
             rate_limit=self.cfg.target_rate_limit, smoothing=self.cfg.target_smoothing,
@@ -101,10 +104,23 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         self._processed_actions[:, self._joint_ids] = targets
 
     def _contact_state(self):
-        forces = torch.linalg.vector_norm(self._contacts.data.net_forces_w_history, dim=-1).amax(dim=1)
-        feet = forces[:, self._sensor_feet] > self.cfg.contact_threshold
-        body = (forces[:, self._sensor_body] > self.cfg.contact_threshold).any(dim=-1)
-        return feet, body
+        offset = self._sole_world_offset()
+        soles = self._robot.data.body_link_pos_w[:, self._feet] + offset
+        surface = (self.scene.env_origins[:, 2:3].expand(-1, len(self._feet))
+                   if self._scenario is None else self._scenario.surface_heights(soles))
+        return sole_contact_state(
+            self._contacts.data.net_forces_w_history,
+            sensor_feet=self._sensor_feet, sensor_body=self._sensor_body,
+            sole_positions_w=soles, surface_heights=surface,
+            force_threshold=self.cfg.contact_threshold,
+            height_tolerance=self.cfg.sole_contact_height_tolerance,
+        )
+
+    def _sole_world_offset(self):
+        return quat_rotate(
+            self._robot.data.body_link_quat_w[:, self._feet].reshape(-1, 4),
+            self._sole_offset.reshape(-1, 3),
+        ).reshape_as(self._sole_offset)
 
     def _ground_height(self):
         if self._scenario is None:
@@ -127,13 +143,19 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             normalize_angles(data.joint_pos[:, self._joint_ids], self._angle_limits),
             data.joint_vel[:, self._joint_ids] / self._servo_velocity_limits,
             normalize_angles(self._processed_actions[:, self._joint_ids], self._angle_limits),
+            self._target_velocity / self.cfg.target_rate_limit,
             feet.float(), (clearance / self.cfg.robot_height).unsqueeze(-1),
             ((goal_surface - data.root_pos_w[:, 2]) / self.cfg.robot_height).unsqueeze(-1),
         ), dim=-1)
         if self._scenario is not None:
-            # main returns 32 L2 actor features plus 16 privileged critic values.
-            # v1 retains its actor-only 106/126-dimensional nonflat contract.
-            observation = torch.cat((observation, self._scenario.observations()[:, :32]), dim=-1)
+            terrain = self._scenario.observations()
+        else:
+            # Same schema on flat and stairs, permitting explicit flat-to-terrain
+            # transfer. Height samples are simulated terrain information.
+            terrain = torch.zeros((self.num_envs, 48), device=self.device)
+            terrain[:, :16] = 1.0
+            terrain[:, 32:41] = ((self.scene.env_origins[:, 2:3] - data.root_pos_w[:, 2:3]) / 0.5).clamp(-1, 1)
+        observation = torch.cat((observation, terrain), dim=-1)
         return {"policy": observation}
 
     def _get_dones(self):
@@ -161,9 +183,8 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
     def _get_rewards(self):
         data = self._robot.data
         distance, direction_w, _ = self._goal_data()
-        progress, self._best_goal_distance = frontier_progress(
-            self._best_goal_distance, distance, 2 * self.cfg.target_speed * self.step_dt,
-        )
+        net_progress = self._previous_goal_distance - distance
+        progress = signed_progress(self._previous_goal_distance, distance, self.cfg.target_speed * self.step_dt)
         forward = (data.root_lin_vel_w[:, :2] * direction_w[:, :2]).sum(-1)
         upright = (-data.projected_gravity_b[:, 2]).clamp(0, 1)
         costs = motion_costs(
@@ -172,26 +193,28 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             self._effort_limits, self._servo_velocity_limits,
         )
         feet, body_contact = self._contact_state()
-        offset = quat_rotate(data.body_link_quat_w[:, self._feet].reshape(-1, 4), self._sole_offset.reshape(-1, 3)).reshape_as(self._sole_offset)
+        offset = self._sole_world_offset()
         velocity = point_velocity(data.body_link_lin_vel_w[:, self._feet], data.body_link_ang_vel_w[:, self._feet], offset)
         if self._scenario is not None:
             velocity = velocity - self._scenario.floor_velocity[:, None, :]
         slip = (velocity[..., :2].square().sum(-1) * feet).sum(-1) / feet.sum(-1).clamp_min(1)
         acceleration = ((self._target_velocity - self._previous_target_velocity) / self.cfg.target_rate_limit).square().mean(-1)
         rates = {
-            "speed": self.cfg.speed_reward_scale * speed_tracking_reward(forward, torch.full_like(forward, self.cfg.target_speed), self.cfg.speed_tracking_sigma) * upright.square(),
+            "speed": self.cfg.speed_cost_scale * speed_tracking_cost(forward, self.cfg.target_speed, self.cfg.speed_tracking_sigma),
             "upright": self.cfg.upright_cost_scale * (1 - upright).square(),
             **{name: getattr(self.cfg, f"{name}_cost_scale") * value for name, value in costs.items()},
             "target_acceleration": self.cfg.target_acceleration_cost_scale * acceleration,
             "body_contact": self.cfg.body_contact_cost_scale * body_contact.float(),
             "foot_slip": self.cfg.foot_slip_cost_scale * slip,
             "angular_velocity": self.cfg.angular_velocity_cost_scale * data.root_ang_vel_b[:, :2].square().sum(-1),
-            "stillness": self.cfg.stillness_penalty_scale * (forward < 0.1 * self.cfg.target_speed).float(),
+            "stillness": self.cfg.stillness_penalty_scale * torch.relu(
+                0.1 * self.cfg.target_speed - forward
+            ) / self.cfg.speed_tracking_sigma,
         }
         failed = self._fallen() | self._out_of_bounds
         terms = {name: rate * self.step_dt for name, rate in rates.items()}
         terms.update(
-            progress=self.cfg.progress_reward_scale * progress * upright.square(),
+            progress=self.cfg.progress_reward_scale * progress,
             goal=self.cfg.goal_reward * self._reached_goal.float(),
             failure=self.cfg.failure_penalty * failed.float(),
             debris_impact=self.cfg.debris_impact_penalty * self._debris_hit().float(),
@@ -199,14 +222,21 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         for name, value in terms.items():
             self._episode_sums[name] += value
         self._previous_goal_distance.copy_(distance)
+        travel = torch.linalg.vector_norm(data.root_pos_w[:, :2] - self._previous_root_xy, dim=-1)
+        self._previous_root_xy.copy_(data.root_pos_w[:, :2])
         # Capture before auto-reset, so evaluation includes terminal falls and effort.
         self.step_metrics = {
             "forward_speed_mps": forward, "mechanical_power_w": costs["power"],
-            "progress_m": progress, "body_contact": body_contact.float(),
+            "progress_m": net_progress, "reward_progress_m": progress, "body_contact": body_contact.float(),
             "joint_limit_cost": costs["joint_limit"], "foot_slip_m2_s2": slip,
             "goal": self._reached_goal.float(), "fallen": self._fallen().float(),
             "out_of_bounds": (self._out_of_bounds & ~self._fallen()).float(),
             "target_rate_rad_s": self._target_velocity.abs().amax(-1),
+            "travel_distance_m": travel,
+            "target_rate_saturation": self._rate_saturation.clone(),
+            "torque_saturation": (data.applied_torque[:, self._joint_ids].abs() >= 0.95 * self._effort_limits).float().mean(-1),
+            "tracking_error_rad": (data.joint_pos[:, self._joint_ids] - self.joint_angle_targets_rad).abs().mean(-1),
+            "feet_contact": feet.float().sum(-1),
         }
         self.extras["log"].update({f"Metrics/{name}": value.mean() for name, value in self.step_metrics.items()})
         return torch.stack(tuple(terms.values())).sum(0)
@@ -225,6 +255,18 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         for name, count in counts.items():
             self.completed[name] += count
         super()._reset_idx(env_ids)
+        if self.cfg.evaluation_mode and self._scenario is None:
+            # Fixed one-metre route and heading for deterministic sustained-walk
+            # evaluation; stochastic training goals retain the parent reset.
+            state = self._robot.data.default_root_state[env_ids].clone()
+            state[:, :3] += self.scene.env_origins[env_ids]
+            state[:, 3:7] = state.new_tensor((1.0, 0.0, 0.0, 0.0))
+            state[:, 7:] = 0.0
+            self._robot.write_root_state_to_sim(state, env_ids)
+            self._target_positions_w[env_ids] = state[:, :3]
+            self._target_positions_w[env_ids, 0] += self.cfg.evaluation_goal_distance
+            self._target_positions_w[env_ids, 2] = self.scene.env_origins[env_ids, 2] + 0.015
+            self._previous_goal_distance[env_ids] = self.cfg.evaluation_goal_distance
         for name in ("goal", "fallen", "time_out", "out_of_bounds"):
             self.extras["log"][f"Episode_Termination/{name}"] = counts[name]
         # No random episode age and no precomputed gait phase.
@@ -241,6 +283,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         self._previous_actions[env_ids] = self._actions[env_ids]
         self._target_velocity[env_ids] = 0
         self._previous_target_velocity[env_ids] = 0
-        self._best_goal_distance[env_ids] = self._previous_goal_distance[env_ids]
+        self._previous_root_xy[env_ids] = self._robot.data.root_pos_w[env_ids, :2]
+        self._rate_saturation[env_ids] = 0
         self._goal_hold_time[env_ids] = 0
         self._reached_goal[env_ids] = False

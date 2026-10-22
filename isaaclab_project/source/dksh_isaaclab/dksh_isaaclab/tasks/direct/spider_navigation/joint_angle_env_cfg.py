@@ -38,9 +38,20 @@ ONSHAPE_SOLE_OFFSETS = (
 )
 
 
+def _cad6_joint_angle_robot():
+    robot = cad_spiderbot_cfg(6)
+    robot.init_state.pos = (0.0, 0.0, 0.1375)
+    return robot.replace(prim_path="/World/envs/env_.*/Robot")
+
+
 @configclass
 class JointAngleNavigationEnvCfg(SpiderNavigationEnvCfg):
-    action_semantics = "absolute_joint_angles_v1"
+    action_semantics = "absolute_joint_angles_v2"
+    terrain_observation_contract = "terrain_full48_all_presets_v2"
+    observation_contract = "joint_angles_targets_target_velocity_terrain48_v2"
+    reward_contract = "signed_progress_sustained_speed_v2"
+    contact_contract = "support_surface_vertical_sole_v2"
+    control_contract = "absolute_targets_rate_limited_observed_velocity_v2"
     robot = SPIDERBOT_CFG.replace(prim_path="/World/envs/env_.*/Robot")
     actuator_contract = "mg996r_4v8_v1"
     servo_model = "MG996R"
@@ -49,11 +60,17 @@ class JointAngleNavigationEnvCfg(SpiderNavigationEnvCfg):
     servo_stall_torque_nm = MG996R_STALL_TORQUE_NM
     servo_effort_limit_nm = 0.75 * MG996R_STALL_TORQUE_NM
     servo_mass_kg = MG996R_MASS_KG
-    observation_space = 94
+    observation_space = 166
     state_space = 0
     use_asset_joint_limits = False
     enable_self_collisions = True
-    episode_length_s = 60.0
+    episode_length_s = 120.0
+    joint_reset_noise = 0.0
+    evaluation_mode = False
+    evaluation_goal_distance = 1.0
+    evaluation_min_speed_fraction = 0.5
+    evaluation_episode_length_s = 90.0
+    max_initial_action_saturation = 0.01
     # Working limits intersect the asset limits. The knee stays on its assembled
     # bend branch; these are simulation settings, not measured PWM calibration.
     joint_angle_ranges = {"hip": (-1.40, 1.40), "femur": (-1.10, 1.40), "tibia": (0.10, 1.45)}
@@ -62,15 +79,18 @@ class JointAngleNavigationEnvCfg(SpiderNavigationEnvCfg):
     servo_velocity_limit = MG996R_NO_LOAD_SPEED_RAD_S
     sole_offset = (0.120, 0.0, 0.0)
     contact_threshold = 1.0
+    sole_contact_height_tolerance = 0.012
     minimum_support_feet = 3
     goal_hold_seconds = 0.20
-    goal_min_distance = 0.35
-    goal_max_distance = 1.0
-    goal_radius = 0.15
+    goal_min_distance = 0.5
+    goal_max_distance = 1.5
+    goal_radius = 0.08
+    goal_reward = 5.0
+    failure_penalty = -100.0
     target_speed = 0.10
     speed_tracking_sigma = 0.06
     progress_reward_scale = 25.0
-    speed_reward_scale = 2.0
+    speed_cost_scale = -0.10
     upright_cost_scale = -2.0
     joint_limit_cost_scale = -1.0
     joint_velocity_cost_scale = -0.05
@@ -80,7 +100,7 @@ class JointAngleNavigationEnvCfg(SpiderNavigationEnvCfg):
     body_contact_cost_scale = -2.0
     foot_slip_cost_scale = -2.0
     angular_velocity_cost_scale = -0.10
-    stillness_penalty_scale = -0.15
+    stillness_penalty_scale = -0.02
     # Rewards never require matching a static pose or a periodic gait.
 
 
@@ -93,18 +113,19 @@ class Cad8JointAngleEnvCfg(JointAngleNavigationEnvCfg):
     robot_width = 0.46
     robot_height = 0.24
     target_speed = 0.06
-    episode_length_s = 90.0
+    episode_length_s = 180.0
 
 
 @configclass
 class Cad6JointAngleEnvCfg(Cad8JointAngleEnvCfg):
-    robot = cad_spiderbot_cfg(6).replace(prim_path="/World/envs/env_.*/Robot")
+    robot = _cad6_joint_angle_robot()
     action_space = 18
-    observation_space = 74
+    observation_space = 140
     joint_angle_ranges = {part: (-math.pi / 2, math.pi / 2) for part in ("hip", "femur", "tibia")}
     sole_offset = ONSHAPE_SOLE_OFFSETS
     use_asset_joint_limits = True
-    enable_self_collisions = False
+    enable_self_collisions = True
+    robot_width = 0.56
 
 
 def _mg90s_cad_robot(leg_count):
@@ -134,10 +155,10 @@ class MG90SJointAngleEnvCfg(JointAngleNavigationEnvCfg):
     minimum_base_height = 0.09
     target_speed = 0.02
     speed_tracking_sigma = 0.015
-    goal_min_distance = 0.08
-    goal_max_distance = 0.25
-    goal_radius = 0.04
-    episode_length_s = 180.0
+    goal_min_distance = 0.5
+    goal_max_distance = 1.5
+    goal_radius = 0.08
+    episode_length_s = 240.0
 
 
 @configclass
@@ -154,12 +175,14 @@ class MG90SCad8JointAngleEnvCfg(MG90SJointAngleEnvCfg):
 class MG90SCad6JointAngleEnvCfg(MG90SCad8JointAngleEnvCfg):
     robot = _mg90s_cad_robot(6)
     action_space = 18
-    observation_space = 74
+    observation_space = 140
 
 
 def _mg996r_hip_cad6_robot():
     robot = cad_spiderbot_cfg(6)
     robot.actuators = mixed_servo_robot_cfg().actuators
+    # q=0 hull bottom is z=-0.126578m: leave >10mm clearance at reset.
+    robot.init_state.pos = (0.0, 0.0, 0.1375)
     return robot.replace(prim_path="/World/envs/env_.*/Robot")
 
 
@@ -170,7 +193,8 @@ class MG996RHipCad6JointAngleEnvCfg(MG90SCad6JointAngleEnvCfg):
     joint_angle_ranges = Cad6JointAngleEnvCfg().joint_angle_ranges
     sole_offset = ONSHAPE_SOLE_OFFSETS
     use_asset_joint_limits = True
-    enable_self_collisions = False
+    enable_self_collisions = True
+    robot_width = 0.56
     servo_model = None
     servo_reference_voltage_v = None
     servo_stall_torque_nm = None
@@ -207,4 +231,10 @@ class MG996RHipCad6JointAngleEnvCfg(MG90SCad6JointAngleEnvCfg):
 class JointAnglePPORunnerCfg(SpiderNavigationPPORunnerCfg):
     experiment_name = "dksh_joint_angles"
     policy = SpiderNavigationPPORunnerCfg().policy.copy()
-    policy.init_noise_std = 0.12
+    # Runner derives the exact per-asset cap from limits/rate/smoothing.
+    policy.init_noise_std = 0.02
+    num_steps_per_env = 128
+    algorithm = SpiderNavigationPPORunnerCfg().algorithm.copy()
+    algorithm.gamma = 0.9995
+    algorithm.lam = 0.98
+    algorithm.entropy_coef = 0.0001

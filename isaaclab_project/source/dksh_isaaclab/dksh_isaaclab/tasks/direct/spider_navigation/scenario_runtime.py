@@ -237,15 +237,19 @@ class ScenarioRuntime:
         self._contact_active.copy_(contacting)
 
     def ground_height(self, positions_w):
+        return self.surface_heights(positions_w[:, None, :]).squeeze(1)
+
+    def surface_heights(self, positions_w):
+        """Supporting terrain at each point (N, P, 3), including individual feet."""
         origins = self.env.scene.env_origins
-        local = positions_w - origins
-        on_floor = (local[:, 0].abs() < 2.8) & (local[:, 1].abs() < self.layout.corridor_width / 2)
-        floor = origins[:, 2] + torch.where(on_floor, self.floor_height, 0.0)
+        local = positions_w - origins[:, None, :]
+        on_floor = (local[..., 0].abs() < 2.8) & (local[..., 1].abs() < self.layout.corridor_width / 2)
+        floor = origins[:, 2:3] + torch.where(on_floor, self.floor_height[:, None], 0.0)
         centers = self._centers.unsqueeze(0) + origins.unsqueeze(1)
         return sample_box_heights(
-            positions_w[:, None, :2], centers[:, self._terrain_indices], self._halves[self._terrain_indices],
+            positions_w[..., :2], centers[:, self._terrain_indices], self._halves[self._terrain_indices],
             default_height=floor,
-        ).squeeze(1)
+        )
 
     def _lidar_observations(self, positions_w, quaternion_w, centers_w):
         """Update and hold a 3-D-projected L2 scan at its physical 5.55 Hz rate."""
@@ -310,10 +314,8 @@ class ScenarioRuntime:
         cos, sin = yaw.cos().unsqueeze(1), yaw.sin().unsqueeze(1)
         points = torch.stack((cos * offsets[:, :, 0] - sin * offsets[:, :, 1],
                               sin * offsets[:, :, 0] + cos * offsets[:, :, 1]), dim=-1) + pos[:, None, :2]
-        heights = sample_box_heights(
-            points, centers[:, self._terrain_indices], self._halves[self._terrain_indices],
-            default_height=self.floor_height + env.scene.env_origins[:, 2],
-        )
+        height_points = torch.cat((points, pos[:, None, 2:3].expand(-1, points.shape[1], -1)), dim=-1)
+        heights = self.surface_heights(height_points)
         heights = ((heights - pos[:, 2:3]) / 0.5).clamp(-1, 1)
         floor_velocity_b = quat_rotate_inverse(quat, self.floor_velocity).clamp(-1, 1)
         hazard = torch.zeros((env.num_envs, 4), device=env.device)

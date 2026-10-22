@@ -36,9 +36,12 @@ if ($ControlMode -eq 'direct') {
         # Legacy mode retains main's residual gait tasks with the same mixed servos.
         Mode = $directMode; RobotModel = $directRobot; ServoModel = $directServo; ControlMode = 'direct'
         Environment = $Environment; Difficulty = $Difficulty; NumEnvs = $NumEnvs
-        MaxIterations = $MaxIterations; Seed = $Seed; Checkpoint = $Checkpoint; Output = $Output; Gui = $Gui
+        MaxIterations = $MaxIterations; Checkpoint = $Checkpoint; Output = $Output; Gui = $Gui
         AllowProvisionalCad = $AllowProvisionalCad
     }
+    # The v2 evaluator owns its independent default seed (73). Only override it
+    # when the caller actually supplied -Seed; fresh training still defaults 42.
+    if ($PSBoundParameters.ContainsKey('Seed')) { $options.Seed = $Seed }
     if ($Mode -eq 'check') { $options.Steps = if ($PSBoundParameters.ContainsKey('Steps')) { $Steps } else { 1000 } }
     elseif ($Mode -eq 'evaluate') { $options.Steps = $Steps }
     & (Join-Path $PSScriptRoot 'run_isaaclab.ps1') @options
