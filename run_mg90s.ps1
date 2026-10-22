@@ -5,30 +5,39 @@ param(
     [ValidateRange(1, 100000)][int]$MaxIterations = 2000,
     [string]$Checkpoint = '',
     [ValidateSet('cad6', 'legacy8')][string]$RobotModel = 'cad6',
-    [ValidateSet('normal', 'sprint')][string]$SpeedProfile = 'normal',
+    [ValidateSet('normal', 'sprint', 'velocity')][string]$SpeedProfile = 'velocity',
     [ValidateSet('direct', 'legacy')][string]$ControlMode = 'direct',
     [ValidateSet('flat', 'narrow', 'vibrating', 'falling_debris', 'rough', 'mixed', 'stairs')][string]$Environment = 'flat',
     [ValidateRange(0, 1)][double]$Difficulty = 0.5,
     [ValidateRange(1, 100000)][int]$Steps = 12000,
     [ValidateRange(0, 2147483647)][int]$Seed = 42,
     [string]$Output = '',
+    [switch]$AllowProvisionalCad,
+    [ValidateSet('0.4', '0.6', '0.8')][string]$Friction = '0.6',
+    [ValidateSet('0.0025', '0.005', '0.01')][string]$PhysicsDt = '0.005',
+    [switch]$SimpleCollisions,
+    [switch]$SelfCollisions,
     [switch]$Gui
 )
 
 $ErrorActionPreference = 'Stop'
 if ($ControlMode -eq 'direct') {
-    if ($PSBoundParameters.ContainsKey('SpeedProfile') -and $SpeedProfile -eq 'sprint') {
-        throw 'SpeedProfile sprint is a legacy reference gait. Use -ControlMode legacy for old gait policies; direct mode learns its own joint angles.'
+    if ($PSBoundParameters.ContainsKey('SpeedProfile')) {
+        throw 'SpeedProfile selects a legacy reference gait. Use -ControlMode legacy for gait policies.'
+    }
+    if ($PSBoundParameters.ContainsKey('Friction') -or $PSBoundParameters.ContainsKey('PhysicsDt') -or $SimpleCollisions -or $SelfCollisions) {
+        throw 'Friction, PhysicsDt, SimpleCollisions and SelfCollisions require -ControlMode legacy -Mode check.'
     }
     $directMode = if ($Mode -eq 'check') { 'smoke' } else { $Mode }
     $directRobot = if ($RobotModel -eq 'legacy8') { 'baseline' } else { 'cad6' }
     $directServo = if ($RobotModel -eq 'legacy8') { 'mg996r' } else { 'mg996r_hip' }
     $options = @{
         # Current CAD6 hardware uses MG996R at the hip and RC920DMG on the distal joints.
-        # The old all-MG90S runner remains available only through ControlMode=legacy.
+        # Legacy mode retains main's residual gait tasks with the same mixed servos.
         Mode = $directMode; RobotModel = $directRobot; ServoModel = $directServo; ControlMode = 'direct'
         Environment = $Environment; Difficulty = $Difficulty; NumEnvs = $NumEnvs
         MaxIterations = $MaxIterations; Seed = $Seed; Checkpoint = $Checkpoint; Output = $Output; Gui = $Gui
+        AllowProvisionalCad = $AllowProvisionalCad
     }
     if ($Mode -eq 'check') { $options.Steps = if ($PSBoundParameters.ContainsKey('Steps')) { $Steps } else { 1000 } }
     elseif ($Mode -eq 'evaluate') { $options.Steps = $Steps }
@@ -50,6 +59,15 @@ if ($RobotModel -eq 'cad6') {
 if ($RobotModel -eq 'cad6' -and $SpeedProfile -eq 'sprint') {
     $taskName = 'Isaac-DKSH-MG90S-CAD6-Sprint-Direct-v0'
 }
+if ($RobotModel -eq 'cad6' -and $SpeedProfile -eq 'velocity') {
+    $taskName = 'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0'
+}
+if ($RobotModel -eq 'legacy8' -and $SpeedProfile -eq 'velocity') {
+    throw 'The velocity command profile is available only for the CAD6 robot.'
+}
+if ($Mode -ne 'check' -and ($Friction -ne '0.6' -or $PhysicsDt -ne '0.005' -or $SimpleCollisions -or $SelfCollisions)) {
+    throw 'Friction, PhysicsDt, SimpleCollisions and SelfCollisions are diagnostic check options only.'
+}
 Push-Location $PSScriptRoot
 try {
     if ($Checkpoint) {
@@ -62,7 +80,10 @@ try {
     }
     if ($Mode -eq 'check') {
         $script = Join-Path $PSScriptRoot 'isaaclab_project\scripts\check_mg90s.py'
-        $arguments = @('-p', $script, "--task=$taskName", "--num_envs=$NumEnvs", '--steps=1000', "--output=logs/mg90s_${RobotModel}_${SpeedProfile}_preflight_${NumEnvs}.json")
+        $conditionName = "mu${Friction}_dt${PhysicsDt}_simple$([int][bool]$SimpleCollisions)_self$([int][bool]$SelfCollisions)"
+        $arguments = @('-p', $script, "--task=$taskName", "--num_envs=$NumEnvs", '--steps=1000', "--friction=$Friction", "--physics_dt=$PhysicsDt", "--output=logs/mg90s_${RobotModel}_${SpeedProfile}_preflight_${NumEnvs}_${conditionName}.json")
+        if ($SimpleCollisions) { $arguments += '--simple_collisions' }
+        if ($SelfCollisions) { $arguments += '--self_collisions' }
     }
     elseif ($Mode -eq 'play') {
         if (-not $Checkpoint) { throw 'Supply -Checkpoint with a compatible MG90S model.' }
@@ -76,6 +97,7 @@ try {
             $script = Join-Path $PSScriptRoot 'isaaclab_project\scripts\train_mg90s_cad6.py'
             $arguments = @('-p', $script, "--task=$taskName", "--num_envs=$NumEnvs", "--max_iterations=$MaxIterations", '--seed=42')
             if ($Checkpoint) { $arguments += "--checkpoint=$checkpointPath" }
+            if ($AllowProvisionalCad) { $arguments += '--allow_provisional_cad' }
         }
         else {
             if ($Checkpoint) { throw 'The legacy eight-leg launcher only supports fresh training.' }

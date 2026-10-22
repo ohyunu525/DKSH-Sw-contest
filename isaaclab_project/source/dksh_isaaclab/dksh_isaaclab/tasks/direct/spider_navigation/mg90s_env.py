@@ -5,8 +5,10 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
-from .mg90s_env_cfg import MG90SWalkEnvCfg, MG90S_STALL_TORQUE
+from isaaclab.sensors import ContactSensor
+from .mg90s_env_cfg import MG90SWalkEnvCfg
 from .mg90s_rewards import speed_tracking_reward
+from .payload_mass import apply_l2_payload_to_stage
 from .wave_gait import foot_targets, inverse_kinematics
 
 
@@ -26,19 +28,57 @@ class MG90SWalkEnv(DirectRLEnv):
         self._reference = self._targets.clone()
         self._age = torch.zeros(self.num_envs, device=self.device)
         self._phase_offset = torch.zeros_like(self._age)
-        self._speed = torch.zeros_like(self._age)
+        self._commands = torch.zeros((self.num_envs, 3), device=self.device)
+        # Keep the established scalar name as a view for forward-only tasks.
+        self._speed = self._commands[:, 0]
         self._fallen = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self._escaped = self._fallen.clone()
         self.completed = {name: 0 for name in ("episodes", "fallen", "time_out", "out_of_bounds")}
 
     def _setup_scene(self):
         self._robot = Articulation(self.cfg.robot)
-        sim_utils.spawn_ground_plane("/World/ground", sim_utils.GroundPlaneCfg())
+        import omni.usd
+
+        combined = apply_l2_payload_to_stage(
+            omni.usd.get_context().get_stage(),
+            "/World/envs/env_0/Robot/base",
+            payload_mass=self.cfg.lidar_payload_mass_kg,
+            payload_size=self.cfg.lidar_payload_size_m,
+            mount_position=self.cfg.lidar_mount_position_b,
+        )
+        self._base_mass_with_lidar = combined.mass
+        if self.cfg.foot_contact_sensor is not None:
+            from .hexapod_diagnostics import restore_foot_frames, apply_simple_collisions
+            stage = omni.usd.get_context().get_stage()
+            restore_foot_frames(stage, "/World/envs/env_0/Robot")
+            if self.cfg.simple_collisions:
+                apply_simple_collisions(stage, "/World/envs/env_0/Robot", self.cfg.assumed_foot_radius_m)
+        sim_utils.spawn_ground_plane("/World/ground", sim_utils.GroundPlaneCfg(physics_material=self.cfg.ground_material))
+        # Bind at rigid-body ancestors so instanceable child colliders inherit
+        # the same material. The root binding also covers the LiDAR enclosure.
+        from pxr import UsdShade
+        material = UsdShade.Material(omni.usd.get_context().get_stage().GetPrimAtPath("/World/ground/physicsMaterial"))
+        if not material:
+            raise RuntimeError("Ground physics material was not created")
+        UsdShade.MaterialBindingAPI.Apply(
+            omni.usd.get_context().get_stage().GetPrimAtPath("/World/envs/env_0/Robot")).Bind(
+                material, bindingStrength=UsdShade.Tokens.strongerThanDescendants, materialPurpose="physics"
+            )
         self.scene.clone_environments(copy_from_source=False)
-        self.scene.filter_collisions(global_prim_paths=["/World/ground"])
+        self._setup_task_terrain()
+        self.scene.filter_collisions(global_prim_paths=["/World/ground", *self._task_terrain_paths()])
         self.scene.articulations["robot"] = self._robot
+        if self.cfg.foot_contact_sensor is not None:
+            self._foot_contact = ContactSensor(self.cfg.foot_contact_sensor)
+            self.scene.sensors["foot_contact"] = self._foot_contact
         light = sim_utils.DomeLightCfg(intensity=2200.0)
         light.func("/World/Light", light)
+
+    def _setup_task_terrain(self):
+        """Optional static terrain, created before physics initialization."""
+
+    def _task_terrain_paths(self):
+        return []
 
     def _phase(self):
         return (self._phase_offset + (self._age - self.cfg.settling_seconds).clamp_min(0) / self.cfg.gait_period).remainder(1)
@@ -69,14 +109,12 @@ class MG90SWalkEnv(DirectRLEnv):
         self._robot.set_joint_position_target(self._targets)
 
     def _get_observations(self):
-        command = torch.zeros((self.num_envs, 3), device=self.device)
-        command[:, 0] = self._speed
         phase = 2 * math.pi * self._phase()
         obs = torch.cat((
             self._robot.data.root_lin_vel_b,
             self._robot.data.root_ang_vel_b,
             self._robot.data.projected_gravity_b,
-            command,
+            self._commands,
             self._robot.data.joint_pos - self._robot.data.default_joint_pos,
             self._robot.data.joint_vel * 0.1,
             self._filtered_actions,
@@ -112,9 +150,18 @@ class MG90SWalkEnv(DirectRLEnv):
             "Metrics/speed_error_mps": (vel[:, 0] - self._speed).abs().mean(),
             "Metrics/speed_tracking_reward": track.mean(),
             "Metrics/upright": upright.mean(),
-            "Metrics/torque_limit_fraction": (self._robot.data.applied_torque.abs() > 0.70 * MG90S_STALL_TORQUE).float().mean(),
+            "Metrics/torque_limit_fraction": (
+                self._robot.data.applied_torque.abs()
+                > 0.70 * self._robot.data.joint_effort_limits
+            ).float().mean(),
         })
         return reward
+
+    def _sample_commands(self, env_ids):
+        self._commands[env_ids] = 0
+        self._commands[env_ids, 0] = self.cfg.command_speed_min + (
+            self.cfg.command_speed_max - self.cfg.command_speed_min
+        ) * torch.rand(len(env_ids), device=self.device)
 
     def _reset_idx(self, env_ids):
         if env_ids is None:
@@ -137,7 +184,7 @@ class MG90SWalkEnv(DirectRLEnv):
         self._previous_actions[env_ids] = 0
         self._filtered_actions[env_ids] = 0
         self._phase_offset[env_ids] = torch.rand(len(env_ids), device=self.device)
-        self._speed[env_ids] = self.cfg.command_speed_min + (self.cfg.command_speed_max - self.cfg.command_speed_min) * torch.rand(len(env_ids), device=self.device)
+        self._sample_commands(env_ids)
         state = self._robot.data.default_root_state[env_ids].clone()
         state[:, :3] += self.scene.env_origins[env_ids]
         pos = self._robot.data.default_joint_pos[env_ids].clone()

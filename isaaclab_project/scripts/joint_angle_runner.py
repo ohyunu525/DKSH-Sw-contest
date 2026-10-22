@@ -10,18 +10,23 @@ from pathlib import Path
 import time
 
 from environment_cli import add_environment_args, apply_environment_cfg, experiment_for_environment
-from joint_angle_checkpoint import ACTION_SEMANTICS, resolve_checkpoint, validate_checkpoint, validate_control_contract
+from joint_angle_checkpoint import (
+    ACTION_SEMANTICS, TERRAIN_OBSERVATION_CONTRACT, expected_cad_asset_sha256,
+    resolve_checkpoint, validate_checkpoint, validate_control_contract,
+)
+from cad_readiness import assert_cad_ready
 from isaaclab.app import AppLauncher
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--mode", choices=("train", "evaluate", "play"), required=True)
-parser.add_argument("--task", default="Isaac-DKSH-MG90S-CAD6-JointAngles-v1")
+parser.add_argument("--task", default="Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v1")
 parser.add_argument("--checkpoint", default="")
 parser.add_argument("--num_envs", type=int, default=4)
 parser.add_argument("--max_iterations", type=int, default=2000)
 parser.add_argument("--steps", type=int, default=12000)
 parser.add_argument("--output", default="", help="Optional JSON evaluation report")
 parser.add_argument("--disable_fabric", action="store_true")
+parser.add_argument("--allow_provisional_cad", action="store_true")
 add_environment_args(parser)
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
@@ -31,6 +36,9 @@ if not args.task.endswith("-JointAngles-v1"):
     parser.error("This runner requires a v1 absolute-angle task")
 if args.checkpoint:
     validate_checkpoint(args.checkpoint, args.task, args.environment)
+cad_report = None
+if args.mode == "train" and expected_cad_asset_sha256(args.task) is not None:
+    cad_report = assert_cad_ready(allow_provisional=args.allow_provisional_cad)
 app = AppLauncher(args).app
 
 import gymnasium as gym
@@ -57,6 +65,10 @@ def train(env, runner, cfg, agent, log, checkpoint):
     base = env.unwrapped
     metadata = {
         "task": args.task, "action_semantics": ACTION_SEMANTICS,
+        "cad_asset_sha256": expected_cad_asset_sha256(args.task),
+        "cad_readiness": cad_report,
+        "terrain_observation_contract": TERRAIN_OBSERVATION_CONTRACT,
+        "mass_assumption": getattr(cfg, "mass_assumption", None),
         "environment": args.environment, "difficulty": args.difficulty,
         "seed": cfg.seed, "actions": cfg.action_space, "observations": cfg.observation_space,
         "joint_names": [base._robot.joint_names[i] for i in base._joint_ids],

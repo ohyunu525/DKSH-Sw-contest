@@ -19,12 +19,14 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
     def __init__(self, cfg, render_mode=None, **kwargs):
         cfg.robot = cfg.robot.copy()
         cfg.robot.spawn.activate_contact_sensors = True
-        cfg.robot.spawn.articulation_props.enabled_self_collisions = True
+        cfg.robot.spawn.articulation_props.enabled_self_collisions = cfg.enable_self_collisions
         super().__init__(cfg, render_mode, **kwargs)
         # Parent retains its v0 observation contract. Set the v1 space before
         # DirectRLEnv configures Gym spaces, via _configure_gym_env_spaces below.
         self._joint_ids = [self._robot.joint_names.index(name) for name in joint_names(cfg.action_space // 3)]
-        asset_limits = self._robot.data.soft_joint_pos_limits[:, self._joint_ids].clone()
+        limits = (self._robot.data.joint_pos_limits if cfg.use_asset_joint_limits
+                  else self._robot.data.soft_joint_pos_limits)
+        asset_limits = limits[:, self._joint_ids].clone()
         working = torch.tensor(
             [cfg.joint_angle_ranges[part] for _ in range(cfg.action_space // 3)
              for part in ("hip", "femur", "tibia")], device=self.device,
@@ -71,6 +73,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
 
     def _configure_gym_env_spaces(self):
         self.cfg.observation_space = observation_size(self.cfg.action_space, self.cfg.environment_preset)
+        self.cfg.state_space = 0
         super()._configure_gym_env_spaces()
 
     def _setup_scene(self):
@@ -128,7 +131,9 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             ((goal_surface - data.root_pos_w[:, 2]) / self.cfg.robot_height).unsqueeze(-1),
         ), dim=-1)
         if self._scenario is not None:
-            observation = torch.cat((observation, self._scenario.observations()), dim=-1)
+            # main returns 32 L2 actor features plus 16 privileged critic values.
+            # v1 retains its actor-only 106/126-dimensional nonflat contract.
+            observation = torch.cat((observation, self._scenario.observations()[:, :32]), dim=-1)
         return {"policy": observation}
 
     def _get_dones(self):

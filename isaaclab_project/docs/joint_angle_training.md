@@ -14,16 +14,18 @@
 target = lower + (clamp(a, -1, 1) + 1) / 2 * (upper - lower)
 ```
 
-예를 들어 CAD 무릎은 `-0.40~1.40 rad` 전체를 선택한다. `a=-1`이면 -0.40 rad,
-`a=0`이면 0.50 rad, `a=1`이면 1.40 rad다. 같은 출력을 유지하면 같은 각도로 수렴한다.
-기본 자세를 더하지 않는다. 범위는 자산의 관절 한계와 교집합을 취한다.
+현재 Onshape CAD6는 세 관절 모두 `-pi/2~+pi/2 rad` 전체를 선택한다. `a=-1`이면
+-90°, `a=0`이면 조립 영점 0°, `a=1`이면 +90°다. 같은 출력을 유지하면 같은 각도로
+수렴한다. 기본 자세를 더하지 않으며 main URDF의 물리 관절 한계와 교집합을 취한다.
+과거 CAD8/all-MG90S CAD 모델은 기존 `-0.40~1.40 rad` 무릎 작업 범위를 유지한다.
 
 50 Hz 제어에서 목표각은 저역 필터와 변화 속도 제한을 거친다. 기존 기본 모델의 상한은
 MG996R 3 rad/s, MG90S 2 rad/s이며, 혼합 CAD6 task는 전체 관절에 1.5 rad/s를 적용한다.
 이는 정책의 출력 범위를 좁히는 잔여 보정이 아니라
 실제 모터에 전달하는 명령의 급격한 변화를 제한하는 장치다. 정책은 현재 적용된 목표각을
 관측하므로 필터 상태를 알 수 있다. `env.joint_angle_targets_rad`로 적용 목표각을 읽을 수 있다.
-관절 작업 범위는 PhysX 관절 한계에도 적용하며 v1에서 자기 충돌을 활성화한다.
+관절 작업 범위는 PhysX 관절 한계에도 적용한다. 현재 Onshape CAD6의 자기충돌은
+main 설정에 따라 비활성화하며 과거 CAD8/all-MG90S task는 기존 설정을 유지한다.
 
 초기 자세는 리셋과 새 정책의 마지막 층 bias 초기화에만 사용한다. 마지막 층은 학습 가능하며
 이후 어떤 고정 보행도 덧붙이지 않는다. 각도 범위·속도·보상 배율은
@@ -41,7 +43,8 @@ MG996R hip과 RC920DMG leg actuator를 적용한다. 가정의 출처와 한계�
 
 관측은 6족 평지 74 / 비평지 106개, 8족 평지 94 / 비평지 126개다.
 관절각·속도·적용 목표각, 접지, 지면 여유 높이, 목표 지면 높이와 기존 속도·중력·목표 방향을
-포함한다. 비평지에서는 기존 32개 지형·위험 관측을 추가한다.
+포함한다. 비평지에서는 main의 L2 거리 16개와 유효값 16개를 추가한다.
+main이 반환하는 별도 critic 전용 16개 값은 v1 정책에 넣지 않는다.
 
 ## 실행과 난이도 단계
 
@@ -54,10 +57,10 @@ Unity를 종료한 뒤 수행한다. 이 변경의 로컬 CPU 단위 검사는 P
 .\run_mg90s.ps1 -Mode check -Environment stairs -Difficulty 0 -NumEnvs 4
 
 # 가장 낮은 계단부터 새 가중치로 학습
-.\run_mg90s.ps1 -Mode train -Environment stairs -Difficulty 0 -NumEnvs 4 -MaxIterations 4000
+.\run_mg90s.ps1 -Mode train -Environment stairs -Difficulty 0 -NumEnvs 4 -MaxIterations 4000 -AllowProvisionalCad
 
 # 이전 단계의 새 v1 모델로 난이도를 높여 추가 학습
-.\run_mg90s.ps1 -Mode train -Environment stairs -Difficulty 0.3 -NumEnvs 4 -MaxIterations 2000 -Checkpoint '<이전 단계의 model_N.pt>'
+.\run_mg90s.ps1 -Mode train -Environment stairs -Difficulty 0.3 -NumEnvs 4 -MaxIterations 2000 -Checkpoint '<이전 단계의 model_N.pt>' -AllowProvisionalCad
 
 # 별도 시드로 충분한 길이의 유한 평가 / 재생
 .\run_mg90s.ps1 -Mode evaluate -Environment stairs -Difficulty 0.3 -NumEnvs 4 -Steps 12000 -Seed 73 -Checkpoint '<model_N.pt>' -Output 'logs/joint_angle_stairs_evaluation.json'
@@ -75,7 +78,7 @@ Unity를 종료한 뒤 수행한다. 이 변경의 로컬 CPU 단위 검사는 P
 Python을 직접 사용할 때는 다음 진입점을 사용한다.
 
 ```powershell
-.\IsaacLab\isaaclab.bat -p .\isaaclab_project\scripts\joint_angle_runner.py --mode=train --task=Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v1 --environment=stairs --difficulty=0 --num_envs=4 --max_iterations=4000 --headless
+.\IsaacLab\isaaclab.bat -p .\isaaclab_project\scripts\joint_angle_runner.py --mode=train --task=Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v1 --environment=stairs --difficulty=0 --num_envs=4 --max_iterations=4000 --allow_provisional_cad --headless
 ```
 
 ## 체크포인트와 평가
@@ -90,7 +93,9 @@ MG90S 보존 실험은 해당 MG90S 전용 경로에 저장한다.
 v0의 68관측 CAD6 gait 보정 모델이나 66관측 navigation 모델은 새 제어에 사용할 수 없다.
 같은 18행동이라도 의미가 다르므로 새 가중치로 학습한다. 평지와 비평지도 입력 수가 달라
 직접 재개할 수 없다. 같은 v1 로봇·서보의 비평지 환경과 난이도끼리는 재개할 수 있다.
-관절 순서나 작업 범위가 변경된 모델도 거절한다.
+관절 순서나 작업 범위가 변경된 모델도 거절한다. Onshape CAD6는 정규화 URDF의 SHA-256을
+검사하고, 비평지 task는 `unitree_l2_ranges16_valid16_v1` 관측 계약을 검사한다.
+main 병합 전 CAD/지형 관측으로 학습한 v1 모델은 차원이 같아도 새 가중치로 학습한다.
 
 `DKSH_JOINT_ANGLE_TRAINING_COMPLETE`는 요청한 추가 iteration과 최종 저장이 완료되어야 출력된다.
 평가는 성공·낙상·영역 이탈·시간초과 횟수, 목표 방향 속도, 관절 한계 비용, 몸통 접촉,

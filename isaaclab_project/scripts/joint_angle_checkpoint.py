@@ -1,11 +1,20 @@
 """Checkpoint compatibility for absolute-angle policies; no simulator imports."""
 
+import hashlib
 import json
 from pathlib import Path
 
 import torch
 
 ACTION_SEMANTICS = "absolute_joint_angles_v1"
+TERRAIN_OBSERVATION_CONTRACT = "unitree_l2_ranges16_valid16_v1"
+
+
+def expected_cad_asset_sha256(task):
+    if "CAD6" not in task or "MG90S" in task:
+        return None
+    path = Path(__file__).resolve().parents[1] / "assets/spiderbot_variants/onshape_20260928/robot.training.urdf"
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def expected_actuator_contract(task):
@@ -36,6 +45,11 @@ def validate_checkpoint(path, task, environment):
             or (metadata.get("observations"), metadata.get("actions")) != expected
             or (actuator_contract != expected_actuator_contract(task) and not legacy_mg90s_metadata)):
         raise ValueError("Checkpoint robot, servo, terrain observations or action semantics do not match the selected task")
+    cad_hash = expected_cad_asset_sha256(task)
+    if cad_hash is not None and metadata.get("cad_asset_sha256") != cad_hash:
+        raise ValueError("Checkpoint CAD asset differs from the current Onshape model; train a new policy")
+    if environment != "flat" and metadata.get("terrain_observation_contract") != TERRAIN_OBSERVATION_CONTRACT:
+        raise ValueError("Checkpoint terrain observation contract differs from the current L2 features")
     state = torch.load(path, map_location="cpu", weights_only=True)
     layers = sorted(
         ((key, value) for key, value in state["model_state_dict"].items()

@@ -174,7 +174,7 @@ namespace DKSH.Spiderbot.ROS
             var settings = lidarSensor.ActiveSettings;
             var horizontalCount = Mathf.Max(1, frame.HorizontalResolution);
             var selectedVerticalIndex = Mathf.Clamp(
-                (frame.VerticalResolution - 1) / 2,
+                settings.HorizontalSliceIndex,
                 0,
                 Mathf.Max(0, frame.VerticalResolution - 1));
             var ranges = new float[horizontalCount];
@@ -198,7 +198,10 @@ namespace DKSH.Spiderbot.ROS
                     sample.horizontalIndex,
                     horizontalCount,
                     fullCircle);
-                ranges[rosIndex] = Mathf.Clamp(sample.distance, 0.01f, settings.maxDistance);
+                ranges[rosIndex] = Mathf.Clamp(
+                    sample.distance,
+                    settings.minDistance,
+                    settings.maxDistance);
             }
 
             var fieldOfViewRadians = settings.horizontalFovDegrees * Mathf.Deg2Rad;
@@ -215,7 +218,7 @@ namespace DKSH.Spiderbot.ROS
                 angleIncrement,
                 horizontalCount > 0 ? scanTime / horizontalCount : 0f,
                 scanTime,
-                0.01f,
+                settings.minDistance,
                 settings.maxDistance,
                 ranges,
                 Array.Empty<float>());

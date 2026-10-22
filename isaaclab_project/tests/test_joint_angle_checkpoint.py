@@ -21,6 +21,9 @@ class CheckpointTests(unittest.TestCase):
         torch.save({"model_state_dict": {"actor.0.weight": torch.zeros(4, observations), "actor.6.weight": torch.zeros(actions, 4)}, "iter": 100}, path)
         (path.parent / "run_metadata.json").write_text(json.dumps({
             "task": task, "observations": observations, "actions": actions, "action_semantics": semantics,
+            "actuator_contract": CHECKPOINT.expected_actuator_contract(task),
+            "cad_asset_sha256": CHECKPOINT.expected_cad_asset_sha256(task),
+            "terrain_observation_contract": CHECKPOINT.TERRAIN_OBSERVATION_CONTRACT,
         }), encoding="utf-8")
         return path
 
@@ -65,6 +68,28 @@ class CheckpointTests(unittest.TestCase):
             CHECKPOINT.validate_control_contract(metadata, list(reversed(names)), limits)
         with self.assertRaises(ValueError):
             CHECKPOINT.validate_control_contract(metadata, names, limits + 0.01)
+
+    def test_current_cad6_rejects_checkpoint_from_the_old_geometry(self):
+        task = "Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v1"
+        with TemporaryDirectory() as root:
+            path = self.create_checkpoint(root, task=task)
+            CHECKPOINT.validate_checkpoint(path, task, "stairs")
+            metadata_path = path.parent / "run_metadata.json"
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            metadata["cad_asset_sha256"] = "old_cad_geometry"
+            metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "CAD asset"):
+                CHECKPOINT.validate_checkpoint(path, task, "stairs")
+
+    def test_same_size_old_terrain_features_cannot_be_reused(self):
+        with TemporaryDirectory() as root:
+            path = self.create_checkpoint(root)
+            metadata_path = path.parent / "run_metadata.json"
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            metadata.pop("terrain_observation_contract")
+            metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "terrain observation contract"):
+                CHECKPOINT.validate_checkpoint(path, TASK, "stairs")
 
 
 if __name__ == "__main__":

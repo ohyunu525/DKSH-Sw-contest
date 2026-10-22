@@ -28,7 +28,7 @@ slam_toolbox:
     minimum_travel_distance: 0.15
     minimum_travel_heading: 0.15
     scan_buffer_size: 8
-    scan_buffer_maximum_scan_distance: 12.0
+    scan_buffer_maximum_scan_distance: 30.0
     link_match_minimum_response_fine: 0.1
     link_scan_maximum_distance: 1.5
     loop_search_maximum_distance: 3.0
@@ -193,9 +193,9 @@ local_costmap:
           clearing: true
           marking: true
           data_type: LaserScan
-          raytrace_max_range: 12.0
+          raytrace_max_range: 30.0
           raytrace_min_range: 0.05
-          obstacle_max_range: 11.5
+          obstacle_max_range: 15.0
           obstacle_min_range: 0.05
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
@@ -227,9 +227,9 @@ global_costmap:
           clearing: true
           marking: true
           data_type: LaserScan
-          raytrace_max_range: 12.0
+          raytrace_max_range: 30.0
           raytrace_min_range: 0.05
-          obstacle_max_range: 11.5
+          obstacle_max_range: 15.0
           obstacle_min_range: 0.05
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer

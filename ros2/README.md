@@ -19,7 +19,8 @@ The build helper refuses a new image build when less than 25 GB remains on `C:`.
 
 Measured after the first complete build on this machine:
 
-- final project image: 686,709,619 bytes (about 655 MiB)
+- pre-LiDAR project image: 686,709,619 bytes (about 655 MiB); the current image also includes PCL,
+  `pointcloud_to_laserscan`, and the pinned Unitree L2 SDK2 driver, so remeasure after rebuilding
 - endpoint-only idle: about 106.5 MiB RAM and 0.29% Docker CPU
 - all SLAM/Nav2 lifecycle nodes active against a synthetic 6 m map: about 307.3 MiB RAM and 32% Docker CPU (roughly 0.32 of one logical core)
 - `C:` free after the build: about 29.3 GB
@@ -32,6 +33,7 @@ These are configuration smoke-test snapshots, not worst-case figures with a grow
 - Explicit Nav2 runtime servers and `slam_toolbox` from Jazzy binary packages
 - Unity ROS-TCP-Endpoint `ROS2v0.7.0`
 - `frontier_exploration_ros2` `v1.6.1`
+- Unitree `unilidar_sdk2` commit `0e3c51f512e6b8ff60b8c32f160b412cb48445c2`
 
 The `navigation2` and `nav2_bringup` metapackages are intentionally not installed: Jazzy's bringup package depends on Gazebo simulation packages. Only controller, planner, BT navigator, behavior, velocity smoother, collision monitor and lifecycle packages are installed. RViz and Gazebo are never launched locally.
 
@@ -44,6 +46,67 @@ Run these from PowerShell:
 .\ros2\manage.ps1 Start
 .\ros2\manage.ps1 Status
 .\ros2\manage.ps1 Validate
+```
+
+## Unitree L2 hardware
+
+The image pins Unitree's official [SDK2](https://github.com/unitreerobotics/unilidar_sdk2) at commit
+`0e3c51f512e6b8ff60b8c32f160b412cb48445c2`. Rebuild the image after pulling this change: the old
+SDK1 image does not implement L2's transport parameters. The driver publishes `/unilidar/cloud`
+(`sensor_msgs/PointCloud2`) and `/unilidar/imu`. `launch/l2_hardware.launch.py` selects 3D NEGA mode
+with IMU enabled: work mode 1 for UDP or 9 for serial. It groups 39 vertical scans per cloud,
+approximately one 5.55 Hz horizontal sweep (216 / 5.55), rather than the SDK's 18-ring partial frame.
+
+The projection uses the central ±0.10 m height band, 0.5° angular resolution, 0.05–30 m range and
+`scan_time=1/5.55` for `/scan`. The shared encoder publishes 16 normalized nearest obstacle ranges
+and 16 validity flags on `/policy/l2_features`; it accepts elevations -6° through 90° and quantizes
+at 4.5 mm. The package name `dksh_l1_features` remains for import compatibility and provides the
+new `l2_policy_features` executable alongside the legacy L1 offline encoder. Cloud frame IDs must
+be `unilidar_lidar`. Remove robot/ground points before using features in a navigation policy,
+including ground returns in the newly visible negative elevation band.
+
+The launch owns the provisional 30 mm base-to-LiDAR transform and SDK2's documented LiDAR-to-IMU
+offset. SDK2's visualization TF is remapped to `/unilidar/sdk_tf` so it cannot assign a second
+parent to the same frames or create a TF cycle. Hardware mode uses wall time.
+
+UDP is the default. Configure the dedicated LiDAR NIC with the sensor's receiver address
+(factory target `192.168.1.2`), and keep the sensor on the same subnet (factory sensor address
+`192.168.1.62`). This repository does not change Windows NIC settings. Docker publishes only
+6201/UDP on that NIC and binds the SDK socket to `0.0.0.0` inside the container. If the sensor's
+target IP/port was changed, align its target with the host port mapping before starting.
+
+```powershell
+$env:L2_HOST_IP = '192.168.1.2'
+$env:L2_LIDAR_IP = '192.168.1.62'
+.\ros2\manage.ps1 Build
+.\ros2\manage.ps1 StartLidar
+```
+
+For TTL UART, first switch the L2 to serial mode over Ethernet with Unitree's tool/SDK, then power
+cycle it as described in the [SDK2 instructions](https://github.com/unitreerobotics/unilidar_sdk2#34-running-with-serial-port).
+The default serial baud rate is 4,000,000. On Linux, expose the adapter device with:
+
+```powershell
+$env:UNITREE_LIDAR_DEVICE = '/dev/ttyACM0'
+.\ros2\manage.ps1 StartLidar -LidarTransport serial
+```
+
+Set `UNITREE_LIDAR_DEVICE` to the actual host device if it differs; Docker maps it to `/dev/ttyACM0`.
+Docker Desktop on Windows requires the USB adapter to be attached to WSL2 (for example with
+`usbipd-win`) and visible to the Docker backend. The Jazzy container build and physical packet
+reception are still required verification gates; static source/configuration checks do not prove
+either transport works with the connected device.
+
+SLAM/Nav2 remains opt-in until measured hardware odometry supplies `/odom` and
+`odom -> base_footprint`. Then set `$env:L2_START_NAVIGATION = 'true'` before `StartLidar`.
+Do not substitute command-only dead reckoning for measured walking-robot odometry.
+
+Useful checks after startup:
+
+```powershell
+docker exec dksh-ros2-bridge bash -c "source /opt/ros/jazzy/setup.bash && source /opt/dksh_ros2/install/setup.bash && ros2 topic hz /unilidar/cloud"
+docker exec dksh-ros2-bridge bash -c "source /opt/ros/jazzy/setup.bash && source /opt/dksh_ros2/install/setup.bash && ros2 topic echo --once /scan"
+docker exec dksh-ros2-bridge bash -c "source /opt/ros/jazzy/setup.bash && source /opt/dksh_ros2/install/setup.bash && ros2 topic echo --once /policy/l2_features"
 ```
 
 Stop only this project's container with:

@@ -20,4 +20,9 @@ else:
     sys.argv = [sys.argv[0]] + configure_runner(sys.argv[1:], training=True)
     runner_dir = workspace_root / "IsaacLab" / "scripts" / "reinforcement_learning" / "rsl_rl"
     sys.path.insert(0, str(runner_dir))
-    runpy.run_path(str(runner_dir / "train.py"), run_name="__main__")
+    runner = runpy.run_path(str(runner_dir / "train.py"), run_name="dksh_isaaclab_rsl_rl_train")
+    try:
+        runner["main"]()
+        print("DKSH_ISAACLAB_TRAIN_COMPLETE", flush=True)
+    finally:
+        runner["simulation_app"].close()

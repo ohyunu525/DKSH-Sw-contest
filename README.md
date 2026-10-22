@@ -2,6 +2,9 @@
 
 Unity와 NVIDIA Isaac Lab에서 사용할 수 있는 6족 spiderbot 강화학습 프로젝트입니다.
 
+현재 보행 학습의 모터 구성은 **몸체–coxa MG996R 6개 + 다리 RC920DMG 12개**입니다.
+2026-10-19 모터 정정 및 계단 재학습은 [MG996R 실행 기록](isaaclab_project/docs/mg996r_hip_correction.md)을 참고하세요.
+
 분리 CAD 다리를 사용한 **6족 조립 모델**과 Unity 프리팹도 제공합니다.
 [모델 파일, 실행법 및 보정 가정](isaaclab_project/assets/spiderbot_variants/README.md)을 참고하세요.
 Isaac Lab 실행 시 `-RobotModel cad8` 또는 `-RobotModel cad6`로 선택할 수 있습니다.
@@ -88,7 +91,7 @@ git submodule update --init --recursive
 ```
 
 기본 직접 각도 학습 결과는 `logs/rsl_rl/dksh_spider_jointangles_v1` 아래에 저장됩니다.
-기존 `legacy` 결과 경로는 `logs/rsl_rl/dksh_spider_navigation`입니다.
+`-ControlMode legacy`의 v0 로그 경로는 `logs/rsl_rl/dksh_spider_navigation_l2v1`입니다.
 
 ## 학습 환경 선택
 
@@ -109,8 +112,10 @@ git submodule update --init --recursive
 .\run_isaaclab.ps1 -Mode evaluate -Environment falling_debris -NumEnvs 4 -Steps 1000
 ```
 
-평지 이외의 환경은 장애물 관측이 32차원 추가되어 별도 `*_obstacles` 로그 폴더를 사용합니다.
-같은 로봇 모델의 비평지 환경끼리는 정책을 공유할 수 있으며, 기존 평지 체크포인트는 호환되지 않습니다.
+v0 정책은 모든 환경에서 Unitree L2 거리 16개와 유효값 16개를 입력받습니다. 직접 각도 v1 정책은
+비평지에서 이 32개 값을 사용하며 평지에서는 자체 관절·접지 관측을 사용합니다. 비평지 환경은 별도
+`*_obstacles` 로그 폴더를 사용합니다. L2의 360°×96° NEGA 시야(-6°~90°), 수평 5.55 Hz,
+4.5 mm 분해능을 반영합니다. 기존 L1 탐색 체크포인트는 관측 의미가 달라 다시 학습해야 합니다.
 `preview`는 기본 자세로 환경을 확인하는 모드입니다. 학습한 보행을 보려면 `play`를 사용합니다.
 환경별 동작과 실행 예시는 [학습 환경 안내](isaaclab_project/docs/training_environments.md)를 참고하세요.
 
@@ -128,14 +133,25 @@ git submodule update --init --recursive
 .\run_isaaclab.ps1 -Mode play -NumEnvs 1 -Checkpoint "C:\path\to\model.pt"
 ```
 
-`-ControlMode legacy`에서 기본 로봇의 평지 로그가 없는 새 체크아웃은 함께 제공되는 `balance_baseline.pt`를 자동 사용합니다. 이 모델은
-500회 PPO 학습으로 20초 자세 유지를 검증한 시작점이며, 목표 보행을 완성한 모델은 아닙니다.
+포함된 `balance_baseline.pt`는 이전 84차원 관측 정책이므로 새 환경에서 자동으로 사용하지 않습니다.
+새 체크아웃은 `train`을 실행한 뒤 `play` 또는 `evaluate`를 실행해야 합니다.
 
-등록된 환경 ID는 `Isaac-DKSH-Spider-Navigation-Direct-v0`입니다. 로봇은 실제 설계값을 반영한
+L2 실측 점군을 정책 입력의 LiDAR 부분과 같은 32개 값으로 변환하는 예제와 실제 센서 적용 시
+필요한 좌표계·전처리 조건은 [학습 환경 안내](isaaclab_project/docs/training_environments.md#실제-l2-점군-입력)에 있습니다.
+
+ROS2 실기 연결은 공식 SDK2를 사용하며 UDP와 TTL UART 실행법은
+[ROS2/Nav2 실행 안내](ros2/README.md#unitree-l2-hardware)를 참고하세요.
+
+기존 v0 환경 ID는 `Isaac-DKSH-Spider-Navigation-Direct-v0`입니다. 기본 로봇은
 8개 다리, 24관절의 primitive baseline 모델입니다. CAD6 학습의 현재 혼합 서보 가정은
 몸통 hip 6개 MG996R, femur/tibia 12개 RC920DMG입니다. MG996R 사양과 임시 토크 한도,
 RC920DMG 데이터의 검증 상태 및 질량 가정은 [MG996R hip 보정 문서](isaaclab_project/docs/mg996r_hip_correction.md)를
 참고하세요. 과거 all-MG90S 실험과 체크포인트는 별도 task ID로 보존됩니다.
+
+현재 CAD6는 `main`의 `onshape_20260928` URDF/USD, 조립 영점, ±90° 관절 한계와
+CAD 질량 1.792339 kg + L2 0.230 kg을 사용합니다. 잠정 CAD를 학습할 때는
+`-AllowProvisionalCad`가 필요합니다. [직접 관절각 학습 안내](isaaclab_project/docs/joint_angle_training.md)를
+따르며, 이전 CAD나 관측 계약의 체크포인트로는 재개하지 않습니다.
 
 Unity 프로젝트는 `DKSH SW Project`에 유지됩니다. Unity의 FBX는 외형 참고용이고, Isaac Lab은
 안정적인 학습을 위해 동일 치수의 primitive URDF에서 변환한 로컬 USD를 사용합니다. URDF 생성
@@ -151,19 +167,19 @@ Isaac Sim 4.5는 변환 파일을 정상 기록한 뒤 종료 코드 1을 반환
 ## 기존 v0 검증 기록
 
 - 물리 주기 200 Hz, 정책 제어 주기 50 Hz
-- 기본 8족 로봇: 평지 관측 84차원, 비평지 관측 116차원, 연속 행동 24차원
-- CAD 6족 로봇: 평지 관측 66차원, 비평지 관측 98차원, 연속 행동 18차원
+- 기본 8족 로봇: 모든 환경의 정책 관측 116차원, 가치함수 관측 132차원, 연속 행동 24차원
+- CAD 6족 로봇: 모든 환경의 정책 관측 98차원, 가치함수 관측 114차원, 연속 행동 18차원
 - 무작위 방향/거리 목표, 목표 도달·낙상·영역 이탈·시간 제한 종료
 - PPO 보상 항목과 성공/낙상/시간초과를 TensorBoard 로그에 기록
 - 초록색 원판으로 각 병렬 환경의 목표 반경 표시
 
-URDF 구조만 빠르게 확인하는 테스트는 Isaac Sim을 시작하지 않아도 실행할 수 있습니다.
+전체 단위 테스트는 PyTorch가 설치된 Isaac Lab Python 환경에서 실행합니다. L2 점군 변환과 실행
+옵션 테스트만 확인할 때는 일반 Python으로도 실행할 수 있습니다.
 
 ```powershell
-python -m unittest discover -s .\isaaclab_project\tests -v
+.\IsaacLab\isaaclab.bat -p -m unittest discover -s .\isaaclab_project\tests -v
+python -m unittest discover -s .\isaaclab_project\tests -p test_l2_pointcloud_features.py -v
 ```
 
-이 저장소 구성은 RTX 3070에서 32개 병렬 환경 × 500 스텝 스모크 테스트, PPO 500회
-(384,000 samples), 체크포인트 32개 환경 × 1,000 스텝 평가를 통과했습니다. 포함된 기준 모델의
-평가 결과는 낙상 0회, 시간 제한 종료 32회였습니다. 재생 경로에서는 MP4 렌더링과 JIT/ONNX
-정책 내보내기도 확인했습니다.
+이전 관측 형식의 기준 모델은 RTX 3070에서 32개 병렬 환경 × 500 스텝 스모크 테스트와 PPO
+500회 학습을 통과했습니다. 이 결과는 새 L2 입력 형식의 실행·학습 검증으로 간주할 수 없습니다.

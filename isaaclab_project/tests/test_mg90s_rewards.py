@@ -45,5 +45,25 @@ class SpeedTrackingRewardTests(unittest.TestCase):
             REWARDS.speed_tracking_reward(torch.tensor([0.0]), torch.tensor([0.0]), 0.0)
 
 
+class VelocityTrackingRewardTests(unittest.TestCase):
+    def test_exact_planar_and_yaw_commands_receive_full_reward(self):
+        command = torch.tensor([[0.01, -0.004], [0.0, 0.0]])
+        reward = REWARDS.velocity_tracking_reward(command, command, 0.01)
+        torch.testing.assert_close(reward, torch.ones(2))
+
+    def test_vector_error_is_symmetric_and_monotonic(self):
+        command = torch.zeros((3, 2))
+        measured = torch.tensor([[0.002, 0.0], [-0.002, 0.0], [0.004, 0.0]])
+        reward = REWARDS.velocity_tracking_reward(measured, command, 0.01)
+        self.assertAlmostEqual(float(reward[0]), float(reward[1]))
+        self.assertGreater(float(reward[0]), float(reward[2]))
+
+    def test_shape_and_sigma_are_validated(self):
+        with self.assertRaisesRegex(ValueError, "same shape"):
+            REWARDS.velocity_tracking_reward(torch.zeros((1, 2)), torch.zeros((1, 1)), 0.01)
+        with self.assertRaisesRegex(ValueError, "positive"):
+            REWARDS.velocity_tracking_reward(torch.zeros((1, 2)), torch.zeros((1, 2)), 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()

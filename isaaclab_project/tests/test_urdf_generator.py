@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import importlib.util
 import math
+import sys
+import types
 import unittest
+from unittest.mock import patch
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -17,10 +20,13 @@ GENERATOR_PATH = (
     / "assets"
     / "urdf_generator.py"
 )
-SPEC = importlib.util.spec_from_file_location("dksh_urdf_generator", GENERATOR_PATH)
+ASSETS_PACKAGE = types.ModuleType("_dksh_urdf_test_assets")
+ASSETS_PACKAGE.__path__ = [str(GENERATOR_PATH.parent)]
+SPEC = importlib.util.spec_from_file_location("_dksh_urdf_test_assets.urdf_generator", GENERATOR_PATH)
 assert SPEC is not None and SPEC.loader is not None
 GENERATOR = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(GENERATOR)
+with patch.dict(sys.modules, {ASSETS_PACKAGE.__name__: ASSETS_PACKAGE}):
+    SPEC.loader.exec_module(GENERATOR)
 
 
 class SpiderbotUrdfTests(unittest.TestCase):
@@ -41,14 +47,14 @@ class SpiderbotUrdfTests(unittest.TestCase):
             self.assertIn(f"leg_{leg_index}_femur_joint", names)
             self.assertIn(f"leg_{leg_index}_tibia_joint", names)
 
-    def test_measured_mass_and_servo_limits_are_preserved(self) -> None:
+    def test_primitive_mass_and_nominal_mg996r_limits_are_preserved(self) -> None:
         masses = [float(node.attrib["value"]) for node in self.root.findall("./link/inertial/mass")]
         self.assertAlmostEqual(sum(masses), 0.5 + 8 * 0.30227, places=6)
         for joint in self.root.findall("joint"):
             limit = joint.find("limit")
             assert limit is not None
-            self.assertAlmostEqual(float(limit.attrib["effort"]), 0.980665, places=6)
-            self.assertAlmostEqual(float(limit.attrib["velocity"]), math.radians(400.0), places=6)
+            self.assertAlmostEqual(float(limit.attrib["effort"]), 0.691368825, places=6)
+            self.assertAlmostEqual(float(limit.attrib["velocity"]), math.radians(60.0) / 0.19, places=6)
             self.assertAlmostEqual(float(limit.attrib["lower"]), -math.pi / 2, places=6)
             self.assertAlmostEqual(float(limit.attrib["upper"]), math.pi / 2, places=6)
 

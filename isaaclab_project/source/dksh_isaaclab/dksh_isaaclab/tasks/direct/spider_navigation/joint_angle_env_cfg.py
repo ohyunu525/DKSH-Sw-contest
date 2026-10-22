@@ -1,18 +1,22 @@
 """Motor-level policies that choose absolute joint angles, without a reference gait."""
 
+import math
+from pathlib import Path
+
 from isaaclab.utils import configclass
 from dksh_isaaclab.assets import SPIDERBOT_CFG
 from dksh_isaaclab.assets.spiderbot import cad_spiderbot_cfg
 from .spider_navigation_env_cfg import SpiderNavigationEnvCfg
 from .agents.rsl_rl_ppo_cfg import SpiderNavigationPPORunnerCfg
-from .mg90s_env_cfg import mg90s_robot_cfg, mixed_servo_robot_cfg, MG90S_NO_LOAD_SPEED
-from dksh_isaaclab.assets.servo_specs import (
+from .mg90s_env_cfg import historical_mg90s_robot_cfg as mg90s_robot_cfg, mixed_servo_robot_cfg
+from .servo_specs import (
     ACTUATOR_CONTRACT,
     MG996R_MASS_KG,
     MG996R_NO_LOAD_SPEED_RAD_S,
     MG996R_REFERENCE_VOLTAGE_V,
     MG996R_STALL_TORQUE_NM,
     MG90S_MASS_KG,
+    MG90S_NO_LOAD_SPEED_RAD_S,
     MG90S_REFERENCE_VOLTAGE_V,
     MG90S_STALL_TORQUE_NM,
     RC920DMG_MASS_KG,
@@ -23,6 +27,15 @@ from dksh_isaaclab.assets.servo_specs import (
 
 CAD_ANGLE_RANGES = {"hip": (-1.40, 1.40), "femur": (-1.10, 1.40), "tibia": (-0.40, 1.40)}
 CAD_SOLE_OFFSET = (0.016120809, 0.0, -0.0803304305)
+# Fixed-foot origins in main's normalized Onshape URDF, in policy leg order.
+ONSHAPE_SOLE_OFFSETS = (
+    (0.137, 0.010, -0.01922),
+    (0.137, 0.010, -0.01922),
+    (0.137, 0.010, -0.01922),
+    (0.137, 0.010, -0.01922),
+    (0.010, -0.137, -0.01922),
+    (0.0150579, -0.136537, -0.01922),
+)
 
 
 @configclass
@@ -37,6 +50,9 @@ class JointAngleNavigationEnvCfg(SpiderNavigationEnvCfg):
     servo_effort_limit_nm = 0.75 * MG996R_STALL_TORQUE_NM
     servo_mass_kg = MG996R_MASS_KG
     observation_space = 94
+    state_space = 0
+    use_asset_joint_limits = False
+    enable_self_collisions = True
     episode_length_s = 60.0
     # Working limits intersect the asset limits. The knee stays on its assembled
     # bend branch; these are simulation settings, not measured PWM calibration.
@@ -85,10 +101,17 @@ class Cad6JointAngleEnvCfg(Cad8JointAngleEnvCfg):
     robot = cad_spiderbot_cfg(6).replace(prim_path="/World/envs/env_.*/Robot")
     action_space = 18
     observation_space = 74
+    joint_angle_ranges = {part: (-math.pi / 2, math.pi / 2) for part in ("hip", "femur", "tibia")}
+    sole_offset = ONSHAPE_SOLE_OFFSETS
+    use_asset_joint_limits = True
+    enable_self_collisions = False
 
 
 def _mg90s_cad_robot(leg_count):
     robot = cad_spiderbot_cfg(leg_count)
+    if leg_count == 6:
+        # Archived all-MG90S v1 policies keep their original geometry and zero.
+        robot.spawn.usd_path = str(Path(robot.spawn.usd_path).parent.parent / "spiderbot_6leg/spiderbot_6leg.usd")
     robot.actuators = mg90s_robot_cfg().actuators
     # Static reset pose only. It is never added to the policy's actions.
     robot.init_state.pos = (0, 0, 0.132)
@@ -107,7 +130,7 @@ class MG90SJointAngleEnvCfg(JointAngleNavigationEnvCfg):
     servo_effort_limit_nm = 0.75 * MG90S_STALL_TORQUE_NM
     servo_mass_kg = MG90S_MASS_KG
     target_rate_limit = 2.0
-    servo_velocity_limit = MG90S_NO_LOAD_SPEED
+    servo_velocity_limit = MG90S_NO_LOAD_SPEED_RAD_S
     minimum_base_height = 0.09
     target_speed = 0.02
     speed_tracking_sigma = 0.015
@@ -137,8 +160,6 @@ class MG90SCad6JointAngleEnvCfg(MG90SCad8JointAngleEnvCfg):
 def _mg996r_hip_cad6_robot():
     robot = cad_spiderbot_cfg(6)
     robot.actuators = mixed_servo_robot_cfg().actuators
-    robot.init_state.pos = (0, 0, 0.132)
-    robot.init_state.joint_pos = {".*_hip_joint": 0.0, ".*_femur_joint": 0.60, ".*_tibia_joint": -0.20}
     return robot.replace(prim_path="/World/envs/env_.*/Robot")
 
 
@@ -146,6 +167,15 @@ def _mg996r_hip_cad6_robot():
 class MG996RHipCad6JointAngleEnvCfg(MG90SCad6JointAngleEnvCfg):
     """Six MG996R hip servos and twelve provisional RC920DMG leg servos."""
     robot = _mg996r_hip_cad6_robot()
+    joint_angle_ranges = Cad6JointAngleEnvCfg().joint_angle_ranges
+    sole_offset = ONSHAPE_SOLE_OFFSETS
+    use_asset_joint_limits = True
+    enable_self_collisions = False
+    servo_model = None
+    servo_reference_voltage_v = None
+    servo_stall_torque_nm = None
+    servo_effort_limit_nm = None
+    servo_mass_kg = None
     target_rate_limit = 1.5
     servo_velocity_limit = tuple(
         speed
@@ -168,8 +198,8 @@ class MG996RHipCad6JointAngleEnvCfg(MG90SCad6JointAngleEnvCfg):
     leg_servo_mass_kg = RC920DMG_MASS_KG
     known_servo_mass_per_leg_kg = MG996R_MASS_KG + 2 * RC920DMG_MASS_KG
     mass_assumption = (
-        "Existing CAD6 link mass/inertia estimates retained; mixed-servo mass is recorded, "
-        "not redistributed into link inertias"
+        "Onshape CAD6 links 1.792339 kg + L2 0.230 kg; known mixed-servo masses "
+        "are recorded but not redistributed across provisional link inertias"
     )
 
 

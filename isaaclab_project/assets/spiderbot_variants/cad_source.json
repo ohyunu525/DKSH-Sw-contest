@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "source": {
+    "system": "Onshape",
+    "document_name": "HEXAPOD",
+    "document_id": "f646c0fde8bd91cfa43cbae7",
+    "workspace_name": "Main",
+    "workspace_id": "279609403375cff4404c6eae",
+    "element_id": "76a6985095c8e8f19d67aec6",
+    "url": "https://cad.onshape.com/documents/f646c0fde8bd91cfa43cbae7/w/279609403375cff4404c6eae/e/76a6985095c8e8f19d67aec6",
+    "access": "link_shared_view_only",
+    "observed_at": "2026-10-10",
+    "lifecycle": "in_progress"
+  },
+  "observed_structure": {
+    "hexapod_assembly": {
+      "body_instances": 1,
+      "leg_instances": 6,
+      "part_instances": 19,
+      "total_mates": 25,
+      "revolute_mates": 18,
+      "revolute_limits_defined": false,
+      "component_names_are_release_ready": true,
+      "joint_mates_named_release_ready": true
+    }
+  },
+  "target_hardware": {
+    "legs": 6,
+    "actuators": {
+      "body_coxa": {
+        "model": "MG996R",
+        "count": 6
+      },
+      "coxa_femur": {
+        "model": "RC920DMG",
+        "count": 6
+      },
+      "femur_tibia": {
+        "model": "RC920DMG",
+        "count": 6
+      }
+    },
+    "lidar": {
+      "model": "Unitree LiDAR L2",
+      "count": 1
+    }
+  },
+  "release_evidence": {
+    "step_export": {
+      "path": null,
+      "sha256": null,
+      "parts_preserved": false
+    },
+    "urdf_export": {
+      "path": "isaaclab_project/assets/spiderbot_variants/onshape_20260928/robot.onshape.urdf",
+      "sha256": "49aa6bb2d9d05c3d18babf80169c7c47e1875301a99c4ffde87a4f027b3c1b6e",
+      "mesh_assets_preserved": true,
+      "normalized_training_asset": "isaaclab_project/assets/spiderbot_variants/onshape_20260928/onshape_20260928.usd"
+    },
+    "joint_spec": {
+      "path": "isaaclab_project/assets/spiderbot_variants/onshape_joint_frames.json",
+      "axes_and_centers_complete": true,
+      "zero_pose_complete": true,
+      "rotation_direction_complete": true,
+      "limits_complete": true,
+      "limits_cad_collision_verified": false
+    },
+    "mass_properties": {
+      "path": "isaaclab_project/assets/spiderbot_variants/onshape_20260928/provenance.json",
+      "complete": true,
+      "motor_inclusion_labeled": false
+    },
+    "servo_layout": {
+      "verified_in_cad": false,
+      "performance_source": null,
+      "operating_point_verified": false
+    }
+  },
+  "current_simulation_asset": {
+    "source": "isaaclab_project/assets/spiderbot_variants/onshape_20260928/robot.training.urdf",
+    "source_sha256": "2b95a93302d88c274349598e2e79064f124f069c9136efd7d0bf5320f10b2663",
+    "usd": "isaaclab_project/assets/spiderbot_variants/onshape_20260928/onshape_20260928.usd",
+    "geometry_status": "current_onshape_provisional",
+    "matches_onshape_release": false,
+    "notes": "Geometry, joint origins/axes, link masses, centers of mass, inertias, and STL collision meshes come from the 2026-09-28 Onshape-to-Robot export. Motor inclusion labels, physical collision limits, final servo placement, and LiDAR mount remain unverified."
+  }
+}

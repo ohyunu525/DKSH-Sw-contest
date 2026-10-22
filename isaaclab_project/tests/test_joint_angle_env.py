@@ -165,6 +165,17 @@ class JointAngleEnvironmentTests(unittest.TestCase):
             target_section = observation[:, 12 + 2 * actions:12 + 3 * actions]
             torch.testing.assert_close(target_section, CONTROL.normalize_angles(env._processed_actions[:, env._joint_ids], env._angle_limits))
 
+    def test_main_terrain_features_keep_v1_actor_dimensions_without_privileged_state(self):
+        env = make_env()
+        env.cfg.environment_preset = "stairs"
+        features = torch.arange(48, dtype=torch.float32).expand(2, -1)
+        env._scenario = NS(observations=lambda: features, ground_height=lambda _: torch.zeros(2))
+        env._configure_gym_env_spaces()
+        observation = env._get_observations()["policy"]
+        self.assertEqual(observation.shape, (2, 106))
+        self.assertEqual(env.cfg.state_space, 0)
+        torch.testing.assert_close(observation[:, -32:], features[:, :32])
+
     def support_at_goal(self, env):
         env._target_positions_w[:, :2] = env._robot.data.root_pos_w[:, :2] + torch.tensor([0.01, 0])
         env._contacts.data.net_forces_w_history[:, :, env._sensor_feet, 2] = 2

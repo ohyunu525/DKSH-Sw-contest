@@ -6,7 +6,11 @@ from pathlib import Path
 from mg90s_checkpoint import validate_checkpoint
 from isaaclab.app import AppLauncher
 
-TASKS = ('Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0', 'Isaac-DKSH-MG90S-CAD6-Sprint-Direct-v0')
+TASKS = (
+    'Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0',
+    'Isaac-DKSH-MG90S-CAD6-Sprint-Direct-v0',
+    'Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0',
+)
 parser = argparse.ArgumentParser()
 parser.add_argument('--checkpoint', required=True)
 parser.add_argument('--num_envs', type=int, default=4)
@@ -43,8 +47,8 @@ def main():
         policy = runner.get_inference_policy(device=base.device)
         obs, _ = env.get_observations()
         counts = base.completed.copy()
-        speed_sum = error_sum = torque_near_sum = 0.0
-        min_height, max_torque = float('inf'), 0.0
+        speed_sum = error_sum = yaw_error_sum = torque_near_sum = 0.0
+        min_height, max_torque, max_effort_ratio = float('inf'), 0.0, 0.0
         with torch.inference_mode():
             for _ in range(args.steps):
                 actions = policy(obs)
@@ -53,28 +57,42 @@ def main():
                 obs, reward, _, _ = env.step(actions)
                 if not torch.isfinite(obs).all() or not torch.isfinite(reward).all():
                     raise RuntimeError('Non-finite observation or reward')
-                velocity = base._robot.data.root_lin_vel_b[:, 0]
-                speed_sum += float(velocity.mean())
-                error_sum += float((velocity - base._speed).abs().mean())
+                velocity = base._robot.data.root_lin_vel_b
+                speed_sum += float(velocity[:, 0].mean())
+                if args.task.endswith('-Velocity-Direct-v0'):
+                    error_sum += float(torch.linalg.vector_norm(velocity[:, :2] - base._commands[:, :2], dim=-1).mean())
+                    yaw_error_sum += float((base._robot.data.root_ang_vel_b[:, 2] - base._commands[:, 2]).abs().mean())
+                else:
+                    error_sum += float((velocity[:, 0] - base._speed).abs().mean())
                 min_height = min(min_height, float(base._robot.data.root_pos_w[:, 2].min()))
                 torque = base._robot.data.applied_torque.abs()
                 max_torque = max(max_torque, float(torque.max()))
-                torque_near_sum += float((torque > 0.70 * 0.1765197).float().mean())
+                effort_ratio = torque / base._robot.data.joint_effort_limits
+                max_effort_ratio = max(max_effort_ratio, float(effort_ratio.max()))
+                torque_near_sum += float((effort_ratio > 0.70).float().mean())
         result = {
             'task': args.task, 'checkpoint': str(checkpoint), 'steps': args.steps, 'envs': args.num_envs,
             'mean_forward_speed_mps': speed_sum / args.steps,
             'mean_speed_error_mps': error_sum / args.steps,
+            'mean_yaw_error_rps': yaw_error_sum / args.steps,
             'min_base_height_m': min_height, 'max_abs_torque_nm': max_torque,
+            'max_effort_ratio': max_effort_ratio,
             'near_torque_cap_fraction': torque_near_sum / args.steps,
             'episodes': base.completed['episodes'] - counts['episodes'],
             'falls': base.completed['fallen'] - counts['fallen'],
             'out_of_bounds': base.completed['out_of_bounds'] - counts['out_of_bounds'],
             'timeouts': base.completed['time_out'] - counts['time_out'],
         }
-        result['passed'] = (result['falls'] == 0 and result['out_of_bounds'] == 0
-                            and result['mean_forward_speed_mps'] >= 0.0025
-                            and result['mean_speed_error_mps'] <= 0.004
-                            and result['max_abs_torque_nm'] <= 0.1323998)
+        if args.task.endswith('-Velocity-Direct-v0'):
+            result['passed'] = (result['falls'] == 0 and result['out_of_bounds'] == 0
+                                and result['mean_speed_error_mps'] <= 0.008
+                                and result['mean_yaw_error_rps'] <= 0.08
+                                and result['max_effort_ratio'] <= 1.0001)
+        else:
+            result['passed'] = (result['falls'] == 0 and result['out_of_bounds'] == 0
+                                and result['mean_forward_speed_mps'] >= 0.0025
+                                and result['mean_speed_error_mps'] <= 0.004
+                                and result['max_effort_ratio'] <= 1.0001)
         if args.output:
             path = Path(args.output).resolve()
             path.parent.mkdir(parents=True, exist_ok=True)
