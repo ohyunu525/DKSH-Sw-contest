@@ -21,8 +21,11 @@ def validate_checkpoint(path, observations=68, actions=18, task='Isaac-DKSH-MG90
         if record.get('actuator_contract') != actuator_contract:
             raise ValueError('Checkpoint actuator contract is incompatible; retrain for MG996R hips. '
                              'Matching observation dimensions alone do not make an old MG90S policy compatible.')
-        if '-Stairs-Sensors-' in task and record.get('observation_contract') != 'assumed_l2_bno086_command_history_v1':
-            raise ValueError('Stair checkpoint sensor observation contract is incompatible.')
+        if '-Stairs-Sensors-' in task:
+            if record.get('observation_contract') != 'l2_bno086_buttons_absolute_targets_v2':
+                raise ValueError('Stair checkpoint sensor observation contract is incompatible; retrain with buttons.')
+            if record.get('action_semantics') != 'absolute_joint_angles_v1':
+                raise ValueError('Stair checkpoint action semantics are incompatible; residual policies cannot be resumed.')
     return int(data['iter'])
 
 

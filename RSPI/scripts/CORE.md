@@ -1,5 +1,9 @@
 # CORE: Raspberry Pi 보행 정책 입력·추론
 
+> 이 도구는 기존 68관측 velocity 정책용이다. 2026-10-22의 버튼/절대각 계단 정책은
+> 244관측이며 이 도구와 호환되지 않는다.
+> [새 정책 관측·출력 계약](../../isaaclab_project/docs/button_absolute_training.md)을 참고한다.
+
 `CORE.py`는 센서/ESP32가 없어도 **가상 상태 → 68개 관측값 → ONNX 정책의 18개 출력 → 화면/JSONL 기록**을 한 번 실행합니다. 모터 명령은 만들거나 전송하지 않습니다.
 
 현재 대응하는 학습 작업은 `Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0`입니다. 이 저수준 보행 정책의

@@ -106,7 +106,7 @@ class MG90SCad6Env(MG90SWalkEnv):
 
     def __init__(self, cfg, render_mode=None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
-        assert self._robot.num_joints == 18 and self._robot.num_bodies == 19
+        assert self._robot.num_joints == 18 and self._robot.num_bodies == 19 + getattr(cfg, 'button_count', 0)
         assert len(self._joint_ids) == 18
         self._viewer_visuals = None
 
