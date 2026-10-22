@@ -15,8 +15,9 @@ WIDTH_M = 1.2
 PLATFORM_M = 0.60
 PATCH_SPACING_M = 2.5
 GRID_SHAPE = (12, 8)
-OBSERVATIONS = 48 + 2 * GRID_SHAPE[0] * GRID_SHAPE[1]
-TASK = 'Isaac-DKSH-MG90S-CAD6-Stairs-Sensors-Direct-v0'
+OBSERVATIONS = 52 + 2 * GRID_SHAPE[0] * GRID_SHAPE[1]  # 244: phase removed, six switches added
+OBSERVATION_CONTRACT = 'l2_bno086_buttons_absolute_targets_v2'
+TASK = 'Isaac-DKSH-MG90S-CAD6-Stairs-Sensors-Direct-v1'
 
 
 def stair_boxes(heights):

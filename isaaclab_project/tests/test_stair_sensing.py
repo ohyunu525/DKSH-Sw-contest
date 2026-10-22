@@ -11,6 +11,9 @@ PATH = Path(__file__).resolve().parents[1] / 'source/dksh_isaaclab/dksh_isaaclab
 SPEC = importlib.util.spec_from_file_location('stair_sensing', PATH)
 S = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(S)
+CONTROL_SPEC = importlib.util.spec_from_file_location('angle_control', PATH.with_name('joint_angle_control.py'))
+CONTROL = importlib.util.module_from_spec(CONTROL_SPEC)
+CONTROL_SPEC.loader.exec_module(CONTROL)
 
 
 class StairSensingTests(unittest.TestCase):
@@ -63,7 +66,7 @@ class StairSensingTests(unittest.TestCase):
                                            rays.expand(2, -1, -1), lo, hi)
         self.assertTrue(bool(torch.isfinite(distances).all()))
         self.assertGreater(int(valid.sum()), 0)
-        self.assertEqual(S.OBSERVATIONS, 240)
+        self.assertEqual(S.OBSERVATIONS, 244)
 
     def test_only_three_consecutive_successes_advance(self):
         levels = torch.tensor([0, 2, 5, 2])
@@ -77,17 +80,20 @@ class StairSensingTests(unittest.TestCase):
         tree = ast.parse(PATH.with_name('mg90s_stairs.py').read_text(encoding='utf-8'))
         cls = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == 'MG90SCad6StairsEnv')
         method = next(node for node in cls.body if isinstance(node, ast.FunctionDef) and node.name == '_get_observations')
-        namespace = {'torch': torch, 'math': math, 'sensing': S}
+        namespace = {'torch': torch, 'math': math, 'sensing': S, 'normalize_angles': CONTROL.normalize_angles}
         exec(compile(ast.Module(body=[method], type_ignores=[]), str(PATH), 'exec'), namespace)
         # No _robot, real joint state, root position/velocity, level or terrain height provided.
-        fake = SimpleNamespace(_update_lidar=lambda: None, _phase=lambda: torch.zeros(2),
+        fake = SimpleNamespace(_update_lidar=lambda: None,
                                _imu=torch.zeros(2, 6), _commands=torch.zeros(2, 3),
-                               _filtered_actions=torch.zeros(2, 18), _targets=torch.zeros(2, 18),
+                               _actions=torch.zeros(2, 18), _targets=torch.zeros(2, 18),
+                               _angle_limits=torch.tensor([-1., 1.]).expand(2, 18, 2),
+                               _button_values=torch.tensor([[1., 0., 1., 0., 0., 1.]]).expand(2, -1),
                                _joint_ids=torch.arange(18), _lidar_features=torch.zeros(2, 192),
                                _lidar_age=torch.zeros(2))
         obs = namespace['_get_observations'](fake)['policy']
         self.assertEqual(obs.shape, (2, S.OBSERVATIONS))
         self.assertTrue(bool(torch.isfinite(obs).all()))
+        torch.testing.assert_close(obs[:, 45:51], fake._button_values)
 
 
 if __name__ == '__main__':

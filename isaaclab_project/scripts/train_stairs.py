@@ -9,7 +9,7 @@ from cad_readiness import assert_cad_ready
 from mg90s_checkpoint import validate_checkpoint
 from isaaclab.app import AppLauncher
 
-TASK = 'Isaac-DKSH-MG90S-CAD6-Stairs-Sensors-Direct-v0'
+TASK = 'Isaac-DKSH-MG90S-CAD6-Stairs-Sensors-Direct-v1'
 ROOT = Path(__file__).resolve().parents[2]
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', choices=('train', 'evaluate'), default='train')
@@ -31,7 +31,7 @@ if args.mode == 'evaluate' and (not args.checkpoint or args.steps < 4100):
 cad_report = assert_cad_ready(allow_provisional=args.allow_provisional_cad)
 checkpoint = Path(args.checkpoint).resolve() if args.checkpoint else None
 if checkpoint:
-    validate_checkpoint(checkpoint, observations=240, actions=18, task=TASK)
+    validate_checkpoint(checkpoint, observations=244, actions=18, task=TASK)
 app = AppLauncher(args).app
 
 try:
@@ -64,6 +64,13 @@ def main():
                 'started_at': datetime.now().astimezone().isoformat(), 'status': 'initializing',
                 'observations': cfg.observation_space, 'actions': cfg.action_space,
                 'observation_contract': cfg.observation_contract, 'hardware_deployable': False,
+                'action_semantics': cfg.action_semantics,
+                'action_reference': 'OYW/Develop/MLForLegs@d970d488be5ab0bb6e1c6ebcb218930c450aa8de',
+                'button_model': {'count': cfg.button_count, 'cap_radius_m': cfg.button_cap_radius_m,
+                                 'cap_mass_kg': cfg.button_cap_mass_kg,
+                                 'press_force_n': cfg.button_press_force_n,
+                                 'release_force_n': cfg.button_release_force_n,
+                                 'debounce_s': cfg.button_debounce_s},
                 'actuator_contract': cfg.actuator_contract,
                 'hip_servo_model': cfg.hip_servo_model, 'leg_servo_model': cfg.leg_servo_model,
                 'hip_reference_voltage_v': cfg.hip_servo_reference_voltage_v,
@@ -83,6 +90,14 @@ def main():
     try:
         env = RslRlVecEnvWrapper(gym.make(TASK, cfg=cfg), clip_actions=agent.clip_actions)
         base = env.unwrapped
+        metadata['joint_order'] = joint_order = [base._robot.joint_names[i] for i in base._joint_ids.tolist()]
+        from dksh_isaaclab.tasks.direct.spider_navigation.joint_angle_control import joint_names
+        if joint_order != joint_names(6):
+            raise RuntimeError('Absolute action joint order mismatch')
+        metadata['angle_limits_rad'] = base._angle_limits[0].tolist()
+        metadata['target_rate_limit_rad_s'] = cfg.target_rate_limit
+        metadata['target_smoothing'] = cfg.target_smoothing
+        metadata['button_order'] = [base._foot_contact.body_names[i] for i in base._sensor_button_ids]
         metadata['mass_kg'] = float(base._robot.root_physx_view.get_masses()[0].sum())
         metadata['actuator_limits'] = {
             name: {'effort_limit_nm': float(actuator.effort_limit.max()),
@@ -114,7 +129,8 @@ def main():
         task_dir = ROOT / 'isaaclab_project/source/dksh_isaaclab/dksh_isaaclab/tasks/direct/spider_navigation'
         for source in [*task_dir.glob('mg90s*.py'), task_dir / 'stair_sensing.py',
                        task_dir / 'onshape_cad6_gait.py', task_dir / 'payload_mass.py',
-                       task_dir / 'servo_specs.py', task_dir / '__init__.py',
+                       task_dir / 'servo_specs.py', task_dir / 'button_contact.py',
+                       task_dir / 'joint_angle_control.py', task_dir / '__init__.py',
                        ROOT / 'isaaclab_project/assets/spiderbot_variants/cad_source.json',
                        Path(__file__), Path(__file__).with_name('mg90s_checkpoint.py')]:
             shutil.copy2(source, snapshot / source.name)
@@ -134,7 +150,6 @@ def main():
             counts = base.completed.copy()
             max_effort, max_x, min_clearance = 0.0, 0.0, float('inf')
             from dksh_isaaclab.tasks.direct.spider_navigation import stair_sensing as sensing
-            heights = torch.tensor(sensing.HEIGHTS_M, device=base.device)[base._levels]
             with torch.inference_mode():
                 for _ in range(args.steps):
                     actions = policy(obs)
@@ -143,10 +158,9 @@ def main():
                     obs, reward, _, _ = env.step(actions)
                     if not torch.isfinite(obs).all() or not torch.isfinite(reward).all():
                         raise RuntimeError('Non-finite sensor observation/reward')
-                    pos = base._robot.data.root_pos_w - base._episode_origins
-                    max_x = max(max_x, float(pos[:, 0].max()))
-                    min_clearance = min(min_clearance, float((pos[:, 2] - sensing.terrain_height(pos[:, 0], heights)).min()))
-                    max_effort = max(max_effort, float((base._robot.data.applied_torque.abs() / base._robot.data.joint_effort_limits).max()))
+                    max_x = max(max_x, base.step_metrics['max_progress_x_m'])
+                    min_clearance = min(min_clearance, base.step_metrics['min_body_clearance_m'])
+                    max_effort = max(max_effort, base.step_metrics['max_effort_ratio'])
             attempts = sum(base.stair_stats['attempts'])
             successes = sum(base.stair_stats['successes'])
             # Avoid small-sample/no-episode passes; evaluate many episodes before hardware.
@@ -159,7 +173,31 @@ def main():
                                       'out_of_bounds': escapes, 'max_progress_x_m': max_x,
                                       'min_body_clearance_m': min_clearance, 'max_effort_ratio': max_effort}
             metadata['stair_climbing_verified'] = passed
+        if args.mode == 'train':
+            from dksh_isaaclab.tasks.direct.spider_navigation.joint_angle_control import AbsoluteAnglePolicy, action_to_angles
+            export = log / 'exported'
+            export.mkdir()
+            model = AbsoluteAnglePolicy(runner.alg.policy.actor, runner.obs_normalizer,
+                                        base._angle_limits[:1])
+            example = torch.zeros(1, cfg.observation_space)
+            torch.jit.trace(model, example).save(str(export / 'absolute_policy.pt'))
+            torch.onnx.export(model, example, str(export / 'absolute_policy.onnx'), opset_version=11,
+                              input_names=['observations'], output_names=['desired_joint_angles_rad'])
+            import onnx
+            from onnx.reference import ReferenceEvaluator
+            exported = onnx.load(str(export / 'absolute_policy.onnx'))
+            onnx.checker.check_model(exported)
+            probe, _ = env.get_observations()
+            probe = probe[:1].detach()
+            with torch.inference_mode():
+                expected = action_to_angles(runner.get_inference_policy()(probe), base._angle_limits[:1]).cpu()
+                torch.testing.assert_close(model(probe.cpu()), expected)
+                onnx_angles = ReferenceEvaluator(exported).run(None, {'observations': probe.cpu().numpy()})[0]
+                torch.testing.assert_close(torch.from_numpy(onnx_angles), expected, rtol=1e-4, atol=1e-5)
+            metadata['exported_output'] = '18 absolute joint angles in radians, before smoothing/rate limiting'
+            metadata['export_verified'] = True
         metadata.update(status='completed', stair_stats=base.stair_stats, completed_episodes=base.completed,
+                        button_press_samples=base.button_press_samples.tolist(),
                         finished_at=datetime.now().astimezone().isoformat())
         record.write_text(json.dumps(metadata, indent=2), encoding='utf-8')
         print('STAIRS_RUN_COMPLETE ' + json.dumps(metadata), flush=True)

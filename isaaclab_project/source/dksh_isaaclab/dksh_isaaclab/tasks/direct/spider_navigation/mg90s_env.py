@@ -53,6 +53,7 @@ class MG90SWalkEnv(DirectRLEnv):
             restore_foot_frames(stage, "/World/envs/env_0/Robot")
             if self.cfg.simple_collisions:
                 apply_simple_collisions(stage, "/World/envs/env_0/Robot", self.cfg.assumed_foot_radius_m)
+        self._setup_foot_hardware(omni.usd.get_context().get_stage(), "/World/envs/env_0/Robot")
         sim_utils.spawn_ground_plane("/World/ground", sim_utils.GroundPlaneCfg(physics_material=self.cfg.ground_material))
         # Bind at rigid-body ancestors so instanceable child colliders inherit
         # the same material. The root binding also covers the LiDAR enclosure.
@@ -73,6 +74,9 @@ class MG90SWalkEnv(DirectRLEnv):
             self.scene.sensors["foot_contact"] = self._foot_contact
         light = sim_utils.DomeLightCfg(intensity=2200.0)
         light.func("/World/Light", light)
+
+    def _setup_foot_hardware(self, stage, robot_path):
+        """Optional foot hardware, authored before cloning and physics initialization."""
 
     def _setup_task_terrain(self):
         """Optional static terrain, created before physics initialization."""

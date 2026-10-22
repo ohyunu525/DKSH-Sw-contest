@@ -3,7 +3,7 @@
 import gymnasium as gym
 
 gym.register(
-    id='Isaac-DKSH-MG90S-CAD6-Stairs-Sensors-Direct-v0',
+    id='Isaac-DKSH-MG90S-CAD6-Stairs-Sensors-Direct-v1',
     entry_point=f'{__name__}.mg90s_stairs:MG90SCad6StairsEnv',
     disable_env_checker=True,
     kwargs={
