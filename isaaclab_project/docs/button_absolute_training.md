@@ -135,3 +135,23 @@ checkpoint 및 원본 로그는 Git ignore 대상이므로 이 PC에만 보관�
 `evaluation.passed=false`, `stair_climbing_verified=false`이며 실패 종료를 확인했다.
 이 결과는 버튼/절대각 정책의 실행·학습·내보내기 검증이며,
 안정적인 보행 또는 계단 통과 정책을 확보한 결과가 아니다.
+
+## 참고 브랜치의 새 실험 기록 확인 — 2026-10-23
+
+`git fetch --all --prune` 후 `OYW/Develop/MLForLegs`의
+`ded64a630da5e67e207f6e72b52e9691dd6621d8`(`Track Isaac Lab training run and evaluation`)을 읽었다.
+이 커밋에는 `dksh_mg996r_hip_cad6_jointangles_v2/2026-10-23_00-54-23_673348`의
+`model_350.pt`, TensorBoard 기록, `params/agent.yaml`, `params/env.yaml`,
+`run_metadata.json`, `monitor_eval_350.json`이 포함되어 있다.
+
+해당 실험은 140관측·18행동의 `Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2`,
+`absolute_joint_angles_v2` 평지 작업이다. 2,000 iteration을 요청했지만 메타데이터의
+상태는 `stopped_on_monitor`, 중단 iteration 368, 보존 체크포인트는 350이다.
+모니터 기록의 중단 사유는 목표 0.02 m/s 대비 전진 속도가 약 0.0021~0.0025 m/s에
+머물렀고 학습 목표 도달이 없었다는 것이다.
+
+보존된 평지 평가는 seed 42, 4환경 × 12,000 step이며 완료 episode 8개 모두 시간 종료,
+목표 도달 0, 낙상 0, `locomotion_pass=false`다. 완료 episode 기준 지속 전진 속도는
+약 -0.000001589 m/s로 최소 기준 0.01 m/s에 미달한다.
+이는 본 문서의 244관측 버튼/계단 실험과 다른 작업이며 체크포인트를 혼용하지 않는다.
+참고 기록을 fetch하고 읽었으며 해당 브랜치의 코드를 현재 브랜치에 병합하지 않았다.
