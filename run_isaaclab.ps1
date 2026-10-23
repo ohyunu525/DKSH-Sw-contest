@@ -11,7 +11,7 @@ param(
     [string]$Checkpoint = "",
     [ValidateSet('baseline', 'cad8', 'cad6')]
     [string]$RobotModel = 'baseline',
-    [ValidateSet('mg996r', 'mg90s', 'mg996r_hip')]
+    [ValidateSet('mg996r', 'mg996r_hip')]
     [string]$ServoModel = 'mg996r',
     [ValidateSet('direct', 'legacy')]
     [string]$ControlMode = 'direct',
@@ -22,11 +22,36 @@ param(
     [ValidateRange(0, 2147483647)]
     [int]$Seed = 42,
     [string]$Output = '',
+    [double]$InitialNoiseStd,
+    [double]$MinNoiseStd,
+    [double]$MaxNoiseStd,
+    [switch]$ResetExplorationStd,
+    [ValidateSet('legacy_v2', 'revised_v3')][string]$BehaviorProfile,
+    [switch]$AllowBehaviorTransfer,
     [switch]$AllowProvisionalCad,
     [switch]$Gui
 )
 
 $projectRoot = $PSScriptRoot
+$noiseKeys = @('InitialNoiseStd', 'MinNoiseStd', 'MaxNoiseStd', 'ResetExplorationStd', 'AllowBehaviorTransfer')
+$noiseOptionsSpecified = @($noiseKeys | Where-Object { $PSBoundParameters.ContainsKey($_) }).Count -gt 0
+if ($noiseOptionsSpecified -and ($ControlMode -ne 'direct' -or $Mode -ne 'train')) {
+    throw 'Noise std overrides, exploration reset and behavior transfer require -ControlMode direct -Mode train.'
+}
+if ($PSBoundParameters.ContainsKey('BehaviorProfile') -and ($ControlMode -ne 'direct' -or $Mode -notin @('train', 'evaluate', 'play'))) {
+    throw 'BehaviorProfile requires direct train, evaluate or play mode.'
+}
+if ($ControlMode -eq 'direct' -and $Mode -eq 'train') {
+    $initialStd = if ($PSBoundParameters.ContainsKey('InitialNoiseStd')) { $InitialNoiseStd } else { 0.08 }
+    $minimumStd = if ($PSBoundParameters.ContainsKey('MinNoiseStd')) { $MinNoiseStd } else { 0.03 }
+    $maximumStd = if ($PSBoundParameters.ContainsKey('MaxNoiseStd')) { $MaxNoiseStd } else { 0.30 }
+    if ([double]::IsNaN($initialStd) -or [double]::IsInfinity($initialStd) -or
+        [double]::IsNaN($minimumStd) -or [double]::IsInfinity($minimumStd) -or
+        [double]::IsNaN($maximumStd) -or [double]::IsInfinity($maximumStd) -or
+        $minimumStd -le 0 -or $initialStd -lt $minimumStd -or $initialStd -gt $maximumStd) {
+        throw 'Exploration standard deviations must be finite and satisfy 0 < minimum <= initial <= maximum.'
+    }
+}
 $Environment = $Environment.ToLowerInvariant()
 $isaacLabRoot = Join-Path $projectRoot "IsaacLab"
 $launcher = Join-Path $isaacLabRoot "isaaclab.bat"
@@ -45,15 +70,11 @@ if ($ControlMode -eq 'direct') {
         throw 'The mixed MG996R-hip/RC920DMG-leg actuator contract is defined for CAD6 only.'
     }
     $taskPrefix = switch ($ServoModel) {
-        'mg90s' { 'MG90S' }
         'mg996r_hip' { 'MG996R-Hip' }
         default { 'Spider' }
     }
     if ($RobotModel -ne 'baseline') { $taskPrefix += "-$($RobotModel.ToUpperInvariant())" }
     $taskName = "Isaac-DKSH-$taskPrefix-JointAngles-v2"
-}
-elseif ($ServoModel -eq 'mg90s') {
-    throw 'Use run_mg90s.ps1 -ControlMode legacy for an old residual MG90S policy.'
 }
 elseif ($ServoModel -eq 'mg996r_hip') {
     throw 'MG996R-hip/RC920DMG-leg actuators are supported by the CAD6 direct-angle task only.'
@@ -81,6 +102,15 @@ try {
         if ($Checkpoint) { $arguments += "--checkpoint=$Checkpoint" }
         if ($Output) { $arguments += "--output=$Output" }
         if ($AllowProvisionalCad) { $arguments += '--allow_provisional_cad' }
+        foreach ($pair in @(@('InitialNoiseStd', 'initial_noise_std'), @('MinNoiseStd', 'min_noise_std'), @('MaxNoiseStd', 'max_noise_std'))) {
+            if ($PSBoundParameters.ContainsKey($pair[0])) {
+                $value = $PSBoundParameters[$pair[0]].ToString([System.Globalization.CultureInfo]::InvariantCulture)
+                $arguments += "--$($pair[1])=$value"
+            }
+        }
+        if ($ResetExplorationStd) { $arguments += '--reset_exploration_std' }
+        if ($PSBoundParameters.ContainsKey('BehaviorProfile')) { $arguments += "--behavior_profile=$BehaviorProfile" }
+        if ($AllowBehaviorTransfer) { $arguments += '--allow_behavior_transfer' }
         if ($Mode -eq 'play') { $arguments += '--disable_fabric' }
         elseif (-not $Gui) { $arguments += '--headless' }
         if ($PSBoundParameters.ContainsKey('Steps')) { $arguments += "--steps=$Steps" }

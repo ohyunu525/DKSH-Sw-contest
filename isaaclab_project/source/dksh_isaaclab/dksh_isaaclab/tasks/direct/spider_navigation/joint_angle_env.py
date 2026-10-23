@@ -11,8 +11,9 @@ from .spider_navigation_env import SpiderNavigationEnv
 from .joint_angle_control import (
     action_to_angles, bounded_angle_targets, joint_names, motion_costs,
     normalize_angles, observation_size, point_velocity, signed_progress, speed_tracking_cost,
+    uncapped_signed_progress, huber_speed_tracking_cost,
 )
-from .joint_angle_contact import sole_contact_state
+from .joint_angle_contact import sole_contact_state, foot_contact_state, closest_foot_support
 
 
 class JointAngleNavigationEnv(SpiderNavigationEnv):
@@ -53,6 +54,11 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         self._sensor_feet = [self._contacts.body_names.index(self._robot.body_names[i]) for i in self._feet]
         self._sensor_body = [i for i, name in enumerate(self._contacts.body_names) if not name.endswith("_tibia")]
         self._sole_offset = torch.tensor(cfg.sole_offset, device=self.device).expand(self.num_envs, len(self._feet), 3)
+        support_offsets = cfg.foot_support_offsets
+        if support_offsets is None:
+            self._foot_support_offsets = self._sole_offset.unsqueeze(2)
+        else:
+            self._foot_support_offsets = torch.tensor(support_offsets, device=self.device).unsqueeze(0).expand(self.num_envs, -1, -1, -1)
         self._effort_limits = self._robot.data.joint_effort_limits[:, self._joint_ids]
         self._servo_velocity_limits = torch.as_tensor(
             cfg.servo_velocity_limit, dtype=torch.float32, device=self.device
@@ -104,6 +110,15 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         self._processed_actions[:, self._joint_ids] = targets
 
     def _contact_state(self):
+        if self.cfg.behavior_profile != "legacy_v2" and self.cfg.foot_support_offsets is not None:
+            points, surfaces = self._foot_support_geometry()
+            return foot_contact_state(
+                self._contacts.data.net_forces_w_history,
+                sensor_feet=self._sensor_feet, sensor_body=self._sensor_body,
+                foot_positions_w=points, surface_heights=surfaces,
+                force_threshold=self.cfg.contact_threshold,
+                height_tolerance=self.cfg.foot_contact_height_tolerance,
+            )
         offset = self._sole_world_offset()
         soles = self._robot.data.body_link_pos_w[:, self._feet] + offset
         surface = (self.scene.env_origins[:, 2:3].expand(-1, len(self._feet))
@@ -115,6 +130,15 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             force_threshold=self.cfg.contact_threshold,
             height_tolerance=self.cfg.sole_contact_height_tolerance,
         )
+
+    def _foot_support_geometry(self):
+        offsets = self._foot_support_offsets
+        rotations = self._robot.data.body_link_quat_w[:, self._feet, None, :].expand(-1, -1, offsets.shape[2], -1)
+        rotated = quat_rotate(rotations.reshape(-1, 4), offsets.reshape(-1, 3)).reshape_as(offsets)
+        points = self._robot.data.body_link_pos_w[:, self._feet, None, :] + rotated
+        surfaces = (self.scene.env_origins[:, None, 2:3].expand(points.shape[:-1])
+                    if self._scenario is None else self._scenario.surface_heights(points.flatten(1, 2)).reshape(points.shape[:-1]))
+        return points, surfaces
 
     def _sole_world_offset(self):
         return quat_rotate(
@@ -184,8 +208,13 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         data = self._robot.data
         distance, direction_w, _ = self._goal_data()
         net_progress = self._previous_goal_distance - distance
-        progress = signed_progress(self._previous_goal_distance, distance, self.cfg.target_speed * self.step_dt)
-        forward = (data.root_lin_vel_w[:, :2] * direction_w[:, :2]).sum(-1)
+        legacy = self.cfg.behavior_profile == "legacy_v2"
+        progress = (signed_progress(self._previous_goal_distance, distance, self.cfg.target_speed * self.step_dt)
+                    if legacy else uncapped_signed_progress(self._previous_goal_distance, distance))
+        instantaneous_forward = (data.root_lin_vel_w[:, :2] * direction_w[:, :2]).sum(-1)
+        # A transition's actual distance reduction cannot be faked by velocity
+        # sampled at one phase of a zero-displacement oscillation.
+        forward = instantaneous_forward if legacy else net_progress / self.step_dt
         upright = (-data.projected_gravity_b[:, 2]).clamp(0, 1)
         costs = motion_costs(
             data.joint_pos[:, self._joint_ids], data.joint_vel[:, self._joint_ids],
@@ -193,14 +222,24 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             self._effort_limits, self._servo_velocity_limits,
         )
         feet, body_contact = self._contact_state()
-        offset = self._sole_world_offset()
+        if not legacy and self.cfg.foot_support_offsets is not None:
+            points, surfaces = self._foot_support_geometry()
+            support, support_height, _ = closest_foot_support(points, surfaces)
+            offset = support - data.body_link_pos_w[:, self._feet]
+        else:
+            offset = self._sole_world_offset()
+            support = data.body_link_pos_w[:, self._feet] + offset
+            support_height = (self.scene.env_origins[:, 2:3] if self._scenario is None
+                              else self._scenario.surface_heights(support))
         velocity = point_velocity(data.body_link_lin_vel_w[:, self._feet], data.body_link_ang_vel_w[:, self._feet], offset)
         if self._scenario is not None:
             velocity = velocity - self._scenario.floor_velocity[:, None, :]
         slip = (velocity[..., :2].square().sum(-1) * feet).sum(-1) / feet.sum(-1).clamp_min(1)
         acceleration = ((self._target_velocity - self._previous_target_velocity) / self.cfg.target_rate_limit).square().mean(-1)
         rates = {
-            "speed": self.cfg.speed_cost_scale * speed_tracking_cost(forward, self.cfg.target_speed, self.cfg.speed_tracking_sigma),
+            "speed": self.cfg.speed_cost_scale * (speed_tracking_cost if legacy else huber_speed_tracking_cost)(
+                forward, self.cfg.target_speed, self.cfg.speed_tracking_sigma
+            ),
             "upright": self.cfg.upright_cost_scale * (1 - upright).square(),
             **{name: getattr(self.cfg, f"{name}_cost_scale") * value for name, value in costs.items()},
             "target_acceleration": self.cfg.target_acceleration_cost_scale * acceleration,
@@ -226,7 +265,8 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         self._previous_root_xy.copy_(data.root_pos_w[:, :2])
         # Capture before auto-reset, so evaluation includes terminal falls and effort.
         self.step_metrics = {
-            "forward_speed_mps": forward, "mechanical_power_w": costs["power"],
+            "forward_speed_mps": instantaneous_forward, "step_progress_speed_mps": net_progress / self.step_dt,
+            "mechanical_power_w": costs["power"],
             "progress_m": net_progress, "reward_progress_m": progress, "body_contact": body_contact.float(),
             "joint_limit_cost": costs["joint_limit"], "foot_slip_m2_s2": slip,
             "goal": self._reached_goal.float(), "fallen": self._fallen().float(),
@@ -237,6 +277,10 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             "torque_saturation": (data.applied_torque[:, self._joint_ids].abs() >= 0.95 * self._effort_limits).float().mean(-1),
             "tracking_error_rad": (data.joint_pos[:, self._joint_ids] - self.joint_angle_targets_rad).abs().mean(-1),
             "feet_contact": feet.float().sum(-1),
+            "target_excursion_rad": (self.joint_angle_targets_rad - data.default_joint_pos[:, self._joint_ids]).abs().mean(-1),
+            "joint_excursion_rad": (data.joint_pos[:, self._joint_ids] - data.default_joint_pos[:, self._joint_ids]).abs().mean(-1),
+            "joint_velocity_rms_rad_s": data.joint_vel[:, self._joint_ids].square().mean(-1).sqrt(),
+            "mean_foot_clearance_m": (support[..., 2] - support_height).mean(-1),
         }
         self.extras["log"].update({f"Metrics/{name}": value.mean() for name, value in self.step_metrics.items()})
         return torch.stack(tuple(terms.values())).sum(0)

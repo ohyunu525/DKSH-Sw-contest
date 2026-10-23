@@ -1,6 +1,8 @@
 """Entry routing and retired-task rejection before a simulator can start."""
 
 import contextlib
+import ast
+import importlib.util
 import io
 from pathlib import Path
 import runpy
@@ -55,6 +57,51 @@ class JointAngleEntrypointTests(unittest.TestCase):
                 self.assertIn("retrain", error.getvalue())
                 delegate.assert_not_called()
                 modules["isaaclab.app"].AppLauncher.assert_not_called()
+
+    def runner_arguments(self, arguments):
+        modules = self.modules()
+        def environment_arguments(parser):
+            parser.add_argument("--seed", type=int, default=None)
+            parser.add_argument("--environment", default="flat")
+            parser.add_argument("--difficulty", type=float, default=0.5)
+        modules["environment_cli"].add_environment_args = environment_arguments
+        modules["cad_readiness"] = types.ModuleType("cad_readiness")
+        modules["cad_readiness"].assert_cad_ready = Mock()
+        for name in ("joint_angle_checkpoint", "joint_angle_runner_utils"):
+            spec = importlib.util.spec_from_file_location(name, SCRIPTS / f"{name}.py")
+            modules[name] = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(modules[name])
+        source = SCRIPTS / "joint_angle_runner.py"
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        prefix = []
+        for node in tree.body:
+            if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == "app" for target in node.targets):
+                break
+            prefix.append(node)
+        namespace = {"__file__": str(source), "__name__": "_runner_argument_test_"}
+        with patch.dict(sys.modules, modules), patch.object(sys, "argv", [source.name, "--task=Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2", *arguments]):
+            exec(compile(ast.Module(body=prefix, type_ignores=[]), str(source), "exec"), namespace)
+        return namespace
+
+    def test_runner_defaults_training_to_revised_but_leaves_saved_evaluation_profile_to_infer(self):
+        train = self.runner_arguments(["--mode=train"])
+        self.assertEqual(train["args"].behavior_profile, "revised_v3")
+        self.assertEqual(train["checkpoint_compatibility"]["expected_contact_contract"], "support_surface_foot_geometry_v3")
+        evaluation = self.runner_arguments(["--mode=evaluate"])
+        self.assertIsNone(evaluation["args"].behavior_profile)
+        self.assertEqual(evaluation["checkpoint_compatibility"], {})
+        self.assertEqual(evaluation["args"].seed, 73)
+        legacy = self.runner_arguments(["--mode=train", "--behavior_profile=legacy_v2", "--reset_exploration_std"])
+        self.assertEqual(legacy["checkpoint_compatibility"]["expected_reward_contract"], "signed_progress_sustained_speed_v2")
+        self.assertTrue(legacy["args"].reset_exploration_std)
+
+    def test_runner_rejects_nontraining_noise_options_and_invalid_bounds_before_simulator(self):
+        for arguments in (["--mode=evaluate", "--initial_noise_std=.08"], ["--mode=play", "--reset_exploration_std"],
+                          ["--mode=evaluate", "--allow_behavior_transfer"], ["--mode=train", "--initial_noise_std=.01"],
+                          ["--mode=train", "--max_noise_std=nan"]):
+            with self.subTest(arguments=arguments), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as result:
+                self.runner_arguments(arguments)
+            self.assertEqual(result.exception.code, 2)
 
 
 if __name__ == "__main__":

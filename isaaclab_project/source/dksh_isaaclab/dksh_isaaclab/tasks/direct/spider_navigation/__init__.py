@@ -8,9 +8,6 @@ for robot, prefix, config in (
     ("baseline", "Spider", "JointAngleNavigationEnvCfg"),
     ("cad8", "Spider-CAD8", "Cad8JointAngleEnvCfg"),
     ("cad6", "Spider-CAD6", "Cad6JointAngleEnvCfg"),
-    ("mg90s", "MG90S", "MG90SJointAngleEnvCfg"),
-    ("mg90s_cad8", "MG90S-CAD8", "MG90SCad8JointAngleEnvCfg"),
-    ("mg90s_cad6", "MG90S-CAD6", "MG90SCad6JointAngleEnvCfg"),
 ):
     gym.register(
         id=f"Isaac-DKSH-{prefix}-JointAngles-v2",
@@ -31,57 +28,6 @@ gym.register(
         "rsl_rl_cfg_entry_point": f"{__name__}.joint_angle_env_cfg:JointAnglePPORunnerCfg",
     },
 )
-
-gym.register(
-    id='Isaac-DKSH-MG90S-CAD6-Stairs-Sensors-Direct-v0',
-    entry_point=f'{__name__}.mg90s_stairs:MG90SCad6StairsEnv',
-    disable_env_checker=True,
-    kwargs={
-        'env_cfg_entry_point': f'{__name__}.mg90s_stairs:MG90SCad6StairsEnvCfg',
-        'rsl_rl_cfg_entry_point': f'{__name__}.mg90s_stairs:MG90SCad6StairsRunnerCfg',
-    },
-)
-
-gym.register(
-    id="Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0",
-    entry_point=f"{__name__}.mg90s_cad6:MG90SCad6Env",
-    disable_env_checker=True,
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.mg90s_cad6:MG90SCad6EnvCfg",
-        "rsl_rl_cfg_entry_point": f"{__name__}.mg90s_cad6:MG90SCad6RunnerCfg",
-    },
-)
-
-gym.register(
-    id="Isaac-DKSH-MG90S-CAD6-Sprint-Direct-v0",
-    entry_point=f"{__name__}.mg90s_cad6:MG90SCad6Env",
-    disable_env_checker=True,
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.mg90s_cad6:MG90SCad6SprintEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{__name__}.mg90s_cad6:MG90SCad6SprintRunnerCfg",
-    },
-)
-
-gym.register(
-    id="Isaac-DKSH-MG90S-CAD6-Velocity-Direct-v0",
-    entry_point=f"{__name__}.mg90s_cad6:MG90SCad6VelocityEnv",
-    disable_env_checker=True,
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.mg90s_cad6:MG90SCad6VelocityEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{__name__}.mg90s_cad6:MG90SCad6VelocityRunnerCfg",
-    },
-)
-
-gym.register(
-    id="Isaac-DKSH-MG90S-Walk-Direct-v0",
-    entry_point=f"{__name__}.mg90s_env:MG90SWalkEnv",
-    disable_env_checker=True,
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.mg90s_env_cfg:MG90SWalkEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{__name__}.mg90s_env_cfg:MG90SWalkRunnerCfg",
-    },
-)
-
 
 gym.register(
     id="Isaac-DKSH-Spider-Navigation-Direct-v0",

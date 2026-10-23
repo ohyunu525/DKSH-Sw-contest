@@ -1,16 +1,28 @@
 """Evaluation failures and actual optimizer-bound exploration without Isaac Sim."""
 
 import importlib.util
+import ast
+import contextlib
+import hashlib
+import io
+import json
 import math
 from pathlib import Path
+import sys
+from tempfile import TemporaryDirectory
+import types
 from types import SimpleNamespace as NS
 import unittest
+from unittest.mock import Mock, patch
 
 import torch
 
 SPEC = importlib.util.spec_from_file_location("joint_angle_runner_utils", Path(__file__).resolve().parents[1] / "scripts/joint_angle_runner_utils.py")
 UTILS = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(UTILS)
+CHECKPOINT_SPEC = importlib.util.spec_from_file_location("joint_angle_checkpoint", Path(__file__).resolve().parents[1] / "scripts/joint_angle_checkpoint.py")
+CHECKPOINT = importlib.util.module_from_spec(CHECKPOINT_SPEC)
+CHECKPOINT_SPEC.loader.exec_module(CHECKPOINT)
 
 
 class StdConstraintTests(unittest.TestCase):
@@ -24,27 +36,27 @@ class StdConstraintTests(unittest.TestCase):
     def test_direct_std_is_projected_after_real_optimizer_updates(self):
         policy, parameter = self.make_policy()
         optimizer = torch.optim.SGD(policy.parameters(), lr=1.0)
-        constraint = UTILS.PolicyStdConstraint(policy, optimizer, 0.021, initialize=True)
-        self.assertTrue(torch.allclose(parameter, torch.full((18,), 0.021)))
-        optimizer.zero_grad()
-        (-parameter.sum()).backward()  # The unconstrained step would increase std to 1.021.
-        optimizer.step()
-        self.assertTrue((parameter <= 0.021).all())
-        optimizer.zero_grad()
-        parameter.sum().backward()  # The unconstrained step would make std negative.
-        optimizer.step()
-        self.assertTrue((parameter > 0).all())
-        constraint.close()
-
-    def test_log_std_is_supported_and_resume_does_not_reset_valid_std(self):
-        policy, parameter = self.make_policy(logarithmic=True, value=0.01)
-        optimizer = torch.optim.Adam(policy.parameters(), lr=5.0)
-        constraint = UTILS.PolicyStdConstraint(policy, optimizer, 0.021, initialize=False)
-        self.assertAlmostEqual(constraint.values()[0], 0.01, places=6)
+        constraint = UTILS.PolicyStdConstraint(policy, optimizer, initial=0.08, minimum=0.03, maximum=0.30, initialize=True)
+        self.assertTrue(torch.allclose(parameter, torch.full((18,), 0.08)))
         optimizer.zero_grad()
         (-parameter.sum()).backward()
         optimizer.step()
-        self.assertLessEqual(max(constraint.values()), 0.021001)
+        self.assertTrue((parameter <= 0.30).all())
+        optimizer.zero_grad()
+        parameter.sum().backward()  # The unconstrained step would make std negative.
+        optimizer.step()
+        self.assertTrue(torch.allclose(parameter, torch.full((18,), 0.03)))
+        constraint.close()
+
+    def test_log_std_is_supported_and_resume_does_not_reset_valid_std(self):
+        policy, parameter = self.make_policy(logarithmic=True, value=0.05)
+        optimizer = torch.optim.Adam(policy.parameters(), lr=5.0)
+        constraint = UTILS.PolicyStdConstraint(policy, optimizer, initial=0.08, minimum=0.03, maximum=0.30)
+        self.assertAlmostEqual(constraint.values()[0], 0.05, places=6)
+        optimizer.zero_grad()
+        (-parameter.sum()).backward()
+        optimizer.step()
+        self.assertLessEqual(max(constraint.values()), 0.300001)
         # The same parameter governs both sampling and log-probability evaluation.
         distribution = torch.distributions.Normal(torch.zeros(18), parameter.exp())
         sample = distribution.sample()
@@ -54,11 +66,55 @@ class StdConstraintTests(unittest.TestCase):
     def test_nonfinite_optimizer_result_fails_instead_of_saving_a_broken_policy(self):
         policy, parameter = self.make_policy()
         optimizer = torch.optim.SGD(policy.parameters(), lr=1)
-        constraint = UTILS.PolicyStdConstraint(policy, optimizer, 0.021, initialize=True)
+        constraint = UTILS.PolicyStdConstraint(policy, optimizer, initial=0.08, minimum=0.03, maximum=0.30, initialize=True)
         parameter.grad = torch.full_like(parameter, float("nan"))
         with self.assertRaisesRegex(ValueError, "non-finite"):
             optimizer.step()
         constraint.close()
+
+    def test_explicit_resume_reset_clears_only_std_adam_state(self):
+        for logarithmic in (False, True):
+            with self.subTest(logarithmic=logarithmic):
+                policy, parameter = self.make_policy(logarithmic=logarithmic, value=0.01)
+                policy.register_parameter("weight", torch.nn.Parameter(torch.tensor([2.0])))
+                optimizer = torch.optim.Adam(policy.parameters(), lr=0.001)
+                (parameter.sum() + policy.weight.sum()).backward()
+                optimizer.step()
+                weight_before = policy.weight.detach().clone()
+                weight_state = optimizer.state[policy.weight]
+                weight_step = weight_state["step"].clone()
+                self.assertIn(parameter, optimizer.state)
+                constraint = UTILS.PolicyStdConstraint(
+                    policy, optimizer, initial=0.08, minimum=0.03, maximum=0.30,
+                    initialize=True, reset_optimizer_state=True,
+                )
+                self.assertTrue(constraint.optimizer_state_cleared)
+                self.assertNotIn(parameter, optimizer.state)
+                self.assertIs(optimizer.state[policy.weight], weight_state)
+                torch.testing.assert_close(weight_state["step"], weight_step)
+                torch.testing.assert_close(policy.weight, weight_before)
+                self.assertAlmostEqual(constraint.values()[0], 0.08, places=6)
+                constraint.close()
+
+    def test_default_resume_clamps_collapsed_std_but_preserves_adam_state(self):
+        policy, parameter = self.make_policy(value=0.01)
+        optimizer = torch.optim.Adam(policy.parameters(), lr=0.001)
+        parameter.sum().backward()
+        optimizer.step()
+        state = optimizer.state[parameter]
+        before = parameter.detach().clone()
+        constraint = UTILS.PolicyStdConstraint(policy, optimizer, initial=0.08, minimum=0.03, maximum=0.30)
+        self.assertIs(optimizer.state[parameter], state)
+        self.assertFalse(constraint.optimizer_state_cleared)
+        self.assertAlmostEqual(constraint.before_values[0], before[0].item(), places=7)
+        self.assertAlmostEqual(constraint.after_values[0], 0.03, places=7)
+        constraint.close()
+
+    def test_invalid_bounds_are_rejected_before_training(self):
+        for bounds in ((0.08, 0, 0.3), (float("nan"), 0.03, 0.3), (0.01, 0.03, 0.3),
+                       (0.08, 0.03, 0.04), (0.08, 0.03, float("inf"))):
+            with self.subTest(bounds=bounds), self.assertRaises(ValueError):
+                UTILS.validate_exploration_bounds(*bounds)
 
 
 class EvaluationTests(unittest.TestCase):
@@ -150,6 +206,96 @@ class EvaluationTests(unittest.TestCase):
         critic[0, 0] = 1
         with self.assertRaises(AssertionError):
             UTILS.validate_observation_batch({"policy": actor, "critic": critic}, num_envs=4, actor_size=140, critic_size=156)
+
+    def test_optional_motion_diagnostics_are_reported_without_changing_acceptance(self):
+        accumulator = UTILS.EvaluationAccumulator(1)
+        metrics = self.metrics(goal=1)
+        metrics["target_excursion_rad"] = torch.tensor([0.12])
+        accumulator.update(metrics, torch.tensor([True]), 1)
+        report = self.report(accumulator)
+        self.assertAlmostEqual(report["target_excursion_rad"], 0.12, places=6)
+        self.assertTrue(report["locomotion_pass"])
+
+
+class ResumeIntegrationTests(unittest.TestCase):
+    def test_real_resume_records_clamp_or_std_only_reset_and_preserves_weights_and_normalizer(self):
+        source = Path(__file__).resolve().parents[1] / "scripts/joint_angle_runner.py"
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        functions = ast.Module(body=[node for node in tree.body if isinstance(node, ast.FunctionDef)
+                                     and node.name in ("train", "write_json")], type_ignores=[])
+        for reset in (False, True):
+            with self.subTest(reset=reset), TemporaryDirectory() as directory:
+                root = Path(directory)
+                policy = torch.nn.Module()
+                policy.register_parameter("std", torch.nn.Parameter(torch.full((18,), 0.01)))
+                policy.register_parameter("weight", torch.nn.Parameter(torch.tensor([2.0])))
+                policy.register_buffer("normalizer_mean", torch.tensor([3.0]))
+                optimizer = torch.optim.Adam(policy.parameters(), lr=0.001)
+                (policy.std.sum() + policy.weight.sum()).backward()
+                optimizer.step()
+                with torch.no_grad():
+                    policy.std.fill_(0.01)
+                checkpoint = root / "model_350.pt"
+                torch.save({"model_state_dict": policy.state_dict(), "optimizer_state_dict": optimizer.state_dict(),
+                            "iter": 350}, checkpoint)
+                weight_before = policy.weight.detach().clone()
+                normalizer_before = policy.normalizer_mean.clone()
+                weight_state_before = {key: value.clone() for key, value in optimizer.state[policy.weight].items()}
+                base = NS(num_envs=1, step_dt=0.02, completed={"goal": 0}, _joint_ids=list(range(18)),
+                          _robot=NS(joint_names=[f"joint_{index}" for index in range(18)]),
+                          _angle_limits=torch.tensor([[[-1.57, 1.57]] * 18]), _servo_velocity_limits=torch.ones((1, 18)))
+                cfg = NS(exploration_reference_saturation_probability=0.01, exploration_initial_std=0.08,
+                         exploration_min_std=0.03, exploration_max_std=0.30, behavior_profile="legacy_v2",
+                         target_rate_limit=1.5, target_smoothing=0.35, seed=42, action_space=18, observation_space=140)
+                args = NS(task="Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2", environment="flat", difficulty=0.5,
+                          max_iterations=1, reset_exploration_std=reset, allow_behavior_transfer=False)
+                log = root / "resumed"
+                log.mkdir()
+                runner = NS(alg=NS(policy=policy, optimizer=optimizer), current_learning_iteration=0)
+
+                def load(path):
+                    saved = torch.load(path, weights_only=True)
+                    policy.load_state_dict(saved["model_state_dict"])
+                    optimizer.load_state_dict(saved["optimizer_state_dict"])
+                    runner.current_learning_iteration = saved["iter"]
+
+                def learn(**kwargs):
+                    runner.current_learning_iteration += kwargs["num_learning_iterations"]
+                    torch.save({"model_state_dict": policy.state_dict()}, log / f"model_{runner.current_learning_iteration}.pt")
+
+                runner.load, runner.learn = load, learn
+                namespace = {"Path": Path, "torch": torch, "json": json, "hashlib": hashlib, "args": args,
+                             "ACTION_SEMANTICS": CHECKPOINT.ACTION_SEMANTICS, "SCHEMA_CONTRACTS": CHECKPOINT.SCHEMA_CONTRACTS,
+                             "BEHAVIOR_PROFILES": CHECKPOINT.BEHAVIOR_PROFILES, "EXPLORATION_PROFILE": CHECKPOINT.EXPLORATION_PROFILE,
+                             "behavior_profile_from_metadata": CHECKPOINT.behavior_profile_from_metadata,
+                             "expected_cad_asset_sha256": CHECKPOINT.expected_cad_asset_sha256,
+                             "cad_report": None, "dump_yaml": Mock(),
+                             "PolicyStdConstraint": UTILS.PolicyStdConstraint}
+                exec(compile(functions, str(source), "exec"), namespace)
+                control = types.ModuleType("dksh_isaaclab.tasks.direct.spider_navigation.joint_angle_control")
+                control.exploration_std = Mock(return_value=0.0211844)
+                parent_metadata = CHECKPOINT.BEHAVIOR_PROFILES["legacy_v2"] | {"exploration_std_cap": 0.0211844}
+                with patch.dict(sys.modules, {control.__name__: control}), contextlib.redirect_stdout(io.StringIO()):
+                    namespace["train"](NS(unwrapped=base), runner, cfg, NS(), log, checkpoint, parent_metadata)
+                metadata = json.loads((log / "run_metadata.json").read_text(encoding="utf-8"))
+                self.assertEqual(metadata["status"], "completed")
+                self.assertAlmostEqual(metadata["exploration_std_before"][0], 0.01, places=6)
+                self.assertAlmostEqual(metadata["exploration_std_after"][0], 0.08 if reset else 0.03, places=6)
+                self.assertEqual(metadata["exploration_std_reset_applied"], reset)
+                self.assertEqual(metadata["exploration_std_optimizer_state_cleared"], reset)
+                self.assertTrue(metadata["exploration_bounds_changed"])
+                self.assertFalse(metadata["behavior_transfer_applied"])
+                self.assertEqual(metadata["reward_contract"], parent_metadata["reward_contract"])
+                self.assertEqual(metadata["exploration_std_cap"], 0.30)
+                self.assertEqual(metadata["cad_asset_sha256"], CHECKPOINT.expected_cad_asset_sha256(args.task))
+                self.assertEqual(metadata["learning_rate_before"], 0.001)
+                self.assertEqual(metadata["learning_rate_after"], 0.001)
+                self.assertEqual(metadata["learning_rate_final"], 0.001)
+                self.assertEqual(policy.std in optimizer.state, not reset)
+                torch.testing.assert_close(policy.weight, weight_before)
+                torch.testing.assert_close(policy.normalizer_mean, normalizer_before)
+                for key, expected in weight_state_before.items():
+                    torch.testing.assert_close(optimizer.state[policy.weight][key], expected)
 
 
 if __name__ == "__main__":

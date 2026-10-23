@@ -60,7 +60,9 @@ tailnet 안에서만 허용됩니다. 자세한 조건과 해제 방법은 [ROS2
 방식을 사용하지 않으며, 정책이 허용 범위 전체에서 각 관절의 목표각을 선택합니다.
 관절 제한·명령 변화 속도·접지·에너지 비용과 연속 계단 코스를 포함합니다.
 [직접 관절각 학습과 단계별 실행](isaaclab_project/docs/joint_angle_training.md)을 먼저 참고하세요.
-기존 v0 정책은 `-ControlMode legacy`로 선택합니다. v1 모델은 v2에서 새로 학습해야 합니다.
+현재 혼합 서보 CAD6는 `run_cad6.ps1`로 실행합니다. MG90S 지원은 제거했습니다.
+공통 실행기의 기존 MG996R baseline v0는 `-ControlMode legacy`로 선택할 수 있습니다.
+v1 모델은 v2에서 새로 학습해야 합니다.
 
 현재 구성은 Isaac Sim 4.5.0과 호환되는 Isaac Lab 2.1.0/Python 3.10을 사용합니다. NVIDIA GPU와
 Isaac Sim 4.5 standalone 설치가 필요하며, 기본 설치 위치가 다르면 경로를 지정합니다.
@@ -68,7 +70,7 @@ Isaac Sim 4.5 standalone 설치가 필요하며, 기본 설치 위치가 다르�
 ```powershell
 git submodule update --init --recursive
 .\setup_isaaclab.ps1
-.\run_isaaclab.ps1 -Mode smoke
+.\run_cad6.ps1 -Mode check -NumEnvs 4
 ```
 
 ```powershell
@@ -87,10 +89,11 @@ git submodule update --init --recursive
 성공하면 `DKSH_ISAACLAB_SMOKE_PASS`가 출력됩니다. 실제 PPO 학습은 다음처럼 시작합니다.
 
 ```powershell
-.\run_isaaclab.ps1 -Mode train -NumEnvs 32 -MaxIterations 1000
+.\run_cad6.ps1 -Mode train -NumEnvs 32 -MaxIterations 1000 -AllowProvisionalCad
 ```
 
-기본 직접 각도 학습 결과는 `logs/rsl_rl/dksh_spider_jointangles_v2` 아래에 저장됩니다.
+혼합 CAD6 학습 결과는 `logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2` 아래에 저장됩니다.
+공통 실행기의 기본 8족 결과는 `logs/rsl_rl/dksh_spider_jointangles_v2` 아래에 저장됩니다.
 `-ControlMode legacy`의 v0 로그 경로는 `logs/rsl_rl/dksh_spider_navigation_l2v1`입니다.
 
 ## 학습 환경 선택
@@ -147,7 +150,7 @@ ROS2 실기 연결은 공식 SDK2를 사용하며 UDP와 TTL UART 실행법은
 8개 다리, 24관절의 primitive baseline 모델입니다. CAD6 학습의 현재 혼합 서보 가정은
 몸통 hip 6개 MG996R, femur/tibia 12개 RC920DMG입니다. MG996R 사양과 임시 토크 한도,
 RC920DMG 데이터의 검증 상태 및 질량 가정은 [MG996R hip 보정 문서](isaaclab_project/docs/mg996r_hip_correction.md)를
-참고하세요. 과거 all-MG90S 실험과 체크포인트는 별도 task ID로 보존됩니다.
+참고하세요. 현재 CAD6 실행 경로는 MG996R hip과 RC920DMG 다리 구성을 사용합니다.
 
 현재 CAD6는 `main`의 `onshape_20260928` URDF/USD, 조립 영점, ±90° 관절 한계와
 CAD 질량 1.792339 kg + L2 0.230 kg을 사용합니다. 잠정 CAD를 학습할 때는

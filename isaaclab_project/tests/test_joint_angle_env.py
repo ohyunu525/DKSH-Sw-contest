@@ -121,15 +121,18 @@ tree = ast.parse((FOLDER / "joint_angle_env.py").read_text(encoding="utf-8"))
 definition = next(node for node in tree.body if isinstance(node, ast.ClassDef))
 namespace = {"torch": torch, "SpiderNavigationEnv": Parent, "quat_rotate": quat_rotate,
              "sole_contact_state": CONTACT.sole_contact_state,
+             "foot_contact_state": CONTACT.foot_contact_state,
+             "closest_foot_support": CONTACT.closest_foot_support,
              **{name: getattr(CONTROL, name) for name in (
                  "action_to_angles", "bounded_angle_targets", "joint_names", "motion_costs",
                  "normalize_angles", "observation_size", "point_velocity", "signed_progress", "speed_tracking_cost",
+                 "uncapped_signed_progress", "huber_speed_tracking_cost",
              )}}
 exec(compile(ast.Module(body=[definition], type_ignores=[]), "joint_angle_env.py", "exec"), namespace)
 Environment = namespace["JointAngleNavigationEnv"]
 
 
-def make_env(actions=18):
+def make_env(actions=18, support_offsets=None):
     # Read numeric tuning values from the real cfg, keeping external asset setup
     # out of these tensor tests; no duplicate copy of the reward implementation.
     cfg_tree = ast.parse((FOLDER / "joint_angle_env_cfg.py").read_text(encoding="utf-8"))
@@ -146,6 +149,7 @@ def make_env(actions=18):
         minimum_base_height=0.06, robot_height=0.24, max_distance_from_origin=5.5,
         joint_angle_ranges={"hip": (-1.4, 1.4), "femur": (-1.1, 1.4), "tibia": (-0.4, 1.4)},
         servo_velocity_limit=10.0, goal_reward=30, failure_penalty=-10, debris_impact_penalty=-2,
+        foot_support_offsets=support_offsets,
     )
     env = Environment(NS(**settings))
     env._reset_idx(torch.tensor([0, 1]))
@@ -294,6 +298,49 @@ class JointAngleEnvironmentTests(unittest.TestCase):
         env._reset_idx(torch.tensor([0]))
         torch.testing.assert_close(env.step_metrics["target_rate_saturation"], terminal)
         self.assertEqual(env._rate_saturation[0].item(), 0)
+
+    def test_revised_reward_prefers_advancing_bursts_over_standing(self):
+        scores = {}
+        for profile in ("legacy_v2", "revised_v3"):
+            env = make_env()
+            env.cfg.behavior_profile = profile
+            env.cfg.target_speed, env.cfg.speed_tracking_sigma = 0.02, 0.015
+            env._get_dones()
+            standing = env._get_rewards().clone()
+            cycle = torch.zeros(2)
+            for x, speed in ((0.0016, 0.08), (0.0008, -0.04)):
+                env._robot.data.root_pos_w[:, 0] = x
+                env._robot.data.root_lin_vel_w[:, 0] = speed
+                cycle += env._get_rewards()
+            scores[profile] = cycle / 2 - standing
+        self.assertTrue((scores["legacy_v2"] < 0).all())
+        self.assertTrue((scores["revised_v3"] > 0).all())
+
+    def test_instantaneous_velocity_without_displacement_does_not_improve_revised_reward(self):
+        env = make_env()
+        env._get_dones()
+        standing = env._get_rewards().clone()
+        env._robot.data.root_lin_vel_w[:, 0] = env.cfg.target_speed
+        unchanged_position = env._get_rewards()
+        torch.testing.assert_close(unchanged_position, standing)
+        self.assertTrue((env.step_metrics["forward_speed_mps"] > 0).all())
+        self.assertTrue((env.step_metrics["step_progress_speed_mps"] == 0).all())
+
+    def test_revised_contact_uses_actual_heel_witness_and_keeps_legacy_reproducible(self):
+        offsets = tuple(((0.12, 0.0, 0.0), (0.12, 0.0, 0.01275)) for _ in range(6))
+        env = make_env(support_offsets=offsets)
+        env._sole_offset = env._sole_offset.clone()
+        env._sole_offset[..., 2] = 0.01275
+        env._contacts.data.net_forces_w_history[:, :, env._sensor_feet, 2] = 2
+        feet, body = env._contact_state()
+        self.assertTrue(feet.all())
+        self.assertFalse(body.any())
+        env._get_rewards()  # Slip and clearance use the selected heel witness too.
+        torch.testing.assert_close(env.step_metrics["mean_foot_clearance_m"], torch.zeros(2))
+        env.cfg.behavior_profile = "legacy_v2"
+        feet, body = env._contact_state()
+        self.assertFalse(feet.any())
+        self.assertTrue(body.all())
 
 
 if __name__ == "__main__":

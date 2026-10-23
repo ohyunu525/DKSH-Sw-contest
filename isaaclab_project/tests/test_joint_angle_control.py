@@ -120,6 +120,74 @@ class JointAngleControlTests(unittest.TestCase):
             with self.subTest(sigma=invalid), self.assertRaises(ValueError):
                 CONTROL.speed_tracking_cost(velocity, 0.02, invalid)
 
+    def test_uncapped_progress_preserves_bursts_and_telescopes(self):
+        distances = torch.tensor([1.0, 0.2, 1.8, 1.0, 0.9], dtype=torch.float64)
+        progress = CONTROL.uncapped_signed_progress(distances[:-1], distances[1:])
+        torch.testing.assert_close(progress, torch.tensor([0.8, -1.6, 0.8, 0.1], dtype=torch.float64))
+        self.assertAlmostEqual(float(progress[:3].sum()), 0, places=12)
+        self.assertAlmostEqual(float(progress.sum()), float(distances[0] - distances[-1]), places=12)
+
+    def test_huber_speed_cost_is_smooth_convex_and_has_unbounded_linear_tails(self):
+        error = torch.tensor([-100.0, -2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0, 100.0], dtype=torch.float64)
+        velocity = (0.02 + 0.015 * error).requires_grad_()
+        cost = CONTROL.huber_speed_tracking_cost(velocity, 0.02, 0.015)
+        expected = torch.tensor([99.5, 1.5, 0.5, 0.125, 0, 0.125, 0.5, 1.5, 99.5], dtype=torch.float64)
+        torch.testing.assert_close(cost, expected)
+        self.assertTrue((cost >= 0).all())
+        cost.sum().backward()
+        torch.testing.assert_close(velocity.grad, error.clamp(-1, 1) / 0.015)
+        self.assertGreaterEqual(float(cost.mean()), float(CONTROL.huber_speed_tracking_cost(velocity.mean(), 0.02, 0.015)))
+        for invalid in (0, -1, math.nan, math.inf):
+            with self.subTest(sigma=invalid), self.assertRaises(ValueError):
+                CONTROL.huber_speed_tracking_cost(velocity, 0.02, invalid)
+
+    def test_revised_objective_prefers_net_advancing_bursty_motion_to_standing(self):
+        # Equal durations yield the commanded mean +0.02m/s, despite reverse motion.
+        dt, command, sigma = 0.02, 0.02, 0.015
+        velocity = torch.tensor([0.08, -0.04], dtype=torch.float64)
+        distance = 1.0 - torch.cat((torch.zeros(1, dtype=torch.float64), (velocity * dt).cumsum(0)))
+        stillness = -0.02 * torch.relu(0.1 * command - velocity) / sigma
+        old_reward = 25 * CONTROL.signed_progress(distance[:-1], distance[1:], command * dt)
+        old_reward += (-0.1 * CONTROL.speed_tracking_cost(velocity, command, sigma) + stillness) * dt
+        new_reward = 25 * CONTROL.uncapped_signed_progress(distance[:-1], distance[1:])
+        new_reward += (-0.1 * CONTROL.huber_speed_tracking_cost(velocity, command, sigma) + stillness) * dt
+        standing = torch.zeros(1, dtype=torch.float64)
+        standing_hinge = -0.02 * 0.1 * command / sigma
+        old_standing = float(-0.1 * CONTROL.speed_tracking_cost(standing, command, sigma) + standing_hinge)
+        new_standing = float(-0.1 * CONTROL.huber_speed_tracking_cost(standing, command, sigma) + standing_hinge)
+        self.assertAlmostEqual(float(velocity.mean()), command, places=12)
+        self.assertAlmostEqual(float(old_reward.mean() / dt), -1.878, places=12)
+        self.assertAlmostEqual(float(new_reward.mean() / dt), 0.122, places=12)
+        self.assertLess(float(old_reward.mean() / dt), old_standing)
+        self.assertGreater(float(new_reward.mean() / dt), new_standing)
+
+    def test_revised_objective_closed_loops_cannot_outperform_standing(self):
+        dt, command, sigma = 0.02, 0.02, 0.015
+        standing_speed = CONTROL.huber_speed_tracking_cost(torch.tensor(0.0, dtype=torch.float64), command, sigma)
+        standing_rate = -0.1 * standing_speed - 0.02 * 0.1 * command / sigma
+        for forward_speed, forward_count, backward_speed, backward_count in (
+            (0.02, 40, -0.02, 40), (0.08, 10, -0.02, 40), (0.01, 80, -0.08, 10),
+        ):
+            velocity = torch.cat((
+                torch.full((forward_count,), forward_speed, dtype=torch.float64),
+                torch.full((backward_count,), backward_speed, dtype=torch.float64),
+            ))
+            distance = 1.0 - torch.cat((torch.zeros(1, dtype=torch.float64), (velocity * dt).cumsum(0)))
+            progress = CONTROL.uncapped_signed_progress(distance[:-1], distance[1:])
+            rates = -0.1 * CONTROL.huber_speed_tracking_cost(velocity, command, sigma)
+            rates -= 0.02 * torch.relu(0.1 * command - velocity) / sigma
+            for orientation in ("upright", "tilted_during_retreat", "tilted_during_advance"):
+                upright = torch.ones_like(velocity)
+                if orientation == "tilted_during_retreat":
+                    upright[forward_count:] = 0.1
+                elif orientation == "tilted_during_advance":
+                    upright[:forward_count] = 0.1
+                reward = 25 * progress + (rates - 2 * (1 - upright).square()) * dt
+                with self.subTest(forward=forward_speed, backward=backward_speed, orientation=orientation):
+                    self.assertAlmostEqual(float(progress.sum()), 0, places=12)
+                    self.assertLessEqual(float(reward.sum()), 1e-12)
+                    self.assertLessEqual(float(reward.mean() / dt), float(standing_rate) + 1e-12)
+
     def test_zero_net_oscillation_cannot_collect_locomotion_reward(self):
         dt = 0.02
         for forward_speed, forward_count, backward_speed, backward_count in (

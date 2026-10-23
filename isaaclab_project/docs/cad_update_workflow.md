@@ -82,6 +82,14 @@ python isaaclab_project/scripts/cad_readiness.py --json
 ```
 
 준비되지 않은 CAD로 장시간 학습은 실패한다. 기구 확정 전 비교 실험만 필요하면
-`run_mg90s.ps1`에 `-AllowProvisionalCad`를 명시할 수 있으며, 이 사실은 학습
+`run_cad6.ps1`에 `-AllowProvisionalCad`를 명시할 수 있으며, 이 사실은 학습
 메타데이터에 남는다. 기존 정책은 최신 설계 검증용이 아니라 소프트웨어 파이프라인과
 혼합 서보 가정의 예비 결과로만 유지한다.
+
+현재 MG996R hip 6개 + RC920DMG 12개 구성의 실행과 관측·체크포인트 계약은
+[절대 관절각 학습 안내](joint_angle_training.md)를 따른다.
+
+```powershell
+.\run_cad6.ps1 -Mode check -NumEnvs 4
+.\run_cad6.ps1 -Mode train -Environment flat -NumEnvs 4 -MaxIterations 400 -AllowProvisionalCad
+```

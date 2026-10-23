@@ -1,12 +1,15 @@
 # MG90S 8-leg 4.8 V selected policy
 
+> **Retired archive.** The matching MG90S task and launcher have been removed.
+> These binaries and results are retained as historical evidence, with no active inference or training path.
+> See the [archive note](../README.md) and [current CAD6 training guide](../../docs/joint_angle_training.md).
+
 > Superseded physical configuration: this policy predates the 2026-09-22
 > RC920DMG replacement at the coxa-femur and femur-tibia joints. Retrain and
 > revalidate it before use with the mixed-servo model.
 
 **Historical eight-leg experiment; not compatible with the user's six-leg robot.**
-The default launcher now selects CAD6 and rejects this checkpoint unless
-`-RobotModel legacy8` is explicitly selected.
+The current CAD6 launcher rejects this checkpoint; no MG90S task remains registered.
 
 `model_1999.pt` was trained with `Isaac-DKSH-MG90S-Walk-Direct-v0` on 2026-09-15.
 
@@ -16,5 +19,5 @@ The default launcher now selects CAD6 and rejects this checkpoint unless
 - Primitive eight-leg USD mass/inertia is retained at 2.91816 kg because measured robot mass is not yet available.
 - SHA-256: `EF1B58921216314A1DDB6353A6DCA3110C80202876632C53E7DF11FE9F998316`.
 
-Use only with the matching MG90S task and configuration in this repository. It is a
-simulation policy, not evidence of safe real-hardware operation.
+The original task configuration is available only in Git history. This simulation result is
+not a validation of the current robot.

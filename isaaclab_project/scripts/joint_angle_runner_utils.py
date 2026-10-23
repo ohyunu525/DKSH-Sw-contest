@@ -38,6 +38,17 @@ def validate_observation_batch(observation, *, num_envs, actor_size, critic_size
         torch.testing.assert_close(critic[:, :actor_size], actor)
 
 
+def validate_exploration_bounds(initial, minimum, maximum):
+    """Exploration is an optimizer setting, independent of physical rate limits."""
+    values = (initial, minimum, maximum)
+    if any(isinstance(value, bool) or not isinstance(value, (int, float))
+           or not math.isfinite(value) or value <= 0 for value in values):
+        raise ValueError("Exploration standard deviations must be finite and positive")
+    if not minimum <= initial <= maximum:
+        raise ValueError("Exploration standard deviations must satisfy minimum <= initial <= maximum")
+    return tuple(float(value) for value in values)
+
+
 class PolicyStdConstraint:
     """Project learned Normal standard deviation after actual optimizer updates.
 
@@ -46,11 +57,9 @@ class PolicyStdConstraint:
     Both RSL-RL's direct ``std`` and logarithmic ``log_std`` are supported.
     """
 
-    def __init__(self, policy, optimizer, maximum, *, initialize):
-        if not math.isfinite(maximum) or maximum <= 0:
-            raise ValueError("Exploration standard deviation cap must be finite and positive")
-        self.maximum = float(maximum)
-        self.minimum = self.maximum * 0.05
+    def __init__(self, policy, optimizer, *, initial, minimum, maximum, initialize=False,
+                 reset_optimizer_state=False):
+        self.initial, self.minimum, self.maximum = validate_exploration_bounds(initial, minimum, maximum)
         self.parameter = getattr(policy, "std", None)
         self.logarithmic = False
         if not isinstance(self.parameter, torch.nn.Parameter):
@@ -60,10 +69,17 @@ class PolicyStdConstraint:
             raise TypeError("Policy must expose a trainable std or log_std parameter")
         if not hasattr(optimizer, "register_step_post_hook"):
             raise TypeError("Optimizer must support register_step_post_hook to constrain exploration")
+        if reset_optimizer_state and not initialize:
+            raise ValueError("Resetting exploration optimizer state requires initializing the std parameter")
+        self.before_values = self.values()
+        self.optimizer_state_cleared = False
         if initialize:
             with torch.no_grad():
-                self.parameter.fill_(math.log(self.maximum) if self.logarithmic else self.maximum)
+                self.parameter.fill_(math.log(self.initial) if self.logarithmic else self.initial)
+            if reset_optimizer_state:
+                self.optimizer_state_cleared = optimizer.state.pop(self.parameter, None) is not None
         self.clamp()
+        self.after_values = self.values()
         self.handle = optimizer.register_step_post_hook(self._after_step)
 
     def _after_step(self, optimizer, args, kwargs):
@@ -94,6 +110,8 @@ class EvaluationAccumulator:
         "body_contact", "joint_limit_cost", "target_rate_rad_s", "target_rate_saturation",
         "torque_saturation", "tracking_error_rad", "feet_contact", "goal", "fallen", "out_of_bounds",
     )
+    OPTIONAL_METRICS = ("step_progress_speed_mps", "target_excursion_rad", "joint_excursion_rad",
+                        "joint_velocity_rms_rad_s", "mean_foot_clearance_m")
 
     def __init__(self, num_envs):
         if num_envs < 1:
@@ -107,6 +125,8 @@ class EvaluationAccumulator:
         self.completed = []
         self.totals = {name: 0.0 for name in self.METRICS}
         self.max_target_rate = 0.0
+        self.optional_totals = {}
+        self.optional_samples = {}
 
     def update(self, metrics, dones, dt):
         if not math.isfinite(dt) or dt <= 0:
@@ -118,6 +138,14 @@ class EvaluationAccumulator:
                 raise ValueError(f"Invalid pre-reset metric {name}")
             values[name] = tensor
             self.totals[name] += float(tensor.sum())
+        for name in self.OPTIONAL_METRICS:
+            if name not in metrics:
+                continue
+            tensor = torch.as_tensor(metrics[name]).detach().to(device="cpu", dtype=torch.float64).reshape(-1)
+            if tensor.shape != (self.num_envs,) or not torch.isfinite(tensor).all():
+                raise ValueError(f"Invalid pre-reset metric {name}")
+            self.optional_totals[name] = self.optional_totals.get(name, 0.0) + float(tensor.sum())
+            self.optional_samples[name] = self.optional_samples.get(name, 0) + self.num_envs
         done = torch.as_tensor(dones, dtype=torch.bool).reshape(-1).cpu()
         if done.shape != (self.num_envs,):
             raise ValueError("Episode done flags must contain one value per environment")
@@ -192,5 +220,6 @@ class EvaluationAccumulator:
             "torque_saturation_fraction": self.totals["torque_saturation"] / samples,
             "tracking_error_rad": self.totals["tracking_error_rad"] / samples,
             "mean_support_feet": self.totals["feet_contact"] / samples,
+            **{name: total / self.optional_samples[name] for name, total in self.optional_totals.items()},
             "locomotion_pass": passed, "failure_reasons": reasons,
         }

@@ -73,3 +73,52 @@ def sole_contact_state(
     if body_indices:
         body |= (force_magnitudes[:, body_indices] > force_threshold).any(dim=-1)
     return feet, body
+
+
+def closest_foot_support(
+    foot_positions_w: torch.Tensor, surface_heights: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Select each foot's actual geometry witness closest to its own terrain.
+
+    Inputs have shape ``(N,L,K,3)`` and ``(N,L,K)``. Returns world positions
+    ``(N,L,3)``, matching terrain heights ``(N,L)`` and witness indices ``(N,L)``.
+    Callers can gather matching point velocities with those indices for slip.
+    Witnesses must describe foot geometry, not the tibia shaft. All validation
+    inspects metadata only, avoiding device synchronization before selection.
+    """
+    if (foot_positions_w.ndim != 4 or foot_positions_w.shape[-1] != 3
+            or foot_positions_w.shape[1] < 1 or foot_positions_w.shape[2] < 1):
+        raise ValueError("foot_positions_w must have shape (N,L,K,3) with nonempty feet and witnesses")
+    if surface_heights.shape != foot_positions_w.shape[:-1]:
+        raise ValueError("surface_heights must have shape (N,L,K) matching foot_positions_w")
+    if surface_heights.device != foot_positions_w.device:
+        raise ValueError("foot positions and surface heights must share a device")
+    if not foot_positions_w.is_floating_point() or not surface_heights.is_floating_point():
+        raise ValueError("foot positions and surface heights must be floating-point tensors")
+
+    gaps = (foot_positions_w[..., 2] - surface_heights).abs()
+    indices = gaps.argmin(dim=-1)
+    positions = foot_positions_w.gather(2, indices[..., None, None].expand(-1, -1, 1, 3)).squeeze(2)
+    heights = surface_heights.gather(2, indices[..., None]).squeeze(2)
+    return positions, heights, indices
+
+
+def foot_contact_state(
+    force_history: torch.Tensor, *, sensor_feet: list[int], sensor_body: list[int],
+    foot_positions_w: torch.Tensor, surface_heights: torch.Tensor,
+    force_threshold: float, height_tolerance: float,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Estimate support using any actual foot-geometry witness near terrain.
+
+    Foot force history and body-contact classification follow the legacy sole
+    helper. The closest witness makes the height condition equivalent to any
+    foot witness lying within tolerance, allowing heel support with a raised
+    toe. Upward force is still required; horizontal wall forces, downward-only
+    forces and unsupported tibia impacts remain undesired contacts.
+    """
+    positions, heights, _ = closest_foot_support(foot_positions_w, surface_heights)
+    return sole_contact_state(
+        force_history, sensor_feet=sensor_feet, sensor_body=sensor_body,
+        sole_positions_w=positions, surface_heights=heights,
+        force_threshold=force_threshold, height_tolerance=height_tolerance,
+    )

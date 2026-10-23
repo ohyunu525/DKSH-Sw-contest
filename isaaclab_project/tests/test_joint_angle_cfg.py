@@ -17,6 +17,9 @@ FOLDER = ROOT / "isaaclab_project/source/dksh_isaaclab/dksh_isaaclab/tasks/direc
 SERVO_SPEC = importlib.util.spec_from_file_location("_joint_cfg_servos", FOLDER / "servo_specs.py")
 SERVO = importlib.util.module_from_spec(SERVO_SPEC)
 SERVO_SPEC.loader.exec_module(SERVO)
+GEOMETRY_SPEC = importlib.util.spec_from_file_location("_joint_cfg_feet", FOLDER / "joint_angle_foot_geometry.py")
+GEOMETRY = importlib.util.module_from_spec(GEOMETRY_SPEC)
+GEOMETRY_SPEC.loader.exec_module(GEOMETRY)
 
 
 class Asset:
@@ -47,14 +50,11 @@ def cad_asset(legs):
 
 def servo_factories():
     namespace = {name: getattr(SERVO, name) for name in vars(SERVO) if name.isupper()}
-    namespace.update(SPIDERBOT_CFG=Asset(), DCMotorCfg=types.SimpleNamespace,
-                     STANCE_DEPTH=0.19, STANCE_FEMUR=0.65, STANCE_TIBIA=0.75,
-                     RC920DMG_STALL_TORQUE=SERVO.RC920DMG_STALL_TORQUE_NM_5V,
-                     RC920DMG_NO_LOAD_SPEED=SERVO.RC920DMG_NO_LOAD_SPEED_RAD_S_5V)
-    tree = ast.parse((FOLDER / "mg90s_env_cfg.py").read_text(encoding="utf-8"))
+    namespace.update(DCMotorCfg=types.SimpleNamespace)
+    tree = ast.parse((FOLDER / "robot_actuators.py").read_text(encoding="utf-8"))
     tree.body = [node for node in tree.body if isinstance(node, ast.FunctionDef)
-                 and node.name in ("mixed_servo_robot_cfg", "historical_mg90s_robot_cfg")]
-    exec(compile(tree, "mg90s_env_cfg.py", "exec"), namespace)
+                 and node.name == "mixed_servo_actuators"]
+    exec(compile(tree, "robot_actuators.py", "exec"), namespace)
     return namespace
 
 
@@ -91,8 +91,8 @@ def load_cfg():
         module.__dict__.update(
             math=math, Path=Path, configclass=configclass, SPIDERBOT_CFG=Asset(), cad_spiderbot_cfg=cad_asset,
             SpiderNavigationEnvCfg=Base, SpiderNavigationPPORunnerCfg=Runner,
-            mg90s_robot_cfg=servo_factories()["historical_mg90s_robot_cfg"],
-            mixed_servo_robot_cfg=servo_factories()["mixed_servo_robot_cfg"],
+            mixed_servo_actuators=servo_factories()["mixed_servo_actuators"],
+            ONSHAPE_FOOT_SUPPORT_OFFSETS=GEOMETRY.ONSHAPE_FOOT_SUPPORT_OFFSETS,
         )
         module.__dict__.update({name: getattr(SERVO, name) for name in vars(SERVO) if name.isupper()})
         exec(compile(tree, str(path), "exec"), module.__dict__)
@@ -102,7 +102,7 @@ def load_cfg():
 class JointAngleConfigurationTests(unittest.TestCase):
     def test_all_variants_instantiate_and_preserve_own_limits_and_actuators(self):
         module, _ = load_cfg()
-        for name in ("JointAngleNavigationEnvCfg", "Cad8JointAngleEnvCfg", "Cad6JointAngleEnvCfg", "MG90SJointAngleEnvCfg", "MG90SCad8JointAngleEnvCfg", "MG90SCad6JointAngleEnvCfg", "MG996RHipCad6JointAngleEnvCfg"):
+        for name in ("JointAngleNavigationEnvCfg", "Cad8JointAngleEnvCfg", "Cad6JointAngleEnvCfg", "MG996RHipCad6JointAngleEnvCfg"):
             with self.subTest(name=name):
                 cfg = getattr(module, name)()
                 self.assertEqual(cfg.robot.prim_path, "/World/envs/env_.*/Robot")
@@ -113,19 +113,22 @@ class JointAngleConfigurationTests(unittest.TestCase):
                 self.assertEqual(cfg.joint_reset_noise, 0)
                 self.assertGreaterEqual(cfg.goal_min_distance, 0.5)
                 self.assertLess(cfg.speed_cost_scale, 0)
+                self.assertEqual(cfg.behavior_profile, "revised_v3")
+                self.assertEqual(cfg.reward_contract, "signed_progress_huber_speed_v3")
+                self.assertEqual(cfg.contact_contract, "support_surface_foot_geometry_v3")
+                self.assertEqual((cfg.exploration_initial_std, cfg.exploration_min_std, cfg.exploration_max_std), (0.08, 0.03, 0.30))
                 speed = cfg.servo_velocity_limit
                 self.assertLess(cfg.target_rate_limit, min(speed) if isinstance(speed, tuple) else speed)
                 for lower, upper in cfg.joint_angle_ranges.values():
                     self.assertLess(lower, upper)
-                if name in ("Cad8JointAngleEnvCfg", "MG90SCad8JointAngleEnvCfg", "MG90SCad6JointAngleEnvCfg"):
+                if name == "Cad8JointAngleEnvCfg":
                     self.assertEqual(cfg.joint_angle_ranges["tibia"][0], -0.4)
-                if "MG90S" in name:
-                    self.assertEqual(cfg.target_speed, 0.02)
 
     def test_policy_noise_and_mutable_ranges_do_not_modify_parent_or_other_instances(self):
         module, original = load_cfg()
         policy = module.JointAnglePPORunnerCfg()
-        self.assertEqual(policy.policy.init_noise_std, 0.02)
+        self.assertEqual(policy.policy.init_noise_std, 0.08)
+        self.assertEqual(policy.algorithm.entropy_coef, 0.001)
         self.assertEqual(policy.algorithm.gamma, 0.9995)
         self.assertEqual(policy.num_steps_per_env, 128)
         self.assertEqual(original.policy.init_noise_std, 0.35)
@@ -144,6 +147,8 @@ class JointAngleConfigurationTests(unittest.TestCase):
         self.assertTrue(cfg.use_asset_joint_limits)
         self.assertTrue(cfg.enable_self_collisions)
         self.assertGreater(cfg.robot_width, 0.556867)
+        self.assertEqual(len(cfg.foot_support_offsets), 6)
+        self.assertTrue(all(len(points) == 137 for points in cfg.foot_support_offsets))
         for leg in range(6):
             foot = robot.find(f"joint[@name='leg_{leg}_foot_fixed']/origin")
             self.assertEqual(cfg.sole_offset[leg], tuple(map(float, foot.get("xyz").split())))
@@ -156,12 +161,57 @@ class JointAngleConfigurationTests(unittest.TestCase):
                 self.assertAlmostEqual(actuator.velocity_limit_sim, float(limit.get("velocity")), places=7)
         self.assertIsNone(cfg.servo_model)
 
-    def test_historical_mg90s_keeps_its_original_geometry_and_motor_model(self):
+    def test_mixed_cad6_preserves_tuning_without_historical_class_inheritance(self):
         module, _ = load_cfg()
-        cfg = module.MG90SCad6JointAngleEnvCfg()
-        self.assertEqual(Path(cfg.robot.spawn.usd_path).parts[-2:], ("spiderbot_6leg", "spiderbot_6leg.usd"))
-        self.assertEqual(set(cfg.robot.actuators), {"mg90s_4v8"})
-        self.assertAlmostEqual(cfg.robot.actuators["mg90s_4v8"].effort_limit_sim, 0.132389775)
+        cfg = module.MG996RHipCad6JointAngleEnvCfg()
+        self.assertEqual(module.MG996RHipCad6JointAngleEnvCfg.__bases__, (module.Cad6JointAngleEnvCfg,))
+        self.assertEqual((cfg.minimum_base_height, cfg.target_speed, cfg.speed_tracking_sigma,
+                          cfg.episode_length_s), (0.06, 0.02, 0.015, 240.0))
+        self.assertEqual((cfg.target_rate_limit, cfg.target_smoothing), (1.5, 0.35))
+        self.assertEqual((cfg.goal_min_distance, cfg.goal_max_distance, cfg.goal_radius), (0.5, 1.5, 0.08))
+        self.assertEqual((cfg.robot_width, cfg.robot_height), (0.56, 0.24))
+        self.assertEqual(cfg.actuator_contract, "mg996r_4v8_rc920dmg_5v_v1")
+        self.assertEqual(cfg.foot_support_offsets, GEOMETRY.ONSHAPE_FOOT_SUPPORT_OFFSETS)
+        self.assertEqual((cfg.sole_contact_height_tolerance, cfg.foot_contact_height_tolerance), (0.012, 0.004))
+        self.assertEqual(cfg.servo_velocity_limit,
+                         (SERVO.MG996R_NO_LOAD_SPEED_RAD_S, SERVO.RC920DMG_NO_LOAD_SPEED_RAD_S_5V,
+                          SERVO.RC920DMG_NO_LOAD_SPEED_RAD_S_5V) * 6)
+
+    def test_mixed_actuator_factory_preserves_physical_limits_and_returns_fresh_configs(self):
+        factory = servo_factories()["mixed_servo_actuators"]
+        actuators = factory()
+        self.assertEqual(set(actuators), {"mg996r_4v8_hip", "rc920dmg_5v_leg"})
+        expected = (
+            ("mg996r_4v8_hip", [".*_hip_joint"], 0.9218251, 0.691368825, math.pi / 3 / 0.19),
+            ("rc920dmg_5v_leg", [".*_femur_joint", ".*_tibia_joint"], 1.8632635, 1.397447625, math.pi / 3 / 0.16),
+        )
+        for name, joints, stall, limit, speed in expected:
+            actuator = actuators[name]
+            self.assertEqual(actuator.joint_names_expr, joints)
+            self.assertAlmostEqual(actuator.saturation_effort, stall)
+            self.assertAlmostEqual(actuator.effort_limit, limit)
+            self.assertAlmostEqual(actuator.effort_limit_sim, limit)
+            self.assertAlmostEqual(actuator.velocity_limit, speed)
+            self.assertAlmostEqual(actuator.velocity_limit_sim, speed)
+            self.assertEqual((actuator.stiffness, actuator.damping, actuator.armature, actuator.friction),
+                             (3.0, 0.06, 0.0002, 0.0))
+        actuators["mg996r_4v8_hip"].stiffness = 99.0
+        self.assertEqual(factory()["mg996r_4v8_hip"].stiffness, 3.0)
+
+    def test_registry_keeps_current_robots_and_excludes_removed_servo_tasks(self):
+        registrations = []
+        gym = types.ModuleType("gymnasium")
+        gym.register = lambda **kwargs: registrations.append(kwargs)
+        with patch.dict(sys.modules, {"gymnasium": gym}):
+            exec(compile((FOLDER / "__init__.py").read_text(encoding="utf-8"), "task_registry", "exec"),
+                 {"__name__": "spider_navigation"})
+        task_ids = {item["id"] for item in registrations}
+        self.assertEqual(task_ids, {
+            "Isaac-DKSH-Spider-JointAngles-v2", "Isaac-DKSH-Spider-CAD8-JointAngles-v2",
+            "Isaac-DKSH-Spider-CAD6-JointAngles-v2", "Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2",
+            "Isaac-DKSH-Spider-Navigation-Direct-v0", "Isaac-DKSH-Spider-CAD8-Navigation-Direct-v0",
+            "Isaac-DKSH-Spider-CAD6-Navigation-Direct-v0",
+        })
 
 
 if __name__ == "__main__":

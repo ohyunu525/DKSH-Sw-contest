@@ -4,24 +4,26 @@
 현재 6족은 MG996R 6개 + RC920DMG 12개 + Unitree L2 + BNO086 가정이다.
 과거 MG90S 체크포인트와 평가는 새 하드웨어의 검증으로 간주하지 않는다.
 
-## 직접 관절각 v2 수정 — 2026-10-23
+## 현재 직접 관절각 학습 — 2026-10-23
 
 현재 브랜치의 절대 관절각 학습은 `Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2`로
-유지한다. `run_mg90s.ps1`의 기본 direct 모드는 이 작업을 선택하고, legacy 모드는
-아래에 기록된 main의 v0 혼합 서보 gait 작업을 선택한다.
+유지한다. 현재 실행기는 `run_cad6.ps1`이며 MG90S task·실행기와 해당 v0 gait 학습 경로는
+제거됐다. 새 학습의 기본 behavior는 `revised_v3`다. 과거 설정으로 실행한 수치와
+현재 보상·접촉 계약을 구분하며, 구체적인 전환 기준은 [학습 안내](joint_angle_training.md)를 따른다.
 
 v2 CAD6는 main의 Onshape URDF/USD, 모든 관절 q=0 조립 자세와 ±90° 한계를 사용한다.
 초기 높이는 0.1375 m, 로봇 폭은 0.56 m로 보정하고 자기충돌을 활성화한다.
 관절 리셋 잡음은 없으며, 고정 보행각을 정책 출력에 더하지 않는다. 모터와 질량 가정은
-아래 main 명세를 따른다. 과거 all-MG90S 형상·모터는 별도 v2 task로 선택할 수 있다.
+아래 모터·질량 명세를 따른다. 과거 MG90S 체크포인트는 기록으로만 보관하며
+현재 작업으로 실행하거나 재개하지 않는다.
 
 ```powershell
-.\run_mg90s.ps1 -Mode check -NumEnvs 4
-.\run_mg90s.ps1 -Mode train -NumEnvs 4 -MaxIterations 400 -AllowProvisionalCad
+.\run_cad6.ps1 -Mode check -Environment flat -NumEnvs 4
+.\run_cad6.ps1 -Mode train -Environment flat -NumEnvs 4 -MaxIterations 400 -AllowProvisionalCad
 ```
 
-v2는 왕복 보상 허점, 과도한 탐색 잡음, 짧은 목표 거리, 누락된 지형 높이와 잘못된 GUI
-복제 형상을 수정한다. CAD6 관측은 평지·계단 모두 140개이며, v1 체크포인트는 재사용하지 않는다.
+현재 정책은 고정 보행각을 더하지 않는 18개 절대각 출력이다. CAD6 관측은 평지·계단 모두
+140개이며, 과거 68/86/240개 관측의 MG90S 정책이나 직접 각도 v1 체크포인트와 호환되지 않는다.
 CAD URDF 해시, 관절 순서·범위, actuator·보상·접촉·관측·제어 계약을 검사한다.
 직접 각도 학습의 보상·평가 계약은 [별도 안내](joint_angle_training.md)를 따른다.
 
@@ -61,14 +63,18 @@ Specification 절을 2026-10-19 확인했다. 실제 공급 전압과 실측 성
 - 실물 영점/PWM/방향·게인 보정은 미완료이며 `servo_zero_pwm_calibrated=false`다.
   임의 PWM을 만들어 전송하거나 모터를 실제 구동하지 않는다.
 
-## 체크포인트 격리와 재현
+## 2026-10-19 체크포인트 격리와 재현 — 폐기된 v0 기록
+
+아래 task·명령·240개 관측과 실행 결과는 당시 v0 실험의 기록이다. `run_stairs.ps1`과
+MG90S 이름의 호환 task는 제거됐으며, 아래 명령은 현재 브랜치에서 실행하지 않는다.
+당시 코드는 Git 이력에서 확인할 수 있다. 아래 숫자를 현재 절대 관절각 정책의 검증으로 취급하지 않는다.
 
 새 actuator contract: `mg996r_4v8_rc920dmg_5v_v1`.
 CAD6 checkpoint guard가 계약 누락/다른 모터 계약을 거부한다. 관측 크기가 같다고
-MG90S 학습을 그대로 재개하지 않는다. 현재 재학습은 처음부터 수행한다.
-기존 task ID/스크립트의 `MG90S` 문자열은 호환용 이름으로 남긴다.
+MG90S 학습을 그대로 재개하지 않고 당시 재학습은 처음부터 수행했다.
+당시에는 task ID/스크립트의 `MG90S` 문자열을 호환용 이름으로 사용했다.
 
-새 실험 디렉터리: `logs/rsl_rl/dksh_cad6_stairs_mg996r_l2_bno086_v1/`.
+당시 실험 디렉터리: `logs/rsl_rl/dksh_cad6_stairs_mg996r_l2_bno086_v1/`.
 관측은 기존 240개 센서 가정, 행동 18개, 마찰 0.6, 물리 5 ms/제어 20 ms다.
 20 mm 3단부터 시작해 연속 3회 통과해야 높이를 올리는 기존 기준을 유지한다.
 라이다·IMU 근사와 자기 차폐 미구현 등은 [계단 학습 문서](stair_sensor_training.md)를 따른다.
@@ -83,7 +89,7 @@ MG90S 학습을 그대로 재개하지 않는다. 현재 재학습은 처음부�
 메타데이터는 실제 actuator 상한, 두 모터 모델/전압, 질량 가정, CAD 준비 상태를 기록한다.
 학습 완료와 계단 통과를 분리하며 `hardware_deployable=false`를 유지한다.
 
-## 실행 결과
+## v0 실행 결과 — 역사 기록
 
 아래에 초기 재학습 및 다른 seed 평가 결과를 기록한다. 체크포인트·원본 로그는 로컬
 `logs/` 아래에 보관하며 Git에는 코드·설정·자산·검증 요약만 커밋한다.

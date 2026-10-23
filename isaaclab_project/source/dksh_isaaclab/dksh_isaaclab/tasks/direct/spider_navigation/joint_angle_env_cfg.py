@@ -1,24 +1,20 @@
 """Motor-level policies that choose absolute joint angles, without a reference gait."""
 
 import math
-from pathlib import Path
 
 from isaaclab.utils import configclass
 from dksh_isaaclab.assets import SPIDERBOT_CFG
 from dksh_isaaclab.assets.spiderbot import cad_spiderbot_cfg
 from .spider_navigation_env_cfg import SpiderNavigationEnvCfg
 from .agents.rsl_rl_ppo_cfg import SpiderNavigationPPORunnerCfg
-from .mg90s_env_cfg import historical_mg90s_robot_cfg as mg90s_robot_cfg, mixed_servo_robot_cfg
+from .robot_actuators import mixed_servo_actuators
+from .joint_angle_foot_geometry import ONSHAPE_FOOT_SUPPORT_OFFSETS
 from .servo_specs import (
     ACTUATOR_CONTRACT,
     MG996R_MASS_KG,
     MG996R_NO_LOAD_SPEED_RAD_S,
     MG996R_REFERENCE_VOLTAGE_V,
     MG996R_STALL_TORQUE_NM,
-    MG90S_MASS_KG,
-    MG90S_NO_LOAD_SPEED_RAD_S,
-    MG90S_REFERENCE_VOLTAGE_V,
-    MG90S_STALL_TORQUE_NM,
     RC920DMG_MASS_KG,
     RC920DMG_NO_LOAD_SPEED_RAD_S_5V,
     RC920DMG_REFERENCE_VOLTAGE_V,
@@ -49,8 +45,9 @@ class JointAngleNavigationEnvCfg(SpiderNavigationEnvCfg):
     action_semantics = "absolute_joint_angles_v2"
     terrain_observation_contract = "terrain_full48_all_presets_v2"
     observation_contract = "joint_angles_targets_target_velocity_terrain48_v2"
-    reward_contract = "signed_progress_sustained_speed_v2"
-    contact_contract = "support_surface_vertical_sole_v2"
+    behavior_profile = "revised_v3"
+    reward_contract = "signed_progress_huber_speed_v3"
+    contact_contract = "support_surface_foot_geometry_v3"
     control_contract = "absolute_targets_rate_limited_observed_velocity_v2"
     robot = SPIDERBOT_CFG.replace(prim_path="/World/envs/env_.*/Robot")
     actuator_contract = "mg996r_4v8_v1"
@@ -70,7 +67,10 @@ class JointAngleNavigationEnvCfg(SpiderNavigationEnvCfg):
     evaluation_goal_distance = 1.0
     evaluation_min_speed_fraction = 0.5
     evaluation_episode_length_s = 90.0
-    max_initial_action_saturation = 0.01
+    exploration_initial_std = 0.08
+    exploration_min_std = 0.03
+    exploration_max_std = 0.30
+    exploration_reference_saturation_probability = 0.01
     # Working limits intersect the asset limits. The knee stays on its assembled
     # bend branch; these are simulation settings, not measured PWM calibration.
     joint_angle_ranges = {"hip": (-1.40, 1.40), "femur": (-1.10, 1.40), "tibia": (0.10, 1.45)}
@@ -80,6 +80,8 @@ class JointAngleNavigationEnvCfg(SpiderNavigationEnvCfg):
     sole_offset = (0.120, 0.0, 0.0)
     contact_threshold = 1.0
     sole_contact_height_tolerance = 0.012
+    foot_support_offsets = None  # Primitive/historical assets use their configured sole point.
+    foot_contact_height_tolerance = 0.004
     minimum_support_feet = 3
     goal_hold_seconds = 0.20
     goal_min_distance = 0.5
@@ -123,78 +125,35 @@ class Cad6JointAngleEnvCfg(Cad8JointAngleEnvCfg):
     observation_space = 140
     joint_angle_ranges = {part: (-math.pi / 2, math.pi / 2) for part in ("hip", "femur", "tibia")}
     sole_offset = ONSHAPE_SOLE_OFFSETS
+    foot_support_offsets = ONSHAPE_FOOT_SUPPORT_OFFSETS
     use_asset_joint_limits = True
     enable_self_collisions = True
     robot_width = 0.56
 
 
-def _mg90s_cad_robot(leg_count):
-    robot = cad_spiderbot_cfg(leg_count)
-    if leg_count == 6:
-        # Archived all-MG90S v1 policies keep their original geometry and zero.
-        robot.spawn.usd_path = str(Path(robot.spawn.usd_path).parent.parent / "spiderbot_6leg/spiderbot_6leg.usd")
-    robot.actuators = mg90s_robot_cfg().actuators
-    # Static reset pose only. It is never added to the policy's actions.
-    robot.init_state.pos = (0, 0, 0.132)
-    robot.init_state.joint_pos = {".*_hip_joint": 0.0, ".*_femur_joint": 0.60, ".*_tibia_joint": -0.20}
-    return robot.replace(prim_path="/World/envs/env_.*/Robot")
-
-
-@configclass
-class MG90SJointAngleEnvCfg(JointAngleNavigationEnvCfg):
-    robot = mg90s_robot_cfg()
-    actuator_contract = "mg90s_4v8_historical_v1"
-    servo_model = "MG90S"
-    supply_voltage = MG90S_REFERENCE_VOLTAGE_V
-    servo_reference_voltage_v = MG90S_REFERENCE_VOLTAGE_V
-    servo_stall_torque_nm = MG90S_STALL_TORQUE_NM
-    servo_effort_limit_nm = 0.75 * MG90S_STALL_TORQUE_NM
-    servo_mass_kg = MG90S_MASS_KG
-    target_rate_limit = 2.0
-    servo_velocity_limit = MG90S_NO_LOAD_SPEED_RAD_S
-    minimum_base_height = 0.09
-    target_speed = 0.02
-    speed_tracking_sigma = 0.015
-    goal_min_distance = 0.5
-    goal_max_distance = 1.5
-    goal_radius = 0.08
-    episode_length_s = 240.0
-
-
-@configclass
-class MG90SCad8JointAngleEnvCfg(MG90SJointAngleEnvCfg):
-    robot = _mg90s_cad_robot(8)
-    joint_angle_ranges = CAD_ANGLE_RANGES
-    sole_offset = CAD_SOLE_OFFSET
-    minimum_base_height = 0.06
-    robot_width = 0.46
-    robot_height = 0.24
-
-
-@configclass
-class MG90SCad6JointAngleEnvCfg(MG90SCad8JointAngleEnvCfg):
-    robot = _mg90s_cad_robot(6)
-    action_space = 18
-    observation_space = 140
-
-
 def _mg996r_hip_cad6_robot():
     robot = cad_spiderbot_cfg(6)
-    robot.actuators = mixed_servo_robot_cfg().actuators
+    robot.actuators = mixed_servo_actuators()
     # q=0 hull bottom is z=-0.126578m: leave >10mm clearance at reset.
     robot.init_state.pos = (0.0, 0.0, 0.1375)
     return robot.replace(prim_path="/World/envs/env_.*/Robot")
 
 
 @configclass
-class MG996RHipCad6JointAngleEnvCfg(MG90SCad6JointAngleEnvCfg):
+class MG996RHipCad6JointAngleEnvCfg(Cad6JointAngleEnvCfg):
     """Six MG996R hip servos and twelve provisional RC920DMG leg servos."""
     robot = _mg996r_hip_cad6_robot()
     joint_angle_ranges = Cad6JointAngleEnvCfg().joint_angle_ranges
     sole_offset = ONSHAPE_SOLE_OFFSETS
+    foot_support_offsets = ONSHAPE_FOOT_SUPPORT_OFFSETS
     use_asset_joint_limits = True
     enable_self_collisions = True
     robot_width = 0.56
+    # Preserve the established mixed-CAD6 tuning independently of generic CAD6.
+    minimum_base_height = 0.06
+    target_speed = 0.02
+    speed_tracking_sigma = 0.015
+    episode_length_s = 240.0
     servo_model = None
     servo_reference_voltage_v = None
     servo_stall_torque_nm = None
@@ -231,10 +190,10 @@ class MG996RHipCad6JointAngleEnvCfg(MG90SCad6JointAngleEnvCfg):
 class JointAnglePPORunnerCfg(SpiderNavigationPPORunnerCfg):
     experiment_name = "dksh_joint_angles"
     policy = SpiderNavigationPPORunnerCfg().policy.copy()
-    # Runner derives the exact per-asset cap from limits/rate/smoothing.
-    policy.init_noise_std = 0.02
+    # Exploration bounds are training settings, independent of motor slew limits.
+    policy.init_noise_std = 0.08
     num_steps_per_env = 128
     algorithm = SpiderNavigationPPORunnerCfg().algorithm.copy()
     algorithm.gamma = 0.9995
     algorithm.lam = 0.98
-    algorithm.entropy_coef = 0.0001
+    algorithm.entropy_coef = 0.001

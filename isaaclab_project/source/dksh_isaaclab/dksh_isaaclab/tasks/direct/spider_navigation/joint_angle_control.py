@@ -75,7 +75,7 @@ def frontier_progress(best_distance, distance, max_step):
 def signed_progress(
     previous_distance: torch.Tensor, distance: torch.Tensor, max_positive_step: float
 ) -> torch.Tensor:
-    """Return signed distance reduction, limiting only positive progress.
+    """Legacy v2: signed distance reduction, limiting only positive progress.
 
     The uncapped signed differences telescope over a closed trajectory. Capping
     positive terms can only reduce that sum, so any closed loop earns at most
@@ -88,10 +88,22 @@ def signed_progress(
     return (previous_distance - distance).clamp(max=max_positive_step)
 
 
+def uncapped_signed_progress(
+    previous_distance: torch.Tensor, distance: torch.Tensor
+) -> torch.Tensor:
+    """Return the complete signed change in finite goal distances.
+
+    Differences telescope to the net reduction in goal distance, so a closed
+    path earns zero and a useful burst of forward motion keeps all its credit.
+    No speed cap, posture gate or all-time-best distance changes that potential.
+    """
+    return previous_distance - distance
+
+
 def speed_tracking_cost(
     forward_velocity: torch.Tensor, command_velocity: torch.Tensor | float, sigma: float
 ) -> torch.Tensor:
-    """Convex, nonnegative speed error; callers apply a negative reward scale.
+    """Legacy v2: squared speed error; callers apply a negative reward scale.
 
     Do not clip or multiply this cost by upright: either can make a zero-net
     forward/backward cycle preferable to standing. For equal mean velocity,
@@ -100,6 +112,23 @@ def speed_tracking_cost(
     if not math.isfinite(sigma) or sigma <= 0:
         raise ValueError("speed tracking sigma must be finite and positive")
     return ((forward_velocity - command_velocity) / sigma).square()
+
+
+def huber_speed_tracking_cost(
+    forward_velocity: torch.Tensor, command_velocity: torch.Tensor | float, sigma: float
+) -> torch.Tensor:
+    """Convex normalized SmoothL1 error with a transition at one sigma.
+
+    A negative reward scale penalizes speed error without making occasional
+    body-velocity bursts quadratically expensive. Linear tails remain unbounded
+    and convex: zero-net oscillation cannot lower the mean cost below standing
+    when velocity is measured over the same intervals as signed progress.
+    """
+    if not math.isfinite(sigma) or sigma <= 0:
+        raise ValueError("speed tracking sigma must be finite and positive")
+    error = (forward_velocity - command_velocity) / sigma
+    magnitude = error.abs()
+    return torch.where(magnitude <= 1, 0.5 * error.square(), magnitude - 0.5)
 
 
 def exploration_std(

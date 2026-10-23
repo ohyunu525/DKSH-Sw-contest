@@ -19,6 +19,18 @@ SPEC.loader.exec_module(SERVO)
 
 
 class ServoSpecificationTests(unittest.TestCase):
+    def test_asset_and_task_specs_agree_on_current_actuator_contract(self) -> None:
+        asset_path = MODULE.parents[3] / "assets/servo_specs.py"
+        spec = importlib.util.spec_from_file_location("_asset_servo_specs_test", asset_path)
+        asset_specs = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(asset_specs)
+        for name in ("ACTUATOR_CONTRACT", "PROVISIONAL_EFFORT_DERATING",
+                     "MG996R_STALL_TORQUE_NM", "MG996R_NO_LOAD_SPEED_RAD_S",
+                     "MG996R_REFERENCE_VOLTAGE_V", "MG996R_MASS_KG",
+                     "RC920DMG_STALL_TORQUE_NM_5V", "RC920DMG_NO_LOAD_SPEED_RAD_S_5V",
+                     "RC920DMG_REFERENCE_VOLTAGE_V", "RC920DMG_MASS_KG"):
+            self.assertEqual(getattr(SERVO, name), getattr(asset_specs, name))
+
     def test_mg996r_4v8_manufacturer_nominal_data(self) -> None:
         self.assertEqual(SERVO.MG996R_REFERENCE_VOLTAGE_V, 4.8)
         self.assertEqual(SERVO.MG996R_MASS_KG, 0.055)
