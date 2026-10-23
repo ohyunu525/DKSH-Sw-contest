@@ -1,6 +1,6 @@
 # Isaac Lab runtime artifacts
 logs/
-# Keep MG996R/RC920DMG CAD6 v2 run records, metrics, settings and evaluations
+# Keep MG996R/RC920DMG CAD6 v2 and stair run records, metrics, settings and evaluations
 # reviewable in Git. Model checkpoints remain ignored unless explicitly selected.
 !logs/
 logs/*
@@ -16,6 +16,16 @@ logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2/*/*
 !logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2/*/params/
 logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2/*/params/*
 !logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2/*/params/*.yaml
+!logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2_obstacles/
+logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2_obstacles/*
+!logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2_obstacles/*/
+logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2_obstacles/*/*
+!logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2_obstacles/*/events.out.tfevents.*
+!logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2_obstacles/*/run_metadata.json
+!logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2_obstacles/*/monitor_eval*.json
+!logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2_obstacles/*/params/
+logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2_obstacles/*/params/*
+!logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2_obstacles/*/params/*.yaml
 outputs/
 **/__pycache__/
 *.py[cod]
