@@ -1,0 +1,292 @@
+{
+  "task": "Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2",
+  "action_semantics": "absolute_joint_angles_v2",
+  "cad_asset_sha256": "2b95a93302d88c274349598e2e79064f124f069c9136efd7d0bf5320f10b2663",
+  "cad_readiness": {
+    "ready": false,
+    "manifest": "C:\\Users\\COM\\Documents\\GitHub\\DKSH-Sw-contest\\isaaclab_project\\assets\\spiderbot_variants\\cad_source.json",
+    "manifest_sha256": "913833b5259ae7828275232a8fae18fe2f9a59e8301708dcccc7f4eac4867a3a",
+    "source_url": "https://cad.onshape.com/documents/f646c0fde8bd91cfa43cbae7/w/279609403375cff4404c6eae/e/76a6985095c8e8f19d67aec6",
+    "lifecycle": "in_progress",
+    "blockers": [
+      "Onshape lifecycle is not released_for_simulation",
+      "link mass/COM data with motor inclusion labels are incomplete",
+      "MG996R/RC920DMG layout is not verified in CAD",
+      "servo operating-point specs lack a versioned source or bench verification"
+    ],
+    "provisional_override": true
+  },
+  "terrain_observation_contract": "terrain_full48_all_presets_v2",
+  "observation_contract": "joint_angles_targets_target_velocity_terrain48_v2",
+  "reward_contract": "signed_progress_sustained_speed_v2",
+  "contact_contract": "support_surface_vertical_sole_v2",
+  "control_contract": "absolute_targets_rate_limited_observed_velocity_v2",
+  "behavior_profile": "legacy_v2",
+  "source_behavior_profile": "legacy_v2",
+  "source_reward_contract": "signed_progress_sustained_speed_v2",
+  "source_contact_contract": "support_surface_vertical_sole_v2",
+  "behavior_transfer_requested": false,
+  "behavior_transfer_applied": false,
+  "mass_assumption": "Onshape CAD6 links 1.792339 kg + L2 0.230 kg; known mixed-servo masses are recorded but not redistributed across provisional link inertias",
+  "environment": "flat",
+  "difficulty": 0.5,
+  "seed": 42,
+  "actions": 18,
+  "observations": 140,
+  "environments": 32,
+  "joint_names": [
+    "leg_0_hip_joint",
+    "leg_0_femur_joint",
+    "leg_0_tibia_joint",
+    "leg_1_hip_joint",
+    "leg_1_femur_joint",
+    "leg_1_tibia_joint",
+    "leg_2_hip_joint",
+    "leg_2_femur_joint",
+    "leg_2_tibia_joint",
+    "leg_3_hip_joint",
+    "leg_3_femur_joint",
+    "leg_3_tibia_joint",
+    "leg_4_hip_joint",
+    "leg_4_femur_joint",
+    "leg_4_tibia_joint",
+    "leg_5_hip_joint",
+    "leg_5_femur_joint",
+    "leg_5_tibia_joint"
+  ],
+  "angle_limits_rad": [
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ]
+  ],
+  "target_rate_limit_rad_s": 1.5,
+  "target_smoothing": 0.35,
+  "servo_velocity_limits_rad_s": [
+    5.511566162109375,
+    6.544984817504883,
+    6.544984817504883,
+    5.511566162109375,
+    6.544984817504883,
+    6.544984817504883,
+    5.511566162109375,
+    6.544984817504883,
+    6.544984817504883,
+    5.511566162109375,
+    6.544984817504883,
+    6.544984817504883,
+    5.511566162109375,
+    6.544984817504883,
+    6.544984817504883,
+    5.511566162109375,
+    6.544984817504883,
+    6.544984817504883
+  ],
+  "actuator_contract": "mg996r_4v8_rc920dmg_5v_v1",
+  "servo_model": null,
+  "servo_reference_voltage_v": null,
+  "servo_stall_torque_nm": null,
+  "servo_effort_limit_nm": null,
+  "hip_servo_model": "MG996R",
+  "leg_servo_model": "RC920DMG",
+  "hip_servo_reference_voltage_v": 4.8,
+  "leg_servo_reference_voltage_v": 5.0,
+  "hip_servo_stall_torque_nm": 0.9218251000000001,
+  "leg_servo_stall_torque_nm": 1.8632635,
+  "hip_servo_effort_limit_nm": 0.6913688250000001,
+  "leg_servo_effort_limit_nm": 1.3974476249999999,
+  "supply_voltage": null,
+  "known_servo_mass_per_leg_kg": 0.175,
+  "control_frequency_hz": 50.0,
+  "exploration_profile": "independent_std_bounds_v1",
+  "exploration_initial_std": 0.08,
+  "exploration_min_std": 0.03,
+  "exploration_max_std": 0.3,
+  "exploration_std_cap": 0.3,
+  "initial_saturation_reference_std": 0.021184403588553256,
+  "exploration_reference_saturation_probability": 0.01,
+  "source_exploration_bounds": {
+    "initial": null,
+    "minimum": null,
+    "maximum": 0.021184403588553256
+  },
+  "exploration_bounds_changed": true,
+  "exploration_std_reset_requested": true,
+  "exploration_std_reset_applied": true,
+  "source_checkpoint": "C:\\Users\\COM\\Documents\\GitHub\\DKSH-Sw-contest\\logs\\rsl_rl\\dksh_mg996r_hip_cad6_jointangles_v2\\2026-10-23_00-54-23_673348\\model_350.pt",
+  "source_sha256": "6121c2a2acba1425bb012535ea9e04c4e6228208c06325216463c30caea4baa4",
+  "additional_iterations": 400,
+  "status": "completed",
+  "learning_rate_before": 1e-05,
+  "optimizer_learning_rates_before": [
+    1e-05
+  ],
+  "exploration_std_before": [
+    0.016135821118950844,
+    0.014566284604370594,
+    0.01635120064020157,
+    0.00961316004395485,
+    0.014975421130657196,
+    0.014792916364967823,
+    0.017474763095378876,
+    0.011556514538824558,
+    0.015122919343411922,
+    0.011233258992433548,
+    0.010394936427474022,
+    0.0168154276907444,
+    0.008420736528933048,
+    0.01429858710616827,
+    0.00943958479911089,
+    0.013346858322620392,
+    0.010972131043672562,
+    0.012203908525407314
+  ],
+  "exploration_std_after": [
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066
+  ],
+  "exploration_std_optimizer_state_cleared": true,
+  "learning_rate_after": 1e-05,
+  "optimizer_learning_rates_after": [
+    1e-05
+  ],
+  "exploration_std_initial": [
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066,
+    0.07999999821186066
+  ],
+  "start_iteration": 351,
+  "final_checkpoint": "model_750.pt",
+  "final_sha256": "186c7bc6581bd7514ac580b5281f8e4890d355a764fd0773e4e852a260d078e3",
+  "final_iteration": 750,
+  "completed_episodes": {
+    "episodes": 128,
+    "goal": 3,
+    "fallen": 0,
+    "time_out": 125,
+    "out_of_bounds": 0
+  },
+  "exploration_std_final": [
+    0.08465725928544998,
+    0.059022460132837296,
+    0.05487959459424019,
+    0.06509104371070862,
+    0.04646643251180649,
+    0.06967268139123917,
+    0.06095688045024872,
+    0.06132068112492561,
+    0.047342699021101,
+    0.0530104823410511,
+    0.07111058384180069,
+    0.04610913619399071,
+    0.05295533314347267,
+    0.04337535426020622,
+    0.054616332054138184,
+    0.06933578848838806,
+    0.06615457683801651,
+    0.06494932621717453
+  ],
+  "learning_rate_final": 1.5000000000000005e-05,
+  "optimizer_learning_rates_final": [
+    1.5000000000000005e-05
+  ]
+}

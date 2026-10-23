@@ -1,0 +1,131 @@
+{
+  "checkpoint": "C:\\Users\\COM\\Documents\\GitHub\\DKSH-Sw-contest\\logs\\rsl_rl\\dksh_mg996r_hip_cad6_jointangles_v2\\2026-10-23_09-25-10_667059\\model_750.pt",
+  "task": "Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2",
+  "action_semantics": "absolute_joint_angles_v2",
+  "environment": "flat",
+  "difficulty": 0.5,
+  "seed": 73,
+  "behavior_profile": "legacy_v2",
+  "reward_contract": "signed_progress_sustained_speed_v2",
+  "contact_contract": "support_surface_vertical_sole_v2",
+  "source_behavior_profile": "legacy_v2",
+  "source_reward_contract": "signed_progress_sustained_speed_v2",
+  "source_contact_contract": "support_surface_vertical_sole_v2",
+  "environments": 4,
+  "steps": 12000,
+  "fixed_scenario_distance_m": 1.0,
+  "goal_radius_m": 0.08,
+  "episode_length_s": 90.0,
+  "episodes": {
+    "episodes": 8,
+    "goal": 0,
+    "fallen": 0,
+    "out_of_bounds": 0,
+    "time_out": 8
+  },
+  "success_rate": 0.0,
+  "successful_environment_count": 0,
+  "completed_episode_records": [
+    {
+      "environment_index": 0,
+      "outcome": "time_out",
+      "duration_s": 89.97999999999924,
+      "signed_progress_m": 0.004535019397735596,
+      "travel_distance_m": 0.10492478343905987,
+      "mechanical_energy_j": 9.610400039255632,
+      "sustained_progress_speed_mps": 5.040030448694859e-05
+    },
+    {
+      "environment_index": 1,
+      "outcome": "time_out",
+      "duration_s": 89.97999999999924,
+      "signed_progress_m": 0.005316734313964844,
+      "travel_distance_m": 0.1316188103875504,
+      "mechanical_energy_j": 9.432773879170437,
+      "sustained_progress_speed_mps": 5.908795636769159e-05
+    },
+    {
+      "environment_index": 2,
+      "outcome": "time_out",
+      "duration_s": 89.97999999999924,
+      "signed_progress_m": 0.004526913166046143,
+      "travel_distance_m": 0.12908170114044992,
+      "mechanical_energy_j": 14.371066597737375,
+      "sustained_progress_speed_mps": 5.031021522611893e-05
+    },
+    {
+      "environment_index": 3,
+      "outcome": "time_out",
+      "duration_s": 89.97999999999924,
+      "signed_progress_m": 0.005936264991760254,
+      "travel_distance_m": 0.10628166233377101,
+      "mechanical_energy_j": 11.576134627237947,
+      "sustained_progress_speed_mps": 6.597316061080578e-05
+    },
+    {
+      "environment_index": 0,
+      "outcome": "time_out",
+      "duration_s": 89.97999999999924,
+      "signed_progress_m": 0.004535019397735596,
+      "travel_distance_m": 0.10492478343905987,
+      "mechanical_energy_j": 9.610400039255632,
+      "sustained_progress_speed_mps": 5.040030448694859e-05
+    },
+    {
+      "environment_index": 1,
+      "outcome": "time_out",
+      "duration_s": 89.97999999999924,
+      "signed_progress_m": 0.005316734313964844,
+      "travel_distance_m": 0.1316188103875504,
+      "mechanical_energy_j": 9.432773879170437,
+      "sustained_progress_speed_mps": 5.908795636769159e-05
+    },
+    {
+      "environment_index": 2,
+      "outcome": "time_out",
+      "duration_s": 89.97999999999924,
+      "signed_progress_m": 0.004526913166046143,
+      "travel_distance_m": 0.12908170114044992,
+      "mechanical_energy_j": 14.371066597737375,
+      "sustained_progress_speed_mps": 5.031021522611893e-05
+    },
+    {
+      "environment_index": 3,
+      "outcome": "time_out",
+      "duration_s": 89.97999999999924,
+      "signed_progress_m": 0.005936264991760254,
+      "travel_distance_m": 0.10628166233377101,
+      "mechanical_energy_j": 11.576134627237947,
+      "sustained_progress_speed_mps": 6.597316061080578e-05
+    }
+  ],
+  "incomplete_episode_count": 4,
+  "completed_progress_m": 0.04062986373901367,
+  "completed_duration_s": 719.8399999999939,
+  "sustained_progress_speed_mps": 5.644290917289122e-05,
+  "minimum_sustained_progress_speed_mps": 0.01,
+  "forward_speed_mps": 0.0008920396514077898,
+  "signed_progress_m": 0.06092149019241333,
+  "travel_distance_m": 1.3920408731042926,
+  "mechanical_energy_j": 120.72837542463094,
+  "energy_per_progress_j_m": 1981.704240052642,
+  "body_contact_fraction": 0.0,
+  "joint_limit_cost": 0.0,
+  "max_target_rate_rad_s": 1.5,
+  "target_rate_saturation_fraction": 0.009996527964947745,
+  "torque_saturation_fraction": 0.0,
+  "tracking_error_rad": 0.030777995225857013,
+  "mean_support_feet": 5.0485,
+  "step_progress_speed_mps": 6.345988561709723e-05,
+  "target_excursion_rad": 0.12881603220493223,
+  "joint_excursion_rad": 0.12800783481747688,
+  "joint_velocity_rms_rad_s": 0.09625996705998356,
+  "mean_foot_clearance_m": 0.0015831879285869946,
+  "locomotion_pass": false,
+  "failure_reasons": [
+    "fewer completed successful episodes than environments",
+    "not every environment completed a successful episode",
+    "completed-episode success rate below 0.8",
+    "completed-episode sustained progress speed is below the minimum"
+  ]
+}
