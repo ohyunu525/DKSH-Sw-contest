@@ -1,5 +1,23 @@
 # Isaac Lab runtime artifacts
 logs/
+# Keep the interrupted MG996R/RC920DMG CAD6 v2 run's record, metrics, eval,
+# and latest saved checkpoint so training outcomes remain reviewable in Git.
+!logs/
+logs/*
+!logs/rsl_rl/
+logs/rsl_rl/*
+!logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2/
+logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2/*
+!logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2/2026-10-23_00-54-23_673348/
+logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2/2026-10-23_00-54-23_673348/*
+!logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2/2026-10-23_00-54-23_673348/events.out.tfevents.*
+!logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2/2026-10-23_00-54-23_673348/monitor_eval_350.json
+!logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2/2026-10-23_00-54-23_673348/model_350.pt
+!logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2/2026-10-23_00-54-23_673348/run_metadata.json
+!logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2/2026-10-23_00-54-23_673348/params/
+logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2/2026-10-23_00-54-23_673348/params/*
+!logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2/2026-10-23_00-54-23_673348/params/agent.yaml
+!logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2/2026-10-23_00-54-23_673348/params/env.yaml
 outputs/
 **/__pycache__/
 *.py[cod]

@@ -1,0 +1,120 @@
+{
+  "checkpoint": "C:\\Users\\COM\\Documents\\GitHub\\DKSH-Sw-contest\\logs\\rsl_rl\\dksh_mg996r_hip_cad6_jointangles_v2\\2026-10-23_00-54-23_673348\\model_350.pt",
+  "task": "Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2",
+  "action_semantics": "absolute_joint_angles_v2",
+  "environment": "flat",
+  "difficulty": 0.5,
+  "seed": 42,
+  "environments": 4,
+  "steps": 12000,
+  "fixed_scenario_distance_m": 1.0,
+  "goal_radius_m": 0.08,
+  "episode_length_s": 90.0,
+  "episodes": {
+    "episodes": 8,
+    "goal": 0,
+    "fallen": 0,
+    "out_of_bounds": 0,
+    "time_out": 8
+  },
+  "success_rate": 0.0,
+  "successful_environment_count": 0,
+  "completed_episode_records": [
+    {
+      "environment_index": 0,
+      "outcome": "time_out",
+      "duration_s": 89.97999999999924,
+      "signed_progress_m": 1.1920928955078125e-06,
+      "travel_distance_m": 0.023722875475414185,
+      "mechanical_energy_j": 4.1595124701410615,
+      "sustained_progress_speed_mps": 1.324842071024475e-08
+    },
+    {
+      "environment_index": 1,
+      "outcome": "time_out",
+      "duration_s": 89.97999999999924,
+      "signed_progress_m": 0.0001175999641418457,
+      "travel_distance_m": 0.0297659345595207,
+      "mechanical_energy_j": 3.771632880605754,
+      "sustained_progress_speed_mps": 1.3069567030656445e-06
+    },
+    {
+      "environment_index": 2,
+      "outcome": "time_out",
+      "duration_s": 89.97999999999924,
+      "signed_progress_m": 5.328655242919922e-05,
+      "travel_distance_m": 0.01441943201402296,
+      "mechanical_energy_j": 5.422185141406974,
+      "sustained_progress_speed_mps": 5.922044057479404e-07
+    },
+    {
+      "environment_index": 3,
+      "outcome": "time_out",
+      "duration_s": 89.97999999999924,
+      "signed_progress_m": -0.000743865966796875,
+      "travel_distance_m": 0.012149665958077094,
+      "mechanical_energy_j": 2.8318569065257932,
+      "sustained_progress_speed_mps": -8.267014523192725e-06
+    },
+    {
+      "environment_index": 0,
+      "outcome": "time_out",
+      "duration_s": 89.97999999999924,
+      "signed_progress_m": 1.1920928955078125e-06,
+      "travel_distance_m": 0.023722875475414185,
+      "mechanical_energy_j": 4.1595124701410615,
+      "sustained_progress_speed_mps": 1.324842071024475e-08
+    },
+    {
+      "environment_index": 1,
+      "outcome": "time_out",
+      "duration_s": 89.97999999999924,
+      "signed_progress_m": 0.0001175999641418457,
+      "travel_distance_m": 0.0297659345595207,
+      "mechanical_energy_j": 3.771632880605754,
+      "sustained_progress_speed_mps": 1.3069567030656445e-06
+    },
+    {
+      "environment_index": 2,
+      "outcome": "time_out",
+      "duration_s": 89.97999999999924,
+      "signed_progress_m": 5.328655242919922e-05,
+      "travel_distance_m": 0.01441943201402296,
+      "mechanical_energy_j": 5.422185141406974,
+      "sustained_progress_speed_mps": 5.922044057479404e-07
+    },
+    {
+      "environment_index": 3,
+      "outcome": "time_out",
+      "duration_s": 89.97999999999924,
+      "signed_progress_m": -0.000743865966796875,
+      "travel_distance_m": 0.012149665958077094,
+      "mechanical_energy_j": 2.8318569065257932,
+      "sustained_progress_speed_mps": -8.267014523192725e-06
+    }
+  ],
+  "incomplete_episode_count": 4,
+  "completed_progress_m": -0.0011435747146606445,
+  "completed_duration_s": 719.8399999999939,
+  "sustained_progress_speed_mps": -1.5886512484172236e-06,
+  "minimum_sustained_progress_speed_mps": 0.01,
+  "forward_speed_mps": 0.001921369423634528,
+  "signed_progress_m": -0.0017210841178894043,
+  "travel_distance_m": 0.22752089830444788,
+  "mechanical_energy_j": 43.27695573683828,
+  "energy_per_progress_j_m": null,
+  "body_contact_fraction": 0.0015,
+  "joint_limit_cost": 0.0,
+  "max_target_rate_rad_s": 1.5,
+  "target_rate_saturation_fraction": 2.777777798473835e-05,
+  "torque_saturation_fraction": 0.0,
+  "tracking_error_rad": 0.015781455445239165,
+  "mean_support_feet": 4.4959375,
+  "locomotion_pass": false,
+  "failure_reasons": [
+    "fewer completed successful episodes than environments",
+    "not every environment completed a successful episode",
+    "completed-episode success rate below 0.8",
+    "completed-episode sustained progress speed is below the minimum"
+  ]
+}
