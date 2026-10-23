@@ -1,0 +1,414 @@
+{
+  "checkpoint": "C:\\Users\\COM\\Documents\\GitHub\\DKSH-Sw-contest\\logs\\rsl_rl\\dksh_mg996r_hip_cad6_jointangles_v2\\2026-10-23_09-52-31_975938\\model_750.pt",
+  "task": "Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2",
+  "action_semantics": "absolute_joint_angles_v2",
+  "environment": "flat",
+  "difficulty": 0.5,
+  "seed": 73,
+  "behavior_profile": "revised_v3",
+  "reward_contract": "signed_progress_huber_speed_v3",
+  "contact_contract": "support_surface_foot_geometry_v3",
+  "source_behavior_profile": "revised_v3",
+  "source_reward_contract": "signed_progress_huber_speed_v3",
+  "source_contact_contract": "support_surface_foot_geometry_v3",
+  "environments": 4,
+  "steps": 12000,
+  "fixed_scenario_distance_m": 1.0,
+  "goal_radius_m": 0.08,
+  "episode_length_s": 90.0,
+  "episodes": {
+    "episodes": 40,
+    "goal": 40,
+    "fallen": 0,
+    "out_of_bounds": 0,
+    "time_out": 0
+  },
+  "success_rate": 1.0,
+  "successful_environment_count": 4,
+  "completed_episode_records": [
+    {
+      "environment_index": 1,
+      "outcome": "goal",
+      "duration_s": 22.199999999999616,
+      "signed_progress_m": 0.9314374476671219,
+      "travel_distance_m": 1.3785786826319963,
+      "mechanical_energy_j": 38.81387651935217,
+      "sustained_progress_speed_mps": 0.04195664178680802
+    },
+    {
+      "environment_index": 2,
+      "outcome": "goal",
+      "duration_s": 22.51999999999961,
+      "signed_progress_m": 0.9264502748847008,
+      "travel_distance_m": 1.4098382200918422,
+      "mechanical_energy_j": 39.238485016152254,
+      "sustained_progress_speed_mps": 0.04113899977285599
+    },
+    {
+      "environment_index": 3,
+      "outcome": "goal",
+      "duration_s": 22.719999999999605,
+      "signed_progress_m": 0.9202703982591629,
+      "travel_distance_m": 1.4536900330494973,
+      "mechanical_energy_j": 38.745762206018014,
+      "sustained_progress_speed_mps": 0.04050485907830893
+    },
+    {
+      "environment_index": 0,
+      "outcome": "goal",
+      "duration_s": 23.179999999999595,
+      "signed_progress_m": 0.925183966755867,
+      "travel_distance_m": 1.4566640354933043,
+      "mechanical_energy_j": 39.81444676458835,
+      "sustained_progress_speed_mps": 0.03991302703864897
+    },
+    {
+      "environment_index": 1,
+      "outcome": "goal",
+      "duration_s": 22.199999999999616,
+      "signed_progress_m": 0.9314374476671219,
+      "travel_distance_m": 1.3785786826319963,
+      "mechanical_energy_j": 38.81387651935217,
+      "sustained_progress_speed_mps": 0.04195664178680802
+    },
+    {
+      "environment_index": 2,
+      "outcome": "goal",
+      "duration_s": 22.51999999999961,
+      "signed_progress_m": 0.9264502748847008,
+      "travel_distance_m": 1.4098382200918422,
+      "mechanical_energy_j": 39.238485016152254,
+      "sustained_progress_speed_mps": 0.04113899977285599
+    },
+    {
+      "environment_index": 3,
+      "outcome": "goal",
+      "duration_s": 22.719999999999605,
+      "signed_progress_m": 0.9202703982591629,
+      "travel_distance_m": 1.4536900330494973,
+      "mechanical_energy_j": 38.745762206018014,
+      "sustained_progress_speed_mps": 0.04050485907830893
+    },
+    {
+      "environment_index": 0,
+      "outcome": "goal",
+      "duration_s": 23.179999999999595,
+      "signed_progress_m": 0.925183966755867,
+      "travel_distance_m": 1.4566640354933043,
+      "mechanical_energy_j": 39.81444676458835,
+      "sustained_progress_speed_mps": 0.03991302703864897
+    },
+    {
+      "environment_index": 1,
+      "outcome": "goal",
+      "duration_s": 22.199999999999616,
+      "signed_progress_m": 0.9314374476671219,
+      "travel_distance_m": 1.3785786826319963,
+      "mechanical_energy_j": 38.81387651935217,
+      "sustained_progress_speed_mps": 0.04195664178680802
+    },
+    {
+      "environment_index": 2,
+      "outcome": "goal",
+      "duration_s": 22.51999999999961,
+      "signed_progress_m": 0.9264502748847008,
+      "travel_distance_m": 1.4098382200918422,
+      "mechanical_energy_j": 39.238485016152254,
+      "sustained_progress_speed_mps": 0.04113899977285599
+    },
+    {
+      "environment_index": 3,
+      "outcome": "goal",
+      "duration_s": 22.719999999999605,
+      "signed_progress_m": 0.9202703982591629,
+      "travel_distance_m": 1.4536900330494973,
+      "mechanical_energy_j": 38.745762206018014,
+      "sustained_progress_speed_mps": 0.04050485907830893
+    },
+    {
+      "environment_index": 0,
+      "outcome": "goal",
+      "duration_s": 23.179999999999595,
+      "signed_progress_m": 0.925183966755867,
+      "travel_distance_m": 1.4566640354933043,
+      "mechanical_energy_j": 39.81444676458835,
+      "sustained_progress_speed_mps": 0.03991302703864897
+    },
+    {
+      "environment_index": 1,
+      "outcome": "goal",
+      "duration_s": 22.199999999999616,
+      "signed_progress_m": 0.9314374476671219,
+      "travel_distance_m": 1.3785786826319963,
+      "mechanical_energy_j": 38.81387651935217,
+      "sustained_progress_speed_mps": 0.04195664178680802
+    },
+    {
+      "environment_index": 2,
+      "outcome": "goal",
+      "duration_s": 22.51999999999961,
+      "signed_progress_m": 0.9264502748847008,
+      "travel_distance_m": 1.4098382200918422,
+      "mechanical_energy_j": 39.238485016152254,
+      "sustained_progress_speed_mps": 0.04113899977285599
+    },
+    {
+      "environment_index": 3,
+      "outcome": "goal",
+      "duration_s": 22.719999999999605,
+      "signed_progress_m": 0.9202703982591629,
+      "travel_distance_m": 1.4536900330494973,
+      "mechanical_energy_j": 38.745762206018014,
+      "sustained_progress_speed_mps": 0.04050485907830893
+    },
+    {
+      "environment_index": 0,
+      "outcome": "goal",
+      "duration_s": 23.179999999999595,
+      "signed_progress_m": 0.925183966755867,
+      "travel_distance_m": 1.4566640354933043,
+      "mechanical_energy_j": 39.81444676458835,
+      "sustained_progress_speed_mps": 0.03991302703864897
+    },
+    {
+      "environment_index": 1,
+      "outcome": "goal",
+      "duration_s": 22.199999999999616,
+      "signed_progress_m": 0.9314374476671219,
+      "travel_distance_m": 1.3785786826319963,
+      "mechanical_energy_j": 38.81387651935217,
+      "sustained_progress_speed_mps": 0.04195664178680802
+    },
+    {
+      "environment_index": 2,
+      "outcome": "goal",
+      "duration_s": 22.51999999999961,
+      "signed_progress_m": 0.9264502748847008,
+      "travel_distance_m": 1.4098382200918422,
+      "mechanical_energy_j": 39.238485016152254,
+      "sustained_progress_speed_mps": 0.04113899977285599
+    },
+    {
+      "environment_index": 3,
+      "outcome": "goal",
+      "duration_s": 22.719999999999605,
+      "signed_progress_m": 0.9202703982591629,
+      "travel_distance_m": 1.4536900330494973,
+      "mechanical_energy_j": 38.745762206018014,
+      "sustained_progress_speed_mps": 0.04050485907830893
+    },
+    {
+      "environment_index": 0,
+      "outcome": "goal",
+      "duration_s": 23.179999999999595,
+      "signed_progress_m": 0.925183966755867,
+      "travel_distance_m": 1.4566640354933043,
+      "mechanical_energy_j": 39.81444676458835,
+      "sustained_progress_speed_mps": 0.03991302703864897
+    },
+    {
+      "environment_index": 1,
+      "outcome": "goal",
+      "duration_s": 22.199999999999616,
+      "signed_progress_m": 0.9314374476671219,
+      "travel_distance_m": 1.3785786826319963,
+      "mechanical_energy_j": 38.81387651935217,
+      "sustained_progress_speed_mps": 0.04195664178680802
+    },
+    {
+      "environment_index": 2,
+      "outcome": "goal",
+      "duration_s": 22.51999999999961,
+      "signed_progress_m": 0.9264502748847008,
+      "travel_distance_m": 1.4098382200918422,
+      "mechanical_energy_j": 39.238485016152254,
+      "sustained_progress_speed_mps": 0.04113899977285599
+    },
+    {
+      "environment_index": 3,
+      "outcome": "goal",
+      "duration_s": 22.719999999999605,
+      "signed_progress_m": 0.9202703982591629,
+      "travel_distance_m": 1.4536900330494973,
+      "mechanical_energy_j": 38.745762206018014,
+      "sustained_progress_speed_mps": 0.04050485907830893
+    },
+    {
+      "environment_index": 0,
+      "outcome": "goal",
+      "duration_s": 23.179999999999595,
+      "signed_progress_m": 0.925183966755867,
+      "travel_distance_m": 1.4566640354933043,
+      "mechanical_energy_j": 39.81444676458835,
+      "sustained_progress_speed_mps": 0.03991302703864897
+    },
+    {
+      "environment_index": 1,
+      "outcome": "goal",
+      "duration_s": 22.199999999999616,
+      "signed_progress_m": 0.9314374476671219,
+      "travel_distance_m": 1.3785786826319963,
+      "mechanical_energy_j": 38.81387651935217,
+      "sustained_progress_speed_mps": 0.04195664178680802
+    },
+    {
+      "environment_index": 2,
+      "outcome": "goal",
+      "duration_s": 22.51999999999961,
+      "signed_progress_m": 0.9264502748847008,
+      "travel_distance_m": 1.4098382200918422,
+      "mechanical_energy_j": 39.238485016152254,
+      "sustained_progress_speed_mps": 0.04113899977285599
+    },
+    {
+      "environment_index": 3,
+      "outcome": "goal",
+      "duration_s": 22.719999999999605,
+      "signed_progress_m": 0.9202703982591629,
+      "travel_distance_m": 1.4536900330494973,
+      "mechanical_energy_j": 38.745762206018014,
+      "sustained_progress_speed_mps": 0.04050485907830893
+    },
+    {
+      "environment_index": 0,
+      "outcome": "goal",
+      "duration_s": 23.179999999999595,
+      "signed_progress_m": 0.925183966755867,
+      "travel_distance_m": 1.4566640354933043,
+      "mechanical_energy_j": 39.81444676458835,
+      "sustained_progress_speed_mps": 0.03991302703864897
+    },
+    {
+      "environment_index": 1,
+      "outcome": "goal",
+      "duration_s": 22.199999999999616,
+      "signed_progress_m": 0.9314374476671219,
+      "travel_distance_m": 1.3785786826319963,
+      "mechanical_energy_j": 38.81387651935217,
+      "sustained_progress_speed_mps": 0.04195664178680802
+    },
+    {
+      "environment_index": 2,
+      "outcome": "goal",
+      "duration_s": 22.51999999999961,
+      "signed_progress_m": 0.9264502748847008,
+      "travel_distance_m": 1.4098382200918422,
+      "mechanical_energy_j": 39.238485016152254,
+      "sustained_progress_speed_mps": 0.04113899977285599
+    },
+    {
+      "environment_index": 3,
+      "outcome": "goal",
+      "duration_s": 22.719999999999605,
+      "signed_progress_m": 0.9202703982591629,
+      "travel_distance_m": 1.4536900330494973,
+      "mechanical_energy_j": 38.745762206018014,
+      "sustained_progress_speed_mps": 0.04050485907830893
+    },
+    {
+      "environment_index": 0,
+      "outcome": "goal",
+      "duration_s": 23.179999999999595,
+      "signed_progress_m": 0.925183966755867,
+      "travel_distance_m": 1.4566640354933043,
+      "mechanical_energy_j": 39.81444676458835,
+      "sustained_progress_speed_mps": 0.03991302703864897
+    },
+    {
+      "environment_index": 1,
+      "outcome": "goal",
+      "duration_s": 22.199999999999616,
+      "signed_progress_m": 0.9314374476671219,
+      "travel_distance_m": 1.3785786826319963,
+      "mechanical_energy_j": 38.81387651935217,
+      "sustained_progress_speed_mps": 0.04195664178680802
+    },
+    {
+      "environment_index": 2,
+      "outcome": "goal",
+      "duration_s": 22.51999999999961,
+      "signed_progress_m": 0.9264502748847008,
+      "travel_distance_m": 1.4098382200918422,
+      "mechanical_energy_j": 39.238485016152254,
+      "sustained_progress_speed_mps": 0.04113899977285599
+    },
+    {
+      "environment_index": 3,
+      "outcome": "goal",
+      "duration_s": 22.719999999999605,
+      "signed_progress_m": 0.9202703982591629,
+      "travel_distance_m": 1.4536900330494973,
+      "mechanical_energy_j": 38.745762206018014,
+      "sustained_progress_speed_mps": 0.04050485907830893
+    },
+    {
+      "environment_index": 0,
+      "outcome": "goal",
+      "duration_s": 23.179999999999595,
+      "signed_progress_m": 0.925183966755867,
+      "travel_distance_m": 1.4566640354933043,
+      "mechanical_energy_j": 39.81444676458835,
+      "sustained_progress_speed_mps": 0.03991302703864897
+    },
+    {
+      "environment_index": 1,
+      "outcome": "goal",
+      "duration_s": 22.199999999999616,
+      "signed_progress_m": 0.9314374476671219,
+      "travel_distance_m": 1.3785786826319963,
+      "mechanical_energy_j": 38.81387651935217,
+      "sustained_progress_speed_mps": 0.04195664178680802
+    },
+    {
+      "environment_index": 2,
+      "outcome": "goal",
+      "duration_s": 22.51999999999961,
+      "signed_progress_m": 0.9264502748847008,
+      "travel_distance_m": 1.4098382200918422,
+      "mechanical_energy_j": 39.238485016152254,
+      "sustained_progress_speed_mps": 0.04113899977285599
+    },
+    {
+      "environment_index": 3,
+      "outcome": "goal",
+      "duration_s": 22.719999999999605,
+      "signed_progress_m": 0.9202703982591629,
+      "travel_distance_m": 1.4536900330494973,
+      "mechanical_energy_j": 38.745762206018014,
+      "sustained_progress_speed_mps": 0.04050485907830893
+    },
+    {
+      "environment_index": 0,
+      "outcome": "goal",
+      "duration_s": 23.179999999999595,
+      "signed_progress_m": 0.925183966755867,
+      "travel_distance_m": 1.4566640354933043,
+      "mechanical_energy_j": 39.81444676458835,
+      "sustained_progress_speed_mps": 0.03991302703864897
+    }
+  ],
+  "incomplete_episode_count": 4,
+  "completed_progress_m": 37.033420875668526,
+  "completed_duration_s": 906.1999999999841,
+  "sustained_progress_speed_mps": 0.040866719130069715,
+  "minimum_sustained_progress_speed_mps": 0.01,
+  "forward_speed_mps": 0.04061005730342307,
+  "signed_progress_m": 39.10759349167347,
+  "travel_distance_m": 60.24051273436635,
+  "mechanical_energy_j": 1656.1414177768677,
+  "energy_per_progress_j_m": 42.348333658768404,
+  "body_contact_fraction": 0.0,
+  "joint_limit_cost": 0.0,
+  "max_target_rate_rad_s": 1.5,
+  "target_rate_saturation_fraction": 0.5627476895236565,
+  "torque_saturation_fraction": 0.0,
+  "tracking_error_rad": 0.054160363559940986,
+  "mean_support_feet": 4.612333333333333,
+  "step_progress_speed_mps": 0.04073707655382653,
+  "target_excursion_rad": 0.18386646380807117,
+  "joint_excursion_rad": 0.16866497773261896,
+  "joint_velocity_rms_rad_s": 0.9002942198176558,
+  "mean_foot_clearance_m": 0.00030560016657169107,
+  "locomotion_pass": true,
+  "failure_reasons": []
+}
