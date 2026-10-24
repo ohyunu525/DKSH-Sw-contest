@@ -16,8 +16,8 @@ import xml.etree.ElementTree as ET
 
 
 JOINT_KIND_TO_POLICY = {"coxa": "hip", "femur": "femur", "tibia": "tibia"}
-MG90S_EFFORT_NM = 0.13239
-MG90S_VELOCITY_RAD_S = math.radians(600.0)
+MG996R_EFFORT_NM = 0.75 * 9.4 * 0.0980665
+MG996R_VELOCITY_RAD_S = math.radians(60.0) / 0.19
 RC920DMG_EFFORT_NM = 1.39745
 RC920DMG_VELOCITY_RAD_S = math.radians(60.0) / 0.16
 
@@ -53,7 +53,7 @@ def canonical_link_name(name: str) -> str:
 
 def _joint_limits(kind: str) -> tuple[float, float]:
     if kind == "coxa":
-        return MG90S_EFFORT_NM, MG90S_VELOCITY_RAD_S
+        return MG996R_EFFORT_NM, MG996R_VELOCITY_RAD_S
     return RC920DMG_EFFORT_NM, RC920DMG_VELOCITY_RAD_S
 
 
@@ -132,7 +132,9 @@ def main() -> None:
     normalize_tree(tree)
     ET.indent(tree, space="  ")
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    tree.write(args.output, encoding="utf-8", xml_declaration=True)
+    # Stable source hashes across Windows/Linux; do not translate LF to CRLF.
+    with args.output.open('w', encoding='utf-8', newline='\n') as output:
+        tree.write(output, encoding='unicode', xml_declaration=True)
     print(f"ONSHAPE_URDF_NORMALIZED {args.output.resolve()}")
 
 

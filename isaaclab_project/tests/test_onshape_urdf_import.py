@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
+import json
 import math
 from pathlib import Path
 import unittest
@@ -19,6 +21,19 @@ SPEC.loader.exec_module(NORMALIZER)
 
 
 class OnshapeUrdfImportTests(unittest.TestCase):
+    def test_provenance_hashes_match_derived_assets(self) -> None:
+        provenance = json.loads((ASSET / 'provenance.json').read_text(encoding='utf-8'))
+        for record in provenance['files'].values():
+            if 'sha256' in record:
+                data = (ASSET / record['path']).read_bytes()
+                # Raw archived text may already be checked out with autocrlf.
+                if record['path'].endswith('.urdf'):
+                    data = data.replace(b'\r\n', b'\n')
+                self.assertEqual(hashlib.sha256(data).hexdigest(), record['sha256'])
+        manifest = json.loads((ASSET.parent / 'cad_source.json').read_text(encoding='utf-8'))
+        self.assertEqual(manifest['current_simulation_asset']['source_sha256'],
+                         provenance['files']['normalized_training_urdf']['sha256'])
+
     def setUp(self) -> None:
         self.root = ET.parse(ASSET / "robot.training.urdf").getroot()
         self.joints = self.root.findall("joint")
@@ -40,8 +55,8 @@ class OnshapeUrdfImportTests(unittest.TestCase):
             self.assertAlmostEqual(float(limit.attrib["lower"]), -math.pi / 2)
             self.assertAlmostEqual(float(limit.attrib["upper"]), math.pi / 2)
             if "_hip_joint" in joint.attrib["name"]:
-                self.assertAlmostEqual(float(limit.attrib["effort"]), NORMALIZER.MG90S_EFFORT_NM)
-                self.assertAlmostEqual(float(limit.attrib["velocity"]), NORMALIZER.MG90S_VELOCITY_RAD_S)
+                self.assertAlmostEqual(float(limit.attrib["effort"]), NORMALIZER.MG996R_EFFORT_NM)
+                self.assertAlmostEqual(float(limit.attrib["velocity"]), NORMALIZER.MG996R_VELOCITY_RAD_S)
             else:
                 self.assertAlmostEqual(float(limit.attrib["effort"]), NORMALIZER.RC920DMG_EFFORT_NM)
                 self.assertAlmostEqual(float(limit.attrib["velocity"]), NORMALIZER.RC920DMG_VELOCITY_RAD_S)

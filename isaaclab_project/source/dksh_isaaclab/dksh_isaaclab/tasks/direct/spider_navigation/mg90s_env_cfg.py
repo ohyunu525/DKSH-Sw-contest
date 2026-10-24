@@ -1,10 +1,10 @@
 """Provisional mixed-servo feasibility and residual wave-gait training.
 
 Uses the existing primitive geometry and link inertias (2.91816 kg total).
-MG90S drives the body-coxa joints.  RC920DMG drives the coxa-femur and
+MG996R drives the body-coxa joints. RC920DMG drives the coxa-femur and
 femur-tibia joints using its conservative 5 V specification.
 Servo masses are known; the allocation of old servo/structure masses is not.
-Do not subtract an assumed MG996R mass or treat this as a measured robot twin.
+Do not add/subtract servo masses blindly or treat this as a measured robot twin.
 """
 
 from isaaclab.actuators import DCMotorCfg
@@ -18,10 +18,11 @@ from dksh_isaaclab.assets import SPIDERBOT_CFG
 from .agents.rsl_rl_ppo_cfg import SpiderNavigationPPORunnerCfg
 from .payload_mass import L2_MOUNT_POSITION_B, L2_PAYLOAD_MASS_KG, L2_PAYLOAD_SIZE_M
 from .servo_specs import (
-    MG90S_MASS_KG,
-    MG90S_NO_LOAD_SPEED_RAD_S,
-    MG90S_REFERENCE_VOLTAGE_V,
-    MG90S_STALL_TORQUE_NM,
+    ACTUATOR_CONTRACT,
+    MG996R_MASS_KG,
+    MG996R_NO_LOAD_SPEED_RAD_S,
+    MG996R_REFERENCE_VOLTAGE_V,
+    MG996R_STALL_TORQUE_NM,
     PROVISIONAL_EFFORT_DERATING,
     RC920DMG_MASS_KG,
     RC920DMG_NO_LOAD_SPEED_RAD_S_5V,
@@ -31,8 +32,7 @@ from .servo_specs import (
 )
 
 # Backward-compatible names used by older evaluation helpers.
-MG90S_STALL_TORQUE = MG90S_STALL_TORQUE_NM
-MG90S_NO_LOAD_SPEED = MG90S_NO_LOAD_SPEED_RAD_S
+HIP_SERVO_NO_LOAD_SPEED = MG996R_NO_LOAD_SPEED_RAD_S
 RC920DMG_STALL_TORQUE = RC920DMG_STALL_TORQUE_NM_5V
 RC920DMG_NO_LOAD_SPEED = RC920DMG_NO_LOAD_SPEED_RAD_S_5V
 
@@ -44,14 +44,14 @@ def mixed_servo_robot_cfg():
         ".*_hip_joint": 0.0, ".*_femur_joint": STANCE_FEMUR, ".*_tibia_joint": STANCE_TIBIA,
     }
     robot.actuators = {
-        "mg90s_4v8_hip": DCMotorCfg(
+        "mg996r_4v8_hip": DCMotorCfg(
             joint_names_expr=[".*_hip_joint"],
-            saturation_effort=MG90S_STALL_TORQUE,
+            saturation_effort=MG996R_STALL_TORQUE_NM,
             # A provisional 25% derating, NOT a published continuous torque rating.
-            effort_limit=PROVISIONAL_EFFORT_DERATING * MG90S_STALL_TORQUE,
-            effort_limit_sim=PROVISIONAL_EFFORT_DERATING * MG90S_STALL_TORQUE,
-            velocity_limit=MG90S_NO_LOAD_SPEED,
-            velocity_limit_sim=MG90S_NO_LOAD_SPEED,
+            effort_limit=PROVISIONAL_EFFORT_DERATING * MG996R_STALL_TORQUE_NM,
+            effort_limit_sim=PROVISIONAL_EFFORT_DERATING * MG996R_STALL_TORQUE_NM,
+            velocity_limit=MG996R_NO_LOAD_SPEED_RAD_S,
+            velocity_limit_sim=MG996R_NO_LOAD_SPEED_RAD_S,
             stiffness=3.0, damping=0.06, armature=0.0002, friction=0.0,
         ),
         "rc920dmg_5v_leg": DCMotorCfg(
@@ -99,11 +99,14 @@ class MG90SWalkEnvCfg(DirectRLEnvCfg):
     observation_space = 86
     state_space = 0
     supply_voltage = RC920DMG_REFERENCE_VOLTAGE_V
-    hip_servo_reference_voltage_v = MG90S_REFERENCE_VOLTAGE_V
+    actuator_contract = ACTUATOR_CONTRACT
+    hip_servo_model = 'MG996R'
+    leg_servo_model = 'RC920DMG'
+    hip_servo_reference_voltage_v = MG996R_REFERENCE_VOLTAGE_V
     leg_servo_reference_voltage_v = RC920DMG_REFERENCE_VOLTAGE_V
-    hip_servo_mass_kg = MG90S_MASS_KG
+    hip_servo_mass_kg = MG996R_MASS_KG
     leg_servo_mass_kg = RC920DMG_MASS_KG
-    known_servo_mass_per_leg_kg = MG90S_MASS_KG + 2 * RC920DMG_MASS_KG
+    known_servo_mass_per_leg_kg = MG996R_MASS_KG + 2 * RC920DMG_MASS_KG
     leg_servo_size_m = RC920DMG_SIZE_M
     mass_assumption = (
         "Primitive links 2.91816 kg + L2 0.230 kg; known mixed-servo masses "

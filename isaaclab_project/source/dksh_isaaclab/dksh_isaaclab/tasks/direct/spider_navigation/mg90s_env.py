@@ -65,13 +65,20 @@ class MG90SWalkEnv(DirectRLEnv):
                 material, bindingStrength=UsdShade.Tokens.strongerThanDescendants, materialPurpose="physics"
             )
         self.scene.clone_environments(copy_from_source=False)
-        self.scene.filter_collisions(global_prim_paths=["/World/ground"])
+        self._setup_task_terrain()
+        self.scene.filter_collisions(global_prim_paths=["/World/ground", *self._task_terrain_paths()])
         self.scene.articulations["robot"] = self._robot
         if self.cfg.foot_contact_sensor is not None:
             self._foot_contact = ContactSensor(self.cfg.foot_contact_sensor)
             self.scene.sensors["foot_contact"] = self._foot_contact
         light = sim_utils.DomeLightCfg(intensity=2200.0)
         light.func("/World/Light", light)
+
+    def _setup_task_terrain(self):
+        """Optional static terrain, created before physics initialization."""
+
+    def _task_terrain_paths(self):
+        return []
 
     def _phase(self):
         return (self._phase_offset + (self._age - self.cfg.settling_seconds).clamp_min(0) / self.cfg.gait_period).remainder(1)

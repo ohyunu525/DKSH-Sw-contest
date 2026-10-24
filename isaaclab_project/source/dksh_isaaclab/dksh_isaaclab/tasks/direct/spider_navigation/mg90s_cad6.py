@@ -46,7 +46,7 @@ class MG90SCad6EnvCfg(MG90SWalkEnvCfg):
 
 @configclass
 class MG90SCad6RunnerCfg(MG90SWalkRunnerCfg):
-    experiment_name = 'dksh_mg90s_cad6_walk'
+    experiment_name = 'dksh_mg996r_cad6_walk'
     run_name = 'cad6_4v8'
 
 
@@ -75,7 +75,7 @@ class MG90SCad6SprintEnvCfg(MG90SCad6EnvCfg):
 
 @configclass
 class MG90SCad6SprintRunnerCfg(MG90SCad6RunnerCfg):
-    experiment_name = 'dksh_mg90s_cad6_sprint'
+    experiment_name = 'dksh_mg996r_cad6_sprint'
     run_name = 'cad6_4v8_sprint'
 
 
@@ -97,7 +97,7 @@ class MG90SCad6VelocityEnvCfg(MG90SCad6EnvCfg):
 
 @configclass
 class MG90SCad6VelocityRunnerCfg(MG90SCad6RunnerCfg):
-    experiment_name = 'dksh_mg90s_cad6_velocity_l2v1'
+    experiment_name = 'dksh_mg996r_cad6_velocity_l2v1'
     run_name = 'cad6_4v8_velocity'
 
 
