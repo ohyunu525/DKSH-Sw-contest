@@ -13,7 +13,9 @@ from .joint_angle_control import (
     normalize_angles, observation_size, point_velocity, signed_progress, speed_tracking_cost,
     uncapped_signed_progress, huber_speed_tracking_cost,
 )
-from .joint_angle_contact import sole_contact_state, foot_contact_state, closest_foot_support
+from .joint_angle_contact import (
+    sole_contact_state, foot_contact_state, closest_foot_support, toe_button_contact_state,
+)
 
 
 class JointAngleNavigationEnv(SpiderNavigationEnv):
@@ -59,6 +61,15 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             self._foot_support_offsets = self._sole_offset.unsqueeze(2)
         else:
             self._foot_support_offsets = torch.tensor(support_offsets, device=self.device).unsqueeze(0).expand(self.num_envs, -1, -1, -1)
+        button_offsets = cfg.toe_button_offsets
+        self._toe_button_offsets = (None if button_offsets is None else
+                                    torch.tensor(button_offsets, device=self.device).unsqueeze(0)
+                                    .expand(self.num_envs, -1, -1))
+        if self._toe_button_offsets is not None and self._toe_button_offsets.shape != (self.num_envs, len(self._feet), 3):
+            raise ValueError("toe_button_offsets must provide one 3-D CAD point per foot")
+        self._toe_button_pressed = torch.zeros(
+            (self.num_envs, len(self._feet)), dtype=torch.bool, device=self.device
+        )
         self._effort_limits = self._robot.data.joint_effort_limits[:, self._joint_ids]
         self._servo_velocity_limits = torch.as_tensor(
             cfg.servo_velocity_limit, dtype=torch.float32, device=self.device
@@ -110,6 +121,26 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         self._processed_actions[:, self._joint_ids] = targets
 
     def _contact_state(self):
+        if self.cfg.behavior_profile == "revised_v4":
+            if self._toe_button_offsets is None or self._foot_support_offsets is None:
+                raise ValueError("revised_v4 requires CAD toe-button and foot-support geometry")
+            points, surfaces = self._foot_support_geometry()
+            button_points = self._toe_button_world_positions()
+            button_surfaces = self._surface_heights(button_points)
+            pressed, body = toe_button_contact_state(
+                self._contacts.data.net_forces_w_history,
+                sensor_feet=self._sensor_feet, sensor_body=self._sensor_body,
+                foot_positions_w=points, foot_surface_heights=surfaces,
+                button_positions_w=button_points, button_surface_heights=button_surfaces,
+                previous_pressed=self._toe_button_pressed,
+                force_threshold=self.cfg.contact_threshold,
+                press_force_threshold=self.cfg.toe_button_press_force_threshold,
+                release_force_threshold=self.cfg.toe_button_release_force_threshold,
+                foot_height_tolerance=self.cfg.foot_contact_height_tolerance,
+                button_height_tolerance=self.cfg.toe_button_height_tolerance,
+            )
+            self._toe_button_pressed.copy_(pressed)
+            return self._toe_button_pressed, body
         if self.cfg.behavior_profile != "legacy_v2" and self.cfg.foot_support_offsets is not None:
             points, surfaces = self._foot_support_geometry()
             return foot_contact_state(
@@ -139,6 +170,17 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         surfaces = (self.scene.env_origins[:, None, 2:3].expand(points.shape[:-1])
                     if self._scenario is None else self._scenario.surface_heights(points.flatten(1, 2)).reshape(points.shape[:-1]))
         return points, surfaces
+
+    def _toe_button_world_positions(self):
+        rotations = self._robot.data.body_link_quat_w[:, self._feet]
+        offsets = self._toe_button_offsets
+        rotated = quat_rotate(rotations.reshape(-1, 4), offsets.reshape(-1, 3)).reshape_as(offsets)
+        return self._robot.data.body_link_pos_w[:, self._feet] + rotated
+
+    def _surface_heights(self, points_w):
+        if self._scenario is None:
+            return self.scene.env_origins[:, 2:3].expand(points_w.shape[:-1])
+        return self._scenario.surface_heights(points_w)
 
     def _sole_world_offset(self):
         return quat_rotate(
@@ -299,6 +341,8 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         for name, count in counts.items():
             self.completed[name] += count
         super()._reset_idx(env_ids)
+        if hasattr(self, "_toe_button_pressed"):
+            self._toe_button_pressed[env_ids] = False
         if self.cfg.evaluation_mode and self._scenario is None:
             # Fixed one-metre route and heading for deterministic sustained-walk
             # evaluation; stochastic training goals retain the parent reset.

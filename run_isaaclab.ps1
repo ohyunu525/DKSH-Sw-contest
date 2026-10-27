@@ -26,7 +26,7 @@ param(
     [double]$MinNoiseStd,
     [double]$MaxNoiseStd,
     [switch]$ResetExplorationStd,
-    [ValidateSet('legacy_v2', 'revised_v3')][string]$BehaviorProfile,
+    [ValidateSet('legacy_v2', 'revised_v3', 'revised_v4')][string]$BehaviorProfile,
     [switch]$AllowBehaviorTransfer,
     [switch]$AllowProvisionalCad,
     [switch]$Gui

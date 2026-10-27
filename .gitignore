@@ -23,6 +23,8 @@ logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2_obstacles/*/*
 !logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2_obstacles/*/events.out.tfevents.*
 !logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2_obstacles/*/run_metadata.json
 !logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2_obstacles/*/monitor_eval*.json
+!logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2_obstacles/*/evaluation_*.json
+!logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2_obstacles/*/model_10000.pt
 !logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2_obstacles/*/params/
 logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2_obstacles/*/params/*
 !logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2_obstacles/*/params/*.yaml

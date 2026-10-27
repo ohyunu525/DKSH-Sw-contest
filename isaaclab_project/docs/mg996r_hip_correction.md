@@ -8,7 +8,7 @@
 
 현재 브랜치의 절대 관절각 학습은 `Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2`로
 유지한다. 현재 실행기는 `run_cad6.ps1`이며 MG90S task·실행기와 해당 v0 gait 학습 경로는
-제거됐다. 새 학습의 기본 behavior는 `revised_v3`다. 과거 설정으로 실행한 수치와
+제거됐다. MG996R-Hip CAD6 새 학습의 기본 behavior는 `revised_v4`다. 과거 설정으로 실행한 수치와
 현재 보상·접촉 계약을 구분하며, 구체적인 전환 기준은 [학습 안내](joint_angle_training.md)를 따른다.
 
 v2 CAD6는 main의 Onshape URDF/USD, 모든 관절 q=0 조립 자세와 ±90° 한계를 사용한다.

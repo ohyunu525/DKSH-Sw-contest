@@ -37,7 +37,7 @@ parser.add_argument("--max_noise_std", type=float, default=None)
 parser.add_argument("--reset_exploration_std", action="store_true",
                     help="On resume, reset only policy std and its optimizer state before collecting rollouts")
 parser.add_argument("--behavior_profile", choices=tuple(BEHAVIOR_PROFILES), default=None,
-                    help="Training defaults revised_v3; evaluation/playback infer the saved profile")
+                    help="CAD6 training defaults revised_v4; other tasks default revised_v3; evaluation infers the saved profile")
 parser.add_argument("--allow_behavior_transfer", action="store_true",
                     help="Explicitly allow training a known v2 reward/contact profile with another profile")
 add_environment_args(parser)
@@ -52,7 +52,10 @@ try:
                                 or args.reset_exploration_std or args.allow_behavior_transfer):
         raise ValueError("Noise std overrides, exploration reset and behavior transfer are training-only options")
     if args.mode == "train":
-        args.behavior_profile = args.behavior_profile or "revised_v3"
+        default_profile = "revised_v4" if "MG996R-Hip-CAD6" in args.task else "revised_v3"
+        args.behavior_profile = args.behavior_profile or default_profile
+        if args.behavior_profile == "revised_v4" and "MG996R-Hip-CAD6" not in args.task:
+            raise ValueError("revised_v4 toe-button contacts require the MG996R CAD6 toe geometry")
         validate_exploration_bounds(args.initial_noise_std if args.initial_noise_std is not None else 0.08,
                                     args.min_noise_std if args.min_noise_std is not None else 0.03,
                                     args.max_noise_std if args.max_noise_std is not None else 0.30)
@@ -86,6 +89,23 @@ def write_json(path, data):
     path.write_text(json.dumps(data, indent=2, allow_nan=False), encoding="utf-8")
 
 
+def toe_button_sensor_metadata(cfg):
+    offsets = getattr(cfg, "toe_button_offsets", None)
+    if offsets is None:
+        return None
+    return {
+        "model": "virtual_toe_button_force_hysteresis_v1",
+        "count": len(offsets),
+        "offsets_in_tibia_link_frame_m": [[float(value) for value in point] for point in offsets],
+        "press_force_threshold_n": float(cfg.toe_button_press_force_threshold),
+        "release_force_threshold_n": float(cfg.toe_button_release_force_threshold),
+        "toe_surface_gap_tolerance_m": float(cfg.toe_button_height_tolerance),
+        "physical_switch_geometry_in_cad": False,
+        "physical_switch_stroke_modelled": False,
+        "signal_source": "upward tibia ContactSensor force plus CAD distal-toe witness proximity",
+    }
+
+
 def experiment_name(task, environment):
     return experiment_for_environment("dksh_" + task.removeprefix("Isaac-DKSH-").lower().replace("-", "_"), environment)
 
@@ -117,6 +137,7 @@ def train(env, runner, cfg, agent, log, checkpoint, source_metadata=None):
         "behavior_transfer_applied": bool(source_metadata and any(source_metadata[name] != value
                                           for name, value in behavior_contracts.items())),
         "mass_assumption": getattr(cfg, "mass_assumption", None),
+        "toe_button_sensor": toe_button_sensor_metadata(cfg),
         "environment": args.environment, "difficulty": args.difficulty,
         "seed": cfg.seed, "actions": cfg.action_space, "observations": cfg.observation_space,
         "environments": base.num_envs,
@@ -246,6 +267,7 @@ def evaluate_or_play(env, runner, cfg, checkpoint, source_metadata):
             "source_behavior_profile": behavior_profile_from_metadata(source_metadata),
             "source_reward_contract": source_metadata["reward_contract"],
             "source_contact_contract": source_metadata["contact_contract"],
+            "toe_button_sensor": toe_button_sensor_metadata(cfg),
             "environments": args.num_envs, "steps": steps,
             "fixed_scenario_distance_m": scenario_distance,
             "goal_radius_m": cfg.goal_radius, "episode_length_s": cfg.episode_length_s,

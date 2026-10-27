@@ -122,3 +122,61 @@ def foot_contact_state(
         sole_positions_w=positions, surface_heights=heights,
         force_threshold=force_threshold, height_tolerance=height_tolerance,
     )
+
+
+def toe_button_contact_state(
+    force_history: torch.Tensor, *, sensor_feet: list[int], sensor_body: list[int],
+    foot_positions_w: torch.Tensor, foot_surface_heights: torch.Tensor,
+    button_positions_w: torch.Tensor, button_surface_heights: torch.Tensor,
+    previous_pressed: torch.Tensor, force_threshold: float,
+    press_force_threshold: float, release_force_threshold: float,
+    foot_height_tolerance: float, button_height_tolerance: float,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Return six simulated toe-button states and undesired robot contacts.
+
+    Each switch uses the upward tibia force reported by its link ContactSensor
+    and one CAD-derived distal toe witness. Force and height hysteresis emulate
+    a digital push-button; this is a simulation proxy, not a physical switch
+    model. Body-contact classification still uses the full foot collision hull
+    and all configured non-foot links.
+    """
+    if (not math.isfinite(press_force_threshold) or press_force_threshold <= 0
+            or not math.isfinite(release_force_threshold) or release_force_threshold < 0
+            or release_force_threshold >= press_force_threshold):
+        raise ValueError("button release force must be finite, nonnegative and below its press force")
+    if not math.isfinite(button_height_tolerance) or button_height_tolerance < 0:
+        raise ValueError("button_height_tolerance must be finite and nonnegative")
+    support, body = foot_contact_state(
+        force_history, sensor_feet=sensor_feet, sensor_body=sensor_body,
+        foot_positions_w=foot_positions_w, surface_heights=foot_surface_heights,
+        force_threshold=force_threshold, height_tolerance=foot_height_tolerance,
+    )
+    count, _, _, _ = force_history.shape
+    legs = len(sensor_feet)
+    if button_positions_w.shape != (count, legs, 3):
+        raise ValueError("button_positions_w must have shape (N,L,3) matching sensor_feet")
+    if button_surface_heights.shape != (count, legs):
+        raise ValueError("button_surface_heights must have shape (N,L) matching sensor_feet")
+    if previous_pressed.shape != (count, legs) or previous_pressed.dtype != torch.bool:
+        raise ValueError("previous_pressed must be a boolean tensor with shape (N,L)")
+    tensors = (button_positions_w, button_surface_heights, previous_pressed)
+    if any(value.device != force_history.device for value in tensors):
+        raise ValueError("button inputs and force history must share a device")
+    if any(not value.is_floating_point() for value in tensors[:2]):
+        raise ValueError("button positions and surface heights must be floating-point tensors")
+
+    indices = list(sensor_feet)
+    upward_force = force_history[:, :, indices, 2].amax(dim=1)
+    near_button_surface = (
+        (button_positions_w[..., 2] - button_surface_heights).abs() <= button_height_tolerance
+    )
+    pressed = (
+        (upward_force > press_force_threshold) & near_button_surface
+    ) | (
+        previous_pressed & (upward_force > release_force_threshold) & near_button_surface
+    )
+    # Keep the full-hull support calculation explicit: it validates this
+    # classifier's geometry and prevents unsupported tibia impacts counting as
+    # foot support even though the policy sees only button bits.
+    del support
+    return pressed, body

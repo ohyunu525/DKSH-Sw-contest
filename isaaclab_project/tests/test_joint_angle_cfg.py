@@ -113,9 +113,12 @@ class JointAngleConfigurationTests(unittest.TestCase):
                 self.assertEqual(cfg.joint_reset_noise, 0)
                 self.assertGreaterEqual(cfg.goal_min_distance, 0.5)
                 self.assertLess(cfg.speed_cost_scale, 0)
-                self.assertEqual(cfg.behavior_profile, "revised_v3")
+                expected_profile = "revised_v4" if name == "MG996RHipCad6JointAngleEnvCfg" else "revised_v3"
+                self.assertEqual(cfg.behavior_profile, expected_profile)
                 self.assertEqual(cfg.reward_contract, "signed_progress_huber_speed_v3")
-                self.assertEqual(cfg.contact_contract, "support_surface_foot_geometry_v3")
+                expected_contact = ("cad6_toe_button_hysteresis_v1" if expected_profile == "revised_v4"
+                                    else "support_surface_foot_geometry_v3")
+                self.assertEqual(cfg.contact_contract, expected_contact)
                 self.assertEqual((cfg.exploration_initial_std, cfg.exploration_min_std, cfg.exploration_max_std), (0.08, 0.03, 0.30))
                 speed = cfg.servo_velocity_limit
                 self.assertLess(cfg.target_rate_limit, min(speed) if isinstance(speed, tuple) else speed)

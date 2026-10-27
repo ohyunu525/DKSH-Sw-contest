@@ -1,7 +1,8 @@
 # 로봇 학습 환경
 
 현재 실행기는 `run_cad6.ps1`이며 MG996R hip 6개 + RC920DMG 12개의 Onshape CAD6를 사용합니다.
-정책은 18개 관절 절대각을 직접 출력하고 새 학습은 기본 `revised_v3` behavior를 사용합니다.
+정책은 18개 관절 절대각을 직접 출력합니다. 일반 JointAngles 작업의 새 학습은 기본
+`revised_v3`, MG996R-Hip CAD6는 발끝 버튼 접촉을 포함한 `revised_v4`를 사용합니다.
 [직접 각도 학습 안내](joint_angle_training.md)에서 출력 계약·새 체크포인트·평가 기준을 확인하세요.
 과거 MG90S task·실행기와 해당 v0 gait 학습 경로는 제거됐습니다.
 

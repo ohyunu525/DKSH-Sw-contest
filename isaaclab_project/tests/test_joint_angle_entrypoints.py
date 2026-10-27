@@ -83,10 +83,10 @@ class JointAngleEntrypointTests(unittest.TestCase):
             exec(compile(ast.Module(body=prefix, type_ignores=[]), str(source), "exec"), namespace)
         return namespace
 
-    def test_runner_defaults_training_to_revised_but_leaves_saved_evaluation_profile_to_infer(self):
+    def test_runner_defaults_cad6_training_to_toe_button_profile_and_infers_evaluation_profile(self):
         train = self.runner_arguments(["--mode=train"])
-        self.assertEqual(train["args"].behavior_profile, "revised_v3")
-        self.assertEqual(train["checkpoint_compatibility"]["expected_contact_contract"], "support_surface_foot_geometry_v3")
+        self.assertEqual(train["args"].behavior_profile, "revised_v4")
+        self.assertEqual(train["checkpoint_compatibility"]["expected_contact_contract"], "cad6_toe_button_hysteresis_v1")
         evaluation = self.runner_arguments(["--mode=evaluate"])
         self.assertIsNone(evaluation["args"].behavior_profile)
         self.assertEqual(evaluation["checkpoint_compatibility"], {})

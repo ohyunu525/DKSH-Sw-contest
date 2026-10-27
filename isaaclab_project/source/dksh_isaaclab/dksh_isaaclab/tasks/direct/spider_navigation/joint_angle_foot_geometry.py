@@ -214,3 +214,15 @@ def _support_offsets(matrix):
 
 # Public leg-major (6, 137, 3) immutable tuple, in each tibia link frame.
 ONSHAPE_FOOT_SUPPORT_OFFSETS = tuple(_support_offsets(matrix) for matrix in _MESH_TO_TIBIA)
+
+# Distal-most lower collision-hull witness for each fixed foot, in tibia-link
+# coordinates. These are virtual switch locations on the current CAD geometry;
+# the Onshape model does not contain physical button-switch parts.
+ONSHAPE_TOE_BUTTON_OFFSETS = (
+    (0.137, 0.010, -0.02572),
+    (0.137, 0.010, -0.02572),
+    (0.137, 0.010, -0.02572),
+    (0.137, 0.010, -0.02572),
+    (0.010, -0.137, -0.02572),
+    (0.0150579, -0.136537, -0.02572),
+)

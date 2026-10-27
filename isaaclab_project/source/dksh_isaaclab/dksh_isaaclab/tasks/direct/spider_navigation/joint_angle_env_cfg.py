@@ -8,7 +8,7 @@ from dksh_isaaclab.assets.spiderbot import cad_spiderbot_cfg
 from .spider_navigation_env_cfg import SpiderNavigationEnvCfg
 from .agents.rsl_rl_ppo_cfg import SpiderNavigationPPORunnerCfg
 from .robot_actuators import mixed_servo_actuators
-from .joint_angle_foot_geometry import ONSHAPE_FOOT_SUPPORT_OFFSETS
+from .joint_angle_foot_geometry import ONSHAPE_FOOT_SUPPORT_OFFSETS, ONSHAPE_TOE_BUTTON_OFFSETS
 from .servo_specs import (
     ACTUATOR_CONTRACT,
     MG996R_MASS_KG,
@@ -82,6 +82,10 @@ class JointAngleNavigationEnvCfg(SpiderNavigationEnvCfg):
     sole_contact_height_tolerance = 0.012
     foot_support_offsets = None  # Primitive/historical assets use their configured sole point.
     foot_contact_height_tolerance = 0.004
+    toe_button_offsets = None
+    toe_button_press_force_threshold = 1.0
+    toe_button_release_force_threshold = 0.5
+    toe_button_height_tolerance = 0.004
     minimum_support_feet = 3
     goal_hold_seconds = 0.20
     goal_min_distance = 0.5
@@ -143,9 +147,12 @@ def _mg996r_hip_cad6_robot():
 class MG996RHipCad6JointAngleEnvCfg(Cad6JointAngleEnvCfg):
     """Six MG996R hip servos and twelve provisional RC920DMG leg servos."""
     robot = _mg996r_hip_cad6_robot()
+    behavior_profile = "revised_v4"
+    contact_contract = "cad6_toe_button_hysteresis_v1"
     joint_angle_ranges = Cad6JointAngleEnvCfg().joint_angle_ranges
     sole_offset = ONSHAPE_SOLE_OFFSETS
     foot_support_offsets = ONSHAPE_FOOT_SUPPORT_OFFSETS
+    toe_button_offsets = ONSHAPE_TOE_BUTTON_OFFSETS
     use_asset_joint_limits = True
     enable_self_collisions = True
     robot_width = 0.56

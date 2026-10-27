@@ -9,7 +9,7 @@
     "element_id": "76a6985095c8e8f19d67aec6",
     "url": "https://cad.onshape.com/documents/f646c0fde8bd91cfa43cbae7/w/279609403375cff4404c6eae/e/76a6985095c8e8f19d67aec6",
     "access": "link_shared_view_only",
-    "observed_at": "2026-10-10",
+    "observed_at": "2026-10-27",
     "lifecycle": "in_progress"
   },
   "observed_structure": {
@@ -23,6 +23,18 @@
       "component_names_are_release_ready": true,
       "joint_mates_named_release_ready": true
     }
+  },
+  "latest_link_observation": {
+    "observed_at": "2026-10-27",
+    "workspace_name": "Main",
+    "access": "link_shared_view_only",
+    "assembly_instances": 19,
+    "mate_features": 25,
+    "revolute_mates": 18,
+    "physical_toe_button_parts_observed": false,
+    "export_obtained": false,
+    "exact_geometry_match_verified": false,
+    "notes": "Current shared Main assembly remains view-only. Its visible structure matches the saved summary, but no STEP/URDF export or revision identifier was available to verify exact geometry against the 2026-09-28 local export."
   },
   "target_hardware": {
     "legs": 6,
