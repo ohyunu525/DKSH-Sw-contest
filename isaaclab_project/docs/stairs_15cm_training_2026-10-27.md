@@ -102,6 +102,22 @@ SHA-256은 `093470fb7210ca3596b8d591b5d2df2923d2c9155c2162c48a2edb5c4e876dae`다
 1초 유지하는 것이다. 최대 x만으로 개별 발의 안정적인 착지나 등반 성공을 주장하지 않는다.
 평가 기록은 `logs/rsl_rl/dksh_cad6_stairs_mg996r_buttons_absolute_v2/2026-10-27_13-32-06_310545/run_metadata.json`이다.
 
+## 150mm 목표 단계 사전 실행
+
+`236a0e8`의 높이 단계 확장 후 단위 테스트 146개와 PowerShell 구문/`git diff --check`를
+통과했다. `staged_v1`의 `model_299.pt`에서 관측/행동 계약과 발판 크기를 검증한 뒤
+`-AllowCurriculumTransfer`로 각 실행을 시작했다. 세 실행은 별도 결과이며 추가 1 iteration,
+seed 42, `model_300.pt`, 정상 종료 및 절대각 export 비교를 기록했다.
+
+| 환경 | 초기 단 높이 | 실행 디렉터리 | checkpoint SHA-256 |
+|---:|---:|---|---|
+| 4 | 150mm | `2026-10-27_13-34-17_672487` | `d6064da94e24fc5a455c7bed7d3fe5225a7ffb5af522a13b17db9536a43a221a` |
+| 8 | 6mm | `2026-10-27_13-34-36_430516` | `23e58d9f14b87d98edab119054130411f057a0e3df680f53fd2a9b5761e31685` |
+| 16 | 6mm | `2026-10-27_13-34-52_990819` | `4a370f9ff15f90b9570440072ec415f9ecfa71c32ab92ca4f18d7097b1977d09` |
+
+150mm 장면은 4환경에서 초기화, PPO 스텝, 정상 종료까지 확인한 것일 뿐
+150mm 계단 통과를 검증한 것은 아니다.
+
 ## 후속 전략: 상태 특권 교사에서 실기 센서 학생으로 증류
 
 [관절 피드백이 없는 6족 로봇의 조이스트 통과 연구](https://www-video.eecs.berkeley.edu/papers/zixian/hexapod_IROS_2023.pdf)는
