@@ -26,6 +26,11 @@ class StairSensingTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             S.stair_boxes(torch.tensor([0.]))
 
+    def test_target_curriculum_reaches_150mm_and_starts_at_6mm(self):
+        self.assertEqual(S.TARGET_15CM_HEIGHTS_M[0], 0.006)
+        self.assertEqual(S.TARGET_15CM_HEIGHTS_M[-1], 0.15)
+        self.assertTrue(all(a < b for a, b in zip(S.TARGET_15CM_HEIGHTS_M, S.TARGET_15CM_HEIGHTS_M[1:])))
+
     def test_custom_15cm_tread_and_narrow_width_match_ground_height(self):
         height = torch.tensor([0.02])
         lo, hi = S.stair_boxes(height, tread_m=0.15, width_m=0.15)

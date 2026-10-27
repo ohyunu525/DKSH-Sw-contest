@@ -22,6 +22,13 @@ class StairCheckpointTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'scenario'):
                 GUARD.validate_stair_scenario(record, tread_m=tread, width_m=width, strategy=strategy)
         GUARD.validate_stair_scenario({}, tread_m=0.25, width_m=1.2, strategy='legacy_v1')
+        with self.assertRaisesRegex(ValueError, 'scenario'):
+            GUARD.validate_stair_scenario(record, tread_m=0.15, width_m=1.2, strategy='staged_15cm_v2')
+        GUARD.validate_stair_scenario(record, tread_m=0.15, width_m=1.2,
+                                      strategy='staged_15cm_v2', allow_curriculum_transfer=True)
+        with self.assertRaisesRegex(ValueError, 'scenario'):
+            GUARD.validate_stair_scenario(record, tread_m=0.25, width_m=1.2,
+                                          strategy='staged_15cm_v2', allow_curriculum_transfer=True)
 
     def test_sensor_contract_and_task_required_even_when_shapes_match(self):
         with tempfile.TemporaryDirectory() as directory:

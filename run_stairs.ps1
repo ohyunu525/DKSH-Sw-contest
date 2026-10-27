@@ -4,13 +4,14 @@ param(
     [ValidateRange(1, 64)][int]$NumEnvs = 16,
     [ValidateRange(1, 100000)][int]$MaxIterations = 300,
     [string]$Checkpoint = '',
-    [ValidateRange(0, 5)][int]$Level = 0,
+    [ValidateRange(0, 8)][int]$Level = 0,
     [ValidateRange(0.05, 2.0)][double]$TreadM = 0.25,
     [ValidateRange(0.05, 2.0)][double]$StairWidthM = 1.2,
-    [ValidateSet('legacy_v1', 'staged_v1')][string]$Strategy = 'legacy_v1',
+    [ValidateSet('legacy_v1', 'staged_v1', 'staged_15cm_v2')][string]$Strategy = 'legacy_v1',
     [ValidateRange(4100, 1000000)][int]$Steps = 4100,
     [ValidateRange(0, 2147483647)][int]$Seed = 42,
     [switch]$AllowProvisionalCad,
+    [switch]$AllowCurriculumTransfer,
     [switch]$Gui
 )
 $ErrorActionPreference = 'Stop'
@@ -26,6 +27,7 @@ $arguments = @('-p', $script, "--mode=$Mode", "--num_envs=$NumEnvs", "--max_iter
                "--strategy=$Strategy")
 if ($Checkpoint) { $arguments += "--checkpoint=$Checkpoint" }
 if ($AllowProvisionalCad) { $arguments += '--allow_provisional_cad' }
+if ($AllowCurriculumTransfer) { $arguments += '--allow_curriculum_transfer' }
 if (-not $Gui) { $arguments += '--headless' }
 Push-Location $PSScriptRoot
 try {

@@ -218,7 +218,7 @@ class MG90SCad6StairsEnv(MG90SCad6Env):
         pos = self._robot.data.root_pos_w - self._episode_origins
         torque_ratio = self._robot.data.applied_torque.abs() / self._robot.data.joint_effort_limits
         active = (self._age > self.cfg.settling_seconds + 1).float()
-        if self.cfg.training_strategy == 'staged_v1':
+        if self.cfg.training_strategy in ('staged_v1', 'staged_15cm_v2'):
             reward = sensing.progress_and_speed_reward(self._progress, self._commands[:, 0], self.step_dt) * active
         else:
             reward = 30 * self._progress.clamp(-0.01, 0.01) * active
