@@ -75,6 +75,25 @@ seed 42, 4→8→16개 환경에서 각각 2 PPO iteration을 실행했다. 모�
 코드를 확인한 경우에만 실행기가 0을 반환하도록 수정했고 16환경 실행에서 확인했다.
 모델 품질 평가 결과는 아니다.
 
+## 기초 학습 결과: `staged_v1`, 2026-10-27
+
+`b73c1a8`의 코드/설정으로 13:06:30~13:31:40 KST에 seed 42,
+16환경 × 300 iteration × rollout 128 = 614,400 transition을 처음부터 학습했다.
+작업은 `Isaac-DKSH-MG90S-CAD6-Stairs-Sensors-Direct-v1`, 244관측/18절대각 출력이며
+디딤판 150mm, 좌우 폭 1.2m, 단 높이 6/10/20/40/60/120mm다.
+이는 목표 높이 150mm를 추가하기 전의 기초 실행이다.
+
+완료 episode 144개는 6mm 단계에만 속하며, 성공 0, 낙상 0, 시간 종료 143,
+영역 이탈 1이다. 행동 탐색 표준편차 평균은 초기 0.08에서 마지막 약 0.10384였다.
+6개 버튼의 눌림 표본 수는 `[121819, 502251, 475289, 57144, 263185, 346308]`이다.
+ONNX 절대각 출력을 학습 정책과 비교했고 `export_verified=true`다.
+
+체크포인트는
+`logs/rsl_rl/dksh_cad6_stairs_mg996r_buttons_absolute_v2/2026-10-27_13-06-30_547783/model_299.pt`,
+SHA-256은 `093470fb7210ca3596b8d591b5d2df2923d2c9155c2162c48a2edb5c4e876dae`다.
+저장소의 `logs/` 무시 규칙에 따라 모델과 원본 데이터는 이 컴퓨터에 보관한다.
+`stair_climbing_verified=false`, `hardware_deployable=false`다.
+
 ## 후속 전략: 상태 특권 교사에서 실기 센서 학생으로 증류
 
 [관절 피드백이 없는 6족 로봇의 조이스트 통과 연구](https://www-video.eecs.berkeley.edu/papers/zixian/hexapod_IROS_2023.pdf)는
