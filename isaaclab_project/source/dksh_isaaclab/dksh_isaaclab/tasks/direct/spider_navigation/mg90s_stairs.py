@@ -25,6 +25,10 @@ class MG90SCad6StairsEnvCfg(MG90SCad6EnvCfg):
     button_press_force_n = 0.5
     button_release_force_n = 0.25
     button_debounce_s = 0.040
+    stair_tread_m = sensing.TREAD_M
+    stair_width_m = sensing.WIDTH_M
+    stair_heights_m = sensing.HEIGHTS_M
+    training_strategy = 'legacy_v1'
     foot_contact_sensor = ContactSensorCfg(
         prim_path='/World/envs/env_.*/Robot/leg_[0-5]_button_cap',
         update_period=0.0, history_length=1, track_air_time=False,
@@ -67,7 +71,7 @@ class MG90SCad6StairsEnv(MG90SCad6Env):
     cfg: MG90SCad6StairsEnvCfg
 
     def __init__(self, cfg, render_mode=None, **kwargs):
-        if not 0 <= cfg.stair_initial_level <= cfg.stair_max_level < len(sensing.HEIGHTS_M):
+        if not 0 <= cfg.stair_initial_level <= cfg.stair_max_level < len(cfg.stair_heights_m):
             raise ValueError('Invalid stair curriculum range')
         super().__init__(cfg, render_mode, **kwargs)
         # OYW action convention, mapped explicitly rather than relying on USD joint order.
@@ -89,7 +93,7 @@ class MG90SCad6StairsEnv(MG90SCad6Env):
         self._imu_pending = self._imu.clone()
         self._previous_x = torch.zeros_like(self._age)
         self._progress = torch.zeros_like(self._age)
-        self.stair_stats = {'attempts': [0] * len(sensing.HEIGHTS_M), 'successes': [0] * len(sensing.HEIGHTS_M)}
+        self.stair_stats = {'attempts': [0] * len(cfg.stair_heights_m), 'successes': [0] * len(cfg.stair_heights_m)}
 
     @property
     def joint_angle_targets_rad(self):
@@ -107,9 +111,10 @@ class MG90SCad6StairsEnv(MG90SCad6Env):
         triangles = ((0, 2, 1), (0, 3, 2), (4, 5, 6), (4, 6, 7),
                      (0, 1, 5), (0, 5, 4), (1, 2, 6), (1, 6, 5),
                      (2, 3, 7), (2, 7, 6), (3, 0, 4), (3, 4, 7))
-        lower, upper = sensing.stair_boxes(torch.tensor(sensing.HEIGHTS_M))
+        lower, upper = sensing.stair_boxes(torch.tensor(self.cfg.stair_heights_m), self.cfg.stair_tread_m,
+                                          self.cfg.stair_width_m)
         for origin in self.scene.env_origins.cpu().tolist():
-            for level in range(len(sensing.HEIGHTS_M)):
+            for level in range(len(self.cfg.stair_heights_m)):
                 offset = (origin[0], origin[1] + level * sensing.PATCH_SPACING_M, origin[2])
                 for lo, hi in zip(lower[level].tolist(), upper[level].tolist()):
                     start = len(vertices)
@@ -166,8 +171,8 @@ class MG90SCad6StairsEnv(MG90SCad6Env):
         origin = root + quat_apply(q, mount)
         q_rays = q[:, None].expand(-1, len(self._directions), -1)
         rays = quat_apply(q_rays, self._directions.expand(len(ids), -1, -1))
-        heights = torch.tensor(sensing.HEIGHTS_M, device=self.device)[self._levels[ids]]
-        lower, upper = sensing.stair_boxes(heights)
+        heights = torch.tensor(self.cfg.stair_heights_m, device=self.device)[self._levels[ids]]
+        lower, upper = sensing.stair_boxes(heights, self.cfg.stair_tread_m, self.cfg.stair_width_m)
         ranges, valid = sensing.raycast_stairs(origin, rays, lower, upper)
         valid &= torch.rand_like(ranges) >= self.cfg.lidar_dropout
         ranges = (ranges + torch.randn_like(ranges) * self.cfg.lidar_range_noise_std_m).clamp(0.05, 1.5)
@@ -192,14 +197,16 @@ class MG90SCad6StairsEnv(MG90SCad6Env):
         self._button_values.copy_(self._buttons.update(forces, self.step_dt))
         self.button_press_samples += self._button_values.sum(0).long()
         pos = self._robot.data.root_pos_w - self._episode_origins
-        heights = torch.tensor(sensing.HEIGHTS_M, device=self.device)[self._levels]
-        ground = sensing.terrain_height(pos[:, 0], heights)
+        heights = torch.tensor(self.cfg.stair_heights_m, device=self.device)[self._levels]
+        ground = sensing.terrain_height(pos[:, 0], heights, self.cfg.stair_tread_m,
+                                        pos[:, 1], self.cfg.stair_width_m)
         gravity = self._robot.data.projected_gravity_b
         self._fallen = (pos[:, 2] - ground < 0.045) | (gravity[:, 2] > -0.55)
         self._escaped = (pos[:, 1].abs() > 0.45) | (pos[:, 0] < -0.35) | (pos[:, 0] > 1.75)
         # COM must be well onto the top platform, elevated and held for 1 s.
-        finish_x = sensing.FIRST_RISER_M + sensing.STEP_COUNT * sensing.TREAD_M + 0.25
+        finish_x = sensing.FIRST_RISER_M + sensing.STEP_COUNT * self.cfg.stair_tread_m + 0.25
         on_top = (pos[:, 0] > finish_x) & (pos[:, 2] > sensing.STEP_COUNT * heights + 0.075)
+        on_top &= pos[:, 1].abs() <= self.cfg.stair_width_m / 2
         on_top &= ~self._fallen & ~self._escaped & (self._button_values.sum(-1) >= 3)
         self._success_hold = torch.where(on_top, self._success_hold + self.step_dt, 0)
         self._success = self._success_hold >= 1.0
@@ -211,7 +218,10 @@ class MG90SCad6StairsEnv(MG90SCad6Env):
         pos = self._robot.data.root_pos_w - self._episode_origins
         torque_ratio = self._robot.data.applied_torque.abs() / self._robot.data.joint_effort_limits
         active = (self._age > self.cfg.settling_seconds + 1).float()
-        reward = 30 * self._progress.clamp(-0.01, 0.01) * active
+        if self.cfg.training_strategy == 'staged_v1':
+            reward = sensing.progress_and_speed_reward(self._progress, self._commands[:, 0], self.step_dt) * active
+        else:
+            reward = 30 * self._progress.clamp(-0.01, 0.01) * active
         reward -= self.step_dt * (0.2 + 2 * (1 - upright).square() + 3 * pos[:, 1].square()
                                  + 0.1 * self._robot.data.root_ang_vel_b.square().sum(-1)
                                  + 0.01 * (self._actions - self._previous_actions).square().sum(-1)
@@ -227,14 +237,15 @@ class MG90SCad6StairsEnv(MG90SCad6Env):
         self.step_metrics = {'max_effort_ratio': torque_ratio.max().item(),
                              'max_progress_x_m': pos[:, 0].max().item(),
                              'min_body_clearance_m': (pos[:, 2] - sensing.terrain_height(
-                                 pos[:, 0], torch.tensor(sensing.HEIGHTS_M, device=self.device)[self._levels])).min().item()}
+                                 pos[:, 0], torch.tensor(self.cfg.stair_heights_m, device=self.device)[self._levels],
+                                 self.cfg.stair_tread_m, pos[:, 1], self.cfg.stair_width_m)).min().item()}
         return reward
 
     def _reset_idx(self, env_ids):
         if env_ids is None:
             env_ids = self._robot._ALL_INDICES
         valid = env_ids[self._age[env_ids] > 0]
-        for level in range(len(sensing.HEIGHTS_M)):
+        for level in range(len(self.cfg.stair_heights_m)):
             selected = valid[self._levels[valid] == level]
             self.stair_stats['attempts'][level] += len(selected)
             self.stair_stats['successes'][level] += int(self._success[selected].sum())

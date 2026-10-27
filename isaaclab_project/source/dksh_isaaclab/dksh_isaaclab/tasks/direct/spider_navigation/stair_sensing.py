@@ -8,6 +8,7 @@ import math
 import torch
 
 HEIGHTS_M = (0.02, 0.04, 0.06, 0.08, 0.10, 0.12)
+STARTER_HEIGHTS_M = (0.006, 0.01, 0.02, 0.04, 0.06, 0.12)
 FIRST_RISER_M = 0.40
 TREAD_M = 0.25
 STEP_COUNT = 3
@@ -20,27 +21,48 @@ OBSERVATION_CONTRACT = 'l2_bno086_buttons_absolute_targets_v2'
 TASK = 'Isaac-DKSH-MG90S-CAD6-Stairs-Sensors-Direct-v1'
 
 
-def stair_boxes(heights):
+def stair_boxes(heights, tread_m=TREAD_M, width_m=WIDTH_M):
     """Local AABBs [batch, step, xyz], same boxes used for physical collision."""
     if heights.ndim != 1 or not torch.isfinite(heights).all() or (heights <= 0).any():
         raise ValueError('Step heights must be finite and positive')
+    if not all(math.isfinite(value) and value > 0 for value in (tread_m, width_m)):
+        raise ValueError('Stair tread and width must be finite and positive')
     index = torch.arange(STEP_COUNT, device=heights.device, dtype=heights.dtype)
     lower = torch.zeros((len(heights), STEP_COUNT, 3), device=heights.device, dtype=heights.dtype)
-    lower[:, :, 0] = FIRST_RISER_M + index * TREAD_M
-    lower[:, :, 1] = -WIDTH_M / 2
+    lower[:, :, 0] = FIRST_RISER_M + index * tread_m
+    lower[:, :, 1] = -width_m / 2
     upper = lower.clone()
-    upper[:, :, 0] += TREAD_M
+    upper[:, :, 0] += tread_m
     upper[:, -1, 0] += PLATFORM_M
-    upper[:, :, 1] = WIDTH_M / 2
+    upper[:, :, 1] = width_m / 2
     upper[:, :, 2] = heights[:, None] * (index + 1)
     return lower, upper
 
 
-def terrain_height(x, heights):
+def terrain_height(x, heights, tread_m=TREAD_M, y=None, width_m=WIDTH_M):
     """Privileged ground truth ONLY for termination/evaluation, never policy."""
-    count = (torch.floor((x - FIRST_RISER_M) / TREAD_M) + 1).clamp(0, STEP_COUNT)
-    end = FIRST_RISER_M + STEP_COUNT * TREAD_M + PLATFORM_M
-    return torch.where(x < end, count * heights, torch.zeros_like(x))
+    if not all(math.isfinite(value) and value > 0 for value in (tread_m, width_m)):
+        raise ValueError('Stair tread and width must be finite and positive')
+    count = (torch.floor((x - FIRST_RISER_M) / tread_m) + 1).clamp(0, STEP_COUNT)
+    end = FIRST_RISER_M + STEP_COUNT * tread_m + PLATFORM_M
+    inside = x < end
+    if y is not None:
+        inside = inside & (y.abs() <= width_m / 2)
+    return torch.where(inside, count * heights, torch.zeros_like(x))
+
+
+def progress_and_speed_reward(progress, command_speed, dt):
+    """Signed progress plus a modest Huber speed cost; derived from OYW v4.
+
+    Ground-truth progress is for training reward only, not an actor observation.
+    """
+    if not math.isfinite(dt) or dt <= 0:
+        raise ValueError('dt must be finite and positive')
+    velocity = progress / dt
+    error = (velocity - command_speed).abs() / 0.02
+    huber = torch.where(error <= 1, 0.5 * error.square(), error - 0.5)
+    stillness = torch.relu(0.1 * command_speed - velocity) / 0.02
+    return 30 * progress - dt * (0.1 * huber + 0.02 * stillness)
 
 
 def lidar_directions(device, dtype=torch.float32):

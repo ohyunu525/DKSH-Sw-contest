@@ -26,6 +26,29 @@ class StairSensingTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             S.stair_boxes(torch.tensor([0.]))
 
+    def test_custom_15cm_tread_and_narrow_width_match_ground_height(self):
+        height = torch.tensor([0.02])
+        lo, hi = S.stair_boxes(height, tread_m=0.15, width_m=0.15)
+        torch.testing.assert_close(lo[0, :, 0], torch.tensor([0.4, 0.55, 0.70]))
+        self.assertAlmostEqual(float(hi[0, 0, 1] - lo[0, 0, 1]), 0.15, places=6)
+        x = torch.tensor([0.50, 0.60, 0.80, 0.60])
+        y = torch.tensor([0., 0., 0., 0.08])
+        torch.testing.assert_close(S.terrain_height(x, height, tread_m=0.15, y=y, width_m=0.15),
+                                   torch.tensor([0.02, 0.04, 0.06, 0.]))
+        for bad in (0., -1., float('nan')):
+            with self.assertRaises(ValueError):
+                S.stair_boxes(height, tread_m=bad)
+
+    def test_staged_reward_prefers_real_progress_to_stillness_and_oscillation(self):
+        dt = 0.02
+        command = torch.tensor([0.02])
+        still = S.progress_and_speed_reward(torch.zeros(1), command, dt)
+        forward = S.progress_and_speed_reward(command * dt, command, dt)
+        backward = S.progress_and_speed_reward(-command * dt, command, dt)
+        self.assertGreater(float(forward), float(still))
+        self.assertLess(float(backward), float(still))
+        self.assertLess(float((forward + backward) / 2), float(still))
+
     def test_riser_occludes_top_and_background(self):
         lo, hi = S.stair_boxes(torch.tensor([0.10]))
         origins = torch.tensor([[0., 0., 0.05]])

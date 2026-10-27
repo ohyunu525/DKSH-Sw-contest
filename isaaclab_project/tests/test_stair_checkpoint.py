@@ -14,6 +14,15 @@ TASK = 'Isaac-DKSH-MG90S-CAD6-Stairs-Sensors-Direct-v1'
 
 
 class StairCheckpointTests(unittest.TestCase):
+    def test_scenario_geometry_and_strategy_must_match(self):
+        record = {'stair_geometry': {'tread_m': 0.15, 'width_m': 1.2}, 'training_strategy': 'staged_v1'}
+        GUARD.validate_stair_scenario(record, tread_m=0.15, width_m=1.2, strategy='staged_v1')
+        for tread, width, strategy in ((0.25, 1.2, 'staged_v1'),
+                                       (0.15, 0.15, 'staged_v1'), (0.15, 1.2, 'legacy_v1')):
+            with self.assertRaisesRegex(ValueError, 'scenario'):
+                GUARD.validate_stair_scenario(record, tread_m=tread, width_m=width, strategy=strategy)
+        GUARD.validate_stair_scenario({}, tread_m=0.25, width_m=1.2, strategy='legacy_v1')
+
     def test_sensor_contract_and_task_required_even_when_shapes_match(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'model.pt'
