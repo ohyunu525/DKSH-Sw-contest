@@ -229,7 +229,7 @@
   "source_checkpoint": null,
   "source_sha256": null,
   "additional_iterations": 2000,
-  "status": "running",
+  "status": "completed",
   "learning_rate_before": 0.00015,
   "optimizer_learning_rates_before": [
     0.00015
@@ -299,5 +299,39 @@
     0.07999999821186066,
     0.07999999821186066
   ],
-  "start_iteration": 0
+  "start_iteration": 0,
+  "final_checkpoint": "model_1999.pt",
+  "final_sha256": "75ff9e07413a26a44016f0709b8cb73cad86230bcc2b4b5a52a1b3d76b82e9b6",
+  "final_iteration": 1999,
+  "completed_episodes": {
+    "episodes": 672,
+    "goal": 0,
+    "fallen": 0,
+    "time_out": 672,
+    "out_of_bounds": 0
+  },
+  "exploration_std_final": [
+    0.061952587217092514,
+    0.06725821644067764,
+    0.07586393505334854,
+    0.03096143715083599,
+    0.0859554186463356,
+    0.07329528778791428,
+    0.07272394746541977,
+    0.056431014090776443,
+    0.06931036710739136,
+    0.04321868345141411,
+    0.03534398227930069,
+    0.04167628660798073,
+    0.05297722667455673,
+    0.06643062829971313,
+    0.04032060503959656,
+    0.05182141810655594,
+    0.05741098150610924,
+    0.06536590307950974
+  ],
+  "learning_rate_final": 1e-05,
+  "optimizer_learning_rates_final": [
+    1e-05
+  ]
 }

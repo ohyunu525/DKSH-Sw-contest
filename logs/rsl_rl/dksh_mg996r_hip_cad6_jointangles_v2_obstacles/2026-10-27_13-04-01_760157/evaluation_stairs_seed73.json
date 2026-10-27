@@ -1,0 +1,173 @@
+{
+  "checkpoint": "C:\\Users\\COM\\Documents\\GitHub\\DKSH-Sw-contest\\logs\\rsl_rl\\dksh_mg996r_hip_cad6_jointangles_v2_obstacles\\2026-10-27_13-04-01_760157\\model_1999.pt",
+  "task": "Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2",
+  "action_semantics": "absolute_joint_angles_v2",
+  "environment": "stairs",
+  "difficulty": 0.0,
+  "seed": 73,
+  "behavior_profile": "revised_v5",
+  "reward_contract": "signed_progress_huber_speed_knee_clearance_v1",
+  "contact_contract": "cad6_toe_button_hysteresis_v1",
+  "source_behavior_profile": "revised_v5",
+  "source_reward_contract": "signed_progress_huber_speed_knee_clearance_v1",
+  "source_contact_contract": "cad6_toe_button_hysteresis_v1",
+  "toe_button_sensor": {
+    "model": "virtual_toe_button_force_hysteresis_v1",
+    "count": 6,
+    "offsets_in_tibia_link_frame_m": [
+      [
+        0.137,
+        0.01,
+        -0.02572
+      ],
+      [
+        0.137,
+        0.01,
+        -0.02572
+      ],
+      [
+        0.137,
+        0.01,
+        -0.02572
+      ],
+      [
+        0.137,
+        0.01,
+        -0.02572
+      ],
+      [
+        0.01,
+        -0.137,
+        -0.02572
+      ],
+      [
+        0.0150579,
+        -0.136537,
+        -0.02572
+      ]
+    ],
+    "press_force_threshold_n": 1.0,
+    "release_force_threshold_n": 0.5,
+    "toe_surface_gap_tolerance_m": 0.004,
+    "physical_switch_geometry_in_cad": false,
+    "physical_switch_stroke_modelled": false,
+    "signal_source": "upward tibia ContactSensor force plus CAD distal-toe witness proximity"
+  },
+  "environments": 4,
+  "steps": 24000,
+  "fixed_scenario_distance_m": 3.200000047683716,
+  "goal_radius_m": 0.08,
+  "episode_length_s": 240.0,
+  "episodes": {
+    "episodes": 8,
+    "goal": 0,
+    "fallen": 0,
+    "out_of_bounds": 0,
+    "time_out": 8
+  },
+  "success_rate": 0.0,
+  "successful_environment_count": 0,
+  "completed_episode_records": [
+    {
+      "environment_index": 0,
+      "outcome": "time_out",
+      "duration_s": 239.98000000004896,
+      "signed_progress_m": 1.055891752243042,
+      "travel_distance_m": 14.437538512810534,
+      "mechanical_energy_j": 289.3686668771498,
+      "sustained_progress_speed_mps": 0.004399915627314054
+    },
+    {
+      "environment_index": 1,
+      "outcome": "time_out",
+      "duration_s": 239.98000000004896,
+      "signed_progress_m": 0.9962854385375977,
+      "travel_distance_m": 14.873531788854962,
+      "mechanical_energy_j": 308.70216662704786,
+      "sustained_progress_speed_mps": 0.004151535288513186
+    },
+    {
+      "environment_index": 2,
+      "outcome": "time_out",
+      "duration_s": 239.98000000004896,
+      "signed_progress_m": 0.9968812465667725,
+      "travel_distance_m": 15.560858697410367,
+      "mechanical_energy_j": 311.5295629633958,
+      "sustained_progress_speed_mps": 0.00415401802886311
+    },
+    {
+      "environment_index": 3,
+      "outcome": "time_out",
+      "duration_s": 239.98000000004896,
+      "signed_progress_m": 1.1122548580169678,
+      "travel_distance_m": 14.675062880202859,
+      "mechanical_energy_j": 307.3719750288122,
+      "sustained_progress_speed_mps": 0.004634781473525881
+    },
+    {
+      "environment_index": 0,
+      "outcome": "time_out",
+      "duration_s": 239.98000000004896,
+      "signed_progress_m": 1.1262407302856445,
+      "travel_distance_m": 14.900586349135665,
+      "mechanical_energy_j": 318.67968632832105,
+      "sustained_progress_speed_mps": 0.0046930607979223885
+    },
+    {
+      "environment_index": 1,
+      "outcome": "time_out",
+      "duration_s": 239.98000000004896,
+      "signed_progress_m": 1.0736513137817383,
+      "travel_distance_m": 14.56919073362269,
+      "mechanical_energy_j": 298.42874991238193,
+      "sustained_progress_speed_mps": 0.004473919967420282
+    },
+    {
+      "environment_index": 2,
+      "outcome": "time_out",
+      "duration_s": 239.98000000004896,
+      "signed_progress_m": 1.126370906829834,
+      "travel_distance_m": 15.514209545850463,
+      "mechanical_energy_j": 321.29022512227243,
+      "sustained_progress_speed_mps": 0.0046936032453938
+    },
+    {
+      "environment_index": 3,
+      "outcome": "time_out",
+      "duration_s": 239.98000000004896,
+      "signed_progress_m": 1.1054284572601318,
+      "travel_distance_m": 15.509736703762428,
+      "mechanical_energy_j": 323.5707856014373,
+      "sustained_progress_speed_mps": 0.00460633576656349
+    }
+  ],
+  "incomplete_episode_count": 4,
+  "completed_progress_m": 8.593004703521729,
+  "completed_duration_s": 1919.8400000003915,
+  "sustained_progress_speed_mps": 0.004475896274439524,
+  "minimum_sustained_progress_speed_mps": 0.1,
+  "forward_speed_mps": 0.004492762043655091,
+  "signed_progress_m": 8.592049360275269,
+  "travel_distance_m": 120.04239067753633,
+  "mechanical_energy_j": 2478.9705418643357,
+  "energy_per_progress_j_m": 288.5191224954643,
+  "body_contact_fraction": 0.04089583333333333,
+  "joint_limit_cost": 0.0,
+  "max_target_rate_rad_s": 1.5,
+  "target_rate_saturation_fraction": 0.37481887255593516,
+  "torque_saturation_fraction": 0.0001209490749752149,
+  "tracking_error_rad": 0.0420824986496106,
+  "mean_support_feet": 1.8279583333333334,
+  "step_progress_speed_mps": 0.004475025708476702,
+  "target_excursion_rad": 0.10671219153539277,
+  "joint_excursion_rad": 0.09018828898395684,
+  "joint_velocity_rms_rad_s": 0.8934718952164985,
+  "mean_foot_clearance_m": 0.0006975306172013971,
+  "locomotion_pass": false,
+  "failure_reasons": [
+    "fewer completed successful episodes than environments",
+    "not every environment completed a successful episode",
+    "completed-episode success rate below 0.8",
+    "completed-episode sustained progress speed is below the minimum"
+  ]
+}
