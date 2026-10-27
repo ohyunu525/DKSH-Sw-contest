@@ -94,6 +94,14 @@ SHA-256은 `093470fb7210ca3596b8d591b5d2df2923d2c9155c2162c48a2edb5c4e876dae`다
 저장소의 `logs/` 무시 규칙에 따라 모델과 원본 데이터는 이 컴퓨터에 보관한다.
 `stair_climbing_verified=false`, `hardware_deployable=false`다.
 
+독립 평가: 2026-10-27 13:32:06~13:33:58 KST, seed 43, 4환경 × 4,100 step,
+발판 150mm·단 높이 6mm. 완료 4 episode 중 성공 0, 낙상 0, 영역 이탈 1,
+시간 종료 3으로 실패했다. 최대 몸체 x=0.723964691m, 최소 지면 상대 여유
+0.122558564m, 20ms 샘플 기준 최대 토크/시뮬레이션 상한은 1.0이다.
+첫 세 모서리는 x=0.40/0.55/0.70m, 성공 판정은 x>1.10m와 높이·지지 조건을
+1초 유지하는 것이다. 최대 x만으로 개별 발의 안정적인 착지나 등반 성공을 주장하지 않는다.
+평가 기록은 `logs/rsl_rl/dksh_cad6_stairs_mg996r_buttons_absolute_v2/2026-10-27_13-32-06_310545/run_metadata.json`이다.
+
 ## 후속 전략: 상태 특권 교사에서 실기 센서 학생으로 증류
 
 [관절 피드백이 없는 6족 로봇의 조이스트 통과 연구](https://www-video.eecs.berkeley.edu/papers/zixian/hexapod_IROS_2023.pdf)는
