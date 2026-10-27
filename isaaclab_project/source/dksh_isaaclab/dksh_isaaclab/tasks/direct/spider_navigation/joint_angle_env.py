@@ -53,6 +53,10 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         self._previous_root_xy = self._robot.data.root_pos_w[:, :2].clone()
         self._reached_goal = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self._feet = [self._robot.body_names.index(f"leg_{leg}_tibia") for leg in range(cfg.action_space // 3)]
+        # In this URDF each tibia link frame is located at the femur/tibia hinge.
+        self._knees = [self._robot.body_names.index(f"leg_{leg}_tibia") for leg in range(cfg.action_space // 3)]
+        self._approach_steps = torch.zeros(self.num_envs, device=self.device)
+        self._approach_low_knee_steps = torch.zeros(self.num_envs, device=self.device)
         self._sensor_feet = [self._contacts.body_names.index(self._robot.body_names[i]) for i in self._feet]
         self._sensor_body = [i for i, name in enumerate(self._contacts.body_names) if not name.endswith("_tibia")]
         self._sole_offset = torch.tensor(cfg.sole_offset, device=self.device).expand(self.num_envs, len(self._feet), 3)
@@ -80,7 +84,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         self._episode_sums = {name: torch.zeros(self.num_envs, device=self.device) for name in (
             "progress", "speed", "upright", "joint_limit", "joint_velocity", "torque", "power",
             "target_acceleration", "body_contact", "foot_slip", "angular_velocity", "stillness",
-            "goal", "failure", "debris_impact",
+            "goal", "failure", "debris_impact", "knee_clearance",
         )}
         self.step_metrics = {}
 
@@ -121,9 +125,9 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         self._processed_actions[:, self._joint_ids] = targets
 
     def _contact_state(self):
-        if self.cfg.behavior_profile == "revised_v4":
+        if self.cfg.behavior_profile in ("revised_v4", "revised_v5"):
             if self._toe_button_offsets is None or self._foot_support_offsets is None:
-                raise ValueError("revised_v4 requires CAD toe-button and foot-support geometry")
+                raise ValueError("revised_v4/revised_v5 require CAD toe-button and foot-support geometry")
             points, surfaces = self._foot_support_geometry()
             button_points = self._toe_button_world_positions()
             button_surfaces = self._surface_heights(button_points)
@@ -278,6 +282,26 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             velocity = velocity - self._scenario.floor_velocity[:, None, :]
         slip = (velocity[..., :2].square().sum(-1) * feet).sum(-1) / feet.sum(-1).clamp_min(1)
         acceleration = ((self._target_velocity - self._previous_target_velocity) / self.cfg.target_rate_limit).square().mean(-1)
+        failed = self._fallen() | self._out_of_bounds
+        knee_below_body_fraction = torch.zeros_like(self._goal_hold_time)
+        approach_low_knee_fraction = torch.zeros_like(self._goal_hold_time)
+        knee_clearance_rate = torch.zeros_like(self._goal_hold_time)
+        if self.cfg.behavior_profile == "revised_v5":
+            knee_z = data.body_link_pos_w[:, self._knees, 2]
+            body_bottom_offset = torch.zeros_like(data.root_pos_w)
+            body_bottom_offset[:, 2] = self.cfg.body_bottom_offset_z_m
+            body_bottom_z = (data.root_pos_w + quat_rotate(data.root_quat_w, body_bottom_offset))[:, 2]
+            knee_below_body_fraction = (knee_z < body_bottom_z.unsqueeze(-1)).float().mean(-1)
+            approach_active = ~(self._reached_goal | failed)
+            majority_of_knees_below = knee_below_body_fraction >= 0.5
+            self._approach_steps += approach_active.float()
+            self._approach_low_knee_steps += (approach_active & majority_of_knees_below).float()
+            approach_low_knee_fraction = (
+                self._approach_low_knee_steps / self._approach_steps.clamp_min(1.0)
+            )
+            threshold = self.cfg.knee_below_body_approach_fraction
+            knee_violation = ((approach_low_knee_fraction - threshold) / (1.0 - threshold)).clamp(0.0, 1.0)
+            knee_clearance_rate = self.cfg.knee_below_body_penalty_scale * knee_violation
         rates = {
             "speed": self.cfg.speed_cost_scale * (speed_tracking_cost if legacy else huber_speed_tracking_cost)(
                 forward, self.cfg.target_speed, self.cfg.speed_tracking_sigma
@@ -291,8 +315,8 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             "stillness": self.cfg.stillness_penalty_scale * torch.relu(
                 0.1 * self.cfg.target_speed - forward
             ) / self.cfg.speed_tracking_sigma,
+            "knee_clearance": knee_clearance_rate,
         }
-        failed = self._fallen() | self._out_of_bounds
         terms = {name: rate * self.step_dt for name, rate in rates.items()}
         terms.update(
             progress=self.cfg.progress_reward_scale * progress,
@@ -323,6 +347,8 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             "joint_excursion_rad": (data.joint_pos[:, self._joint_ids] - data.default_joint_pos[:, self._joint_ids]).abs().mean(-1),
             "joint_velocity_rms_rad_s": data.joint_vel[:, self._joint_ids].square().mean(-1).sqrt(),
             "mean_foot_clearance_m": (support[..., 2] - support_height).mean(-1),
+            "knees_below_body_fraction": knee_below_body_fraction,
+            "approach_low_knee_time_fraction": approach_low_knee_fraction,
         }
         self.extras["log"].update({f"Metrics/{name}": value.mean() for name, value in self.step_metrics.items()})
         return torch.stack(tuple(terms.values())).sum(0)
@@ -374,4 +400,6 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         self._previous_root_xy[env_ids] = self._robot.data.root_pos_w[env_ids, :2]
         self._rate_saturation[env_ids] = 0
         self._goal_hold_time[env_ids] = 0
+        self._approach_steps[env_ids] = 0
+        self._approach_low_knee_steps[env_ids] = 0
         self._reached_goal[env_ids] = False

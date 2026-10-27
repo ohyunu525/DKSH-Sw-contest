@@ -37,7 +37,7 @@ parser.add_argument("--max_noise_std", type=float, default=None)
 parser.add_argument("--reset_exploration_std", action="store_true",
                     help="On resume, reset only policy std and its optimizer state before collecting rollouts")
 parser.add_argument("--behavior_profile", choices=tuple(BEHAVIOR_PROFILES), default=None,
-                    help="CAD6 training defaults revised_v4; other tasks default revised_v3; evaluation infers the saved profile")
+                    help="CAD6 training defaults revised_v5; other tasks default revised_v3; evaluation infers the saved profile")
 parser.add_argument("--allow_behavior_transfer", action="store_true",
                     help="Explicitly allow training a known v2 reward/contact profile with another profile")
 add_environment_args(parser)
@@ -52,10 +52,10 @@ try:
                                 or args.reset_exploration_std or args.allow_behavior_transfer):
         raise ValueError("Noise std overrides, exploration reset and behavior transfer are training-only options")
     if args.mode == "train":
-        default_profile = "revised_v4" if "MG996R-Hip-CAD6" in args.task else "revised_v3"
+        default_profile = "revised_v5" if "MG996R-Hip-CAD6" in args.task else "revised_v3"
         args.behavior_profile = args.behavior_profile or default_profile
-        if args.behavior_profile == "revised_v4" and "MG996R-Hip-CAD6" not in args.task:
-            raise ValueError("revised_v4 toe-button contacts require the MG996R CAD6 toe geometry")
+        if args.behavior_profile in ("revised_v4", "revised_v5") and "MG996R-Hip-CAD6" not in args.task:
+            raise ValueError(f"{args.behavior_profile} toe-button contacts require the MG996R CAD6 toe geometry")
         validate_exploration_bounds(args.initial_noise_std if args.initial_noise_std is not None else 0.08,
                                     args.min_noise_std if args.min_noise_std is not None else 0.03,
                                     args.max_noise_std if args.max_noise_std is not None else 0.30)
@@ -144,6 +144,13 @@ def train(env, runner, cfg, agent, log, checkpoint, source_metadata=None):
         "joint_names": [base._robot.joint_names[i] for i in base._joint_ids],
         "angle_limits_rad": base._angle_limits[0].cpu().tolist(),
         "target_rate_limit_rad_s": cfg.target_rate_limit, "target_smoothing": cfg.target_smoothing,
+        "target_speed_mps": cfg.target_speed,
+        "speed_tracking_sigma_mps": cfg.speed_tracking_sigma,
+        "progress_reward_scale": cfg.progress_reward_scale,
+        "speed_cost_scale": cfg.speed_cost_scale,
+        "knee_below_body_approach_fraction": getattr(cfg, "knee_below_body_approach_fraction", None),
+        "knee_below_body_penalty_scale": getattr(cfg, "knee_below_body_penalty_scale", None),
+        "body_bottom_offset_z_m": getattr(cfg, "body_bottom_offset_z_m", None),
         "servo_velocity_limits_rad_s": list(base._servo_velocity_limits[0].cpu().tolist())
             if base._servo_velocity_limits.shape[-1] > 1
             else float(base._servo_velocity_limits[0, 0].cpu()),

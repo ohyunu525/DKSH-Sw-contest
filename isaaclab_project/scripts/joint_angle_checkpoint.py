@@ -11,6 +11,7 @@ ACTION_SEMANTICS = "absolute_joint_angles_v2"
 TERRAIN_OBSERVATION_CONTRACT = "terrain_full48_all_presets_v2"
 OBSERVATION_CONTRACT = "joint_angles_targets_target_velocity_terrain48_v2"
 REWARD_CONTRACT = "signed_progress_huber_speed_v3"
+KNEE_CLEARANCE_REWARD_CONTRACT = "signed_progress_huber_speed_knee_clearance_v1"
 CONTACT_CONTRACT = "support_surface_foot_geometry_v3"
 TOE_BUTTON_CONTACT_CONTRACT = "cad6_toe_button_hysteresis_v1"
 EXPLORATION_PROFILE = "independent_std_bounds_v1"
@@ -19,6 +20,8 @@ BEHAVIOR_PROFILES = {
                   "contact_contract": "support_surface_vertical_sole_v2"},
     "revised_v3": {"reward_contract": REWARD_CONTRACT, "contact_contract": CONTACT_CONTRACT},
     "revised_v4": {"reward_contract": REWARD_CONTRACT,
+                   "contact_contract": TOE_BUTTON_CONTACT_CONTRACT},
+    "revised_v5": {"reward_contract": KNEE_CLEARANCE_REWARD_CONTRACT,
                    "contact_contract": TOE_BUTTON_CONTACT_CONTRACT},
 }
 CONTROL_CONTRACT = "absolute_targets_rate_limited_observed_velocity_v2"

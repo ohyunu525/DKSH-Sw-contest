@@ -23,6 +23,7 @@ from .servo_specs import (
 
 CAD_ANGLE_RANGES = {"hip": (-1.40, 1.40), "femur": (-1.10, 1.40), "tibia": (-0.40, 1.40)}
 CAD_SOLE_OFFSET = (0.016120809, 0.0, -0.0803304305)
+KNEE_CLEARANCE_REWARD_CONTRACT = "signed_progress_huber_speed_knee_clearance_v1"
 # Fixed-foot origins in main's normalized Onshape URDF, in policy leg order.
 ONSHAPE_SOLE_OFFSETS = (
     (0.137, 0.010, -0.01922),
@@ -147,7 +148,8 @@ def _mg996r_hip_cad6_robot():
 class MG996RHipCad6JointAngleEnvCfg(Cad6JointAngleEnvCfg):
     """Six MG996R hip servos and twelve provisional RC920DMG leg servos."""
     robot = _mg996r_hip_cad6_robot()
-    behavior_profile = "revised_v4"
+    behavior_profile = "revised_v5"
+    reward_contract = KNEE_CLEARANCE_REWARD_CONTRACT
     contact_contract = "cad6_toe_button_hysteresis_v1"
     joint_angle_ranges = Cad6JointAngleEnvCfg().joint_angle_ranges
     sole_offset = ONSHAPE_SOLE_OFFSETS
@@ -158,8 +160,15 @@ class MG996RHipCad6JointAngleEnvCfg(Cad6JointAngleEnvCfg):
     robot_width = 0.56
     # Preserve the established mixed-CAD6 tuning independently of generic CAD6.
     minimum_base_height = 0.06
-    target_speed = 0.02
+    target_speed = 0.20
     speed_tracking_sigma = 0.015
+    # Make target-speed tracking competitive with the signed-progress reward.
+    speed_cost_scale = -0.50
+    # The CAD URDF's tibia link frame is the knee hinge; hull bottom at q=0 is
+    # 126.578 mm below the root frame.
+    body_bottom_offset_z_m = -0.126578
+    knee_below_body_approach_fraction = 0.50
+    knee_below_body_penalty_scale = -5.0
     episode_length_s = 240.0
     servo_model = None
     servo_reference_voltage_v = None

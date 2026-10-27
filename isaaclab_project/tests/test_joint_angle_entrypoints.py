@@ -85,7 +85,7 @@ class JointAngleEntrypointTests(unittest.TestCase):
 
     def test_runner_defaults_cad6_training_to_toe_button_profile_and_infers_evaluation_profile(self):
         train = self.runner_arguments(["--mode=train"])
-        self.assertEqual(train["args"].behavior_profile, "revised_v4")
+        self.assertEqual(train["args"].behavior_profile, "revised_v5")
         self.assertEqual(train["checkpoint_compatibility"]["expected_contact_contract"], "cad6_toe_button_hysteresis_v1")
         evaluation = self.runner_arguments(["--mode=evaluate"])
         self.assertIsNone(evaluation["args"].behavior_profile)

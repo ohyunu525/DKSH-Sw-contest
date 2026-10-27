@@ -113,10 +113,12 @@ class JointAngleConfigurationTests(unittest.TestCase):
                 self.assertEqual(cfg.joint_reset_noise, 0)
                 self.assertGreaterEqual(cfg.goal_min_distance, 0.5)
                 self.assertLess(cfg.speed_cost_scale, 0)
-                expected_profile = "revised_v4" if name == "MG996RHipCad6JointAngleEnvCfg" else "revised_v3"
+                expected_profile = "revised_v5" if name == "MG996RHipCad6JointAngleEnvCfg" else "revised_v3"
                 self.assertEqual(cfg.behavior_profile, expected_profile)
-                self.assertEqual(cfg.reward_contract, "signed_progress_huber_speed_v3")
-                expected_contact = ("cad6_toe_button_hysteresis_v1" if expected_profile == "revised_v4"
+                expected_reward = ("signed_progress_huber_speed_knee_clearance_v1" if expected_profile == "revised_v5"
+                                   else "signed_progress_huber_speed_v3")
+                self.assertEqual(cfg.reward_contract, expected_reward)
+                expected_contact = ("cad6_toe_button_hysteresis_v1" if expected_profile in ("revised_v4", "revised_v5")
                                     else "support_surface_foot_geometry_v3")
                 self.assertEqual(cfg.contact_contract, expected_contact)
                 self.assertEqual((cfg.exploration_initial_std, cfg.exploration_min_std, cfg.exploration_max_std), (0.08, 0.03, 0.30))
@@ -169,7 +171,9 @@ class JointAngleConfigurationTests(unittest.TestCase):
         cfg = module.MG996RHipCad6JointAngleEnvCfg()
         self.assertEqual(module.MG996RHipCad6JointAngleEnvCfg.__bases__, (module.Cad6JointAngleEnvCfg,))
         self.assertEqual((cfg.minimum_base_height, cfg.target_speed, cfg.speed_tracking_sigma,
-                          cfg.episode_length_s), (0.06, 0.02, 0.015, 240.0))
+                          cfg.episode_length_s), (0.06, 0.20, 0.015, 240.0))
+        self.assertEqual((cfg.speed_cost_scale, cfg.knee_below_body_approach_fraction,
+                          cfg.knee_below_body_penalty_scale), (-0.50, 0.50, -5.0))
         self.assertEqual((cfg.target_rate_limit, cfg.target_smoothing), (1.5, 0.35))
         self.assertEqual((cfg.goal_min_distance, cfg.goal_max_distance, cfg.goal_radius), (0.5, 1.5, 0.08))
         self.assertEqual((cfg.robot_width, cfg.robot_height), (0.56, 0.24))
