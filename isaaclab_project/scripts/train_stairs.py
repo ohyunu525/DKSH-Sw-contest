@@ -3,10 +3,11 @@ import argparse
 from datetime import datetime
 import hashlib
 import json
+import math
 from pathlib import Path
 import shutil
 from cad_readiness import assert_cad_ready
-from mg90s_checkpoint import validate_checkpoint
+from mg90s_checkpoint import validate_checkpoint, validate_stair_scenario
 from isaaclab.app import AppLauncher
 
 TASK = 'Isaac-DKSH-MG90S-CAD6-Stairs-Sensors-Direct-v1'
@@ -17,7 +18,12 @@ parser.add_argument('--num_envs', type=int, default=16)
 parser.add_argument('--max_iterations', type=int, default=300)
 parser.add_argument('--checkpoint', default='')
 parser.add_argument('--seed', type=int, default=None)
-parser.add_argument('--level', type=int, choices=range(6), default=0)
+parser.add_argument('--level', type=int, choices=range(9), default=0)
+parser.add_argument('--tread_m', type=float, default=0.25, help='Step depth along travel, metres')
+parser.add_argument('--stair_width_m', type=float, default=1.2, help='Lateral step width, metres')
+parser.add_argument('--strategy', choices=('legacy_v1', 'staged_v1', 'staged_15cm_v2'), default='legacy_v1')
+parser.add_argument('--allow_curriculum_transfer', action='store_true',
+                    help='Train-only transfer from staged_v1 to staged_15cm_v2 with same tread/width')
 parser.add_argument('--steps', type=int, default=4100, help='Evaluation: >= one full 80s episode')
 parser.add_argument('--allow_provisional_cad', action='store_true')
 AppLauncher.add_app_launcher_args(parser)
@@ -26,12 +32,19 @@ if args.seed is None:
     args.seed = 43 if args.mode == 'evaluate' else 42
 if args.num_envs < 1 or args.max_iterations < 1:
     parser.error('Environment and iteration counts must be positive')
+if not all(math.isfinite(value) and 0.05 <= value <= 2.0 for value in (args.tread_m, args.stair_width_m)):
+    parser.error('Stair tread and width must each be finite and between 0.05 and 2.0 m')
 if args.mode == 'evaluate' and (not args.checkpoint or args.steps < 4100):
     parser.error('Evaluation requires a checkpoint and >=4100 steps')
+if args.allow_curriculum_transfer and (args.mode != 'train' or not args.checkpoint):
+    parser.error('Curriculum transfer requires training with an explicit checkpoint')
 cad_report = assert_cad_ready(allow_provisional=args.allow_provisional_cad)
 checkpoint = Path(args.checkpoint).resolve() if args.checkpoint else None
 if checkpoint:
     validate_checkpoint(checkpoint, observations=244, actions=18, task=TASK)
+    source_record = json.loads((checkpoint.parent / 'run_metadata.json').read_text(encoding='utf-8'))
+    validate_stair_scenario(source_record, tread_m=args.tread_m, width_m=args.stair_width_m,
+                            strategy=args.strategy, allow_curriculum_transfer=args.allow_curriculum_transfer)
 app = AppLauncher(args).app
 
 try:
@@ -56,7 +69,24 @@ def main():
     cfg.seed = args.seed
     cfg.stair_initial_level = args.level
     cfg.stair_curriculum = args.mode == 'train'
+    cfg.stair_tread_m = args.tread_m
+    cfg.stair_width_m = args.stair_width_m
     agent = load_cfg_from_registry(TASK, 'rsl_rl_cfg_entry_point')
+    from dksh_isaaclab.tasks.direct.spider_navigation import stair_sensing as sensing
+    cfg.training_strategy = args.strategy
+    if args.strategy in ('staged_v1', 'staged_15cm_v2'):
+        cfg.stair_heights_m = (sensing.STARTER_HEIGHTS_M if args.strategy == 'staged_v1'
+                               else sensing.TARGET_15CM_HEIGHTS_M)
+        cfg.stair_max_level = len(cfg.stair_heights_m) - 1
+        # Keep adjacent environments' nine separated stair patches from overlapping.
+        cfg.scene.env_spacing = max(20.0, len(cfg.stair_heights_m) * sensing.PATCH_SPACING_M + 2.0)
+        cfg.target_smoothing = 0.35
+        agent.policy.init_noise_std = 0.08
+        agent.num_steps_per_env = 128
+        agent.algorithm.gamma = 0.9995
+        agent.algorithm.lam = 0.98
+    if args.level >= len(cfg.stair_heights_m):
+        raise ValueError(f'Level {args.level} is not available for strategy {args.strategy}')
     agent.seed, agent.device = args.seed, cfg.sim.device
     log = ROOT / 'logs/rsl_rl' / agent.experiment_name / datetime.now().strftime('%Y-%m-%d_%H-%M-%S_%f')
     log.mkdir(parents=True, exist_ok=False)
@@ -80,6 +110,14 @@ def main():
                 'servo_zero_pwm_calibrated': False,
                 'sensor_assumptions': cfg.sensor_assumptions, 'cad_source': cad_report,
                 'initial_level': args.level, 'num_envs': args.num_envs,
+                'stair_geometry': {'tread_m': args.tread_m, 'width_m': args.stair_width_m,
+                                   'riser_heights_m': list(cfg.stair_heights_m),
+                                   'steps': 3},
+                'training_strategy': cfg.training_strategy,
+                'curriculum_transfer': args.allow_curriculum_transfer,
+                'ppo_initial_noise_std': agent.policy.init_noise_std,
+                'ppo_rollout_steps': agent.num_steps_per_env,
+                'ppo_gamma': agent.algorithm.gamma, 'ppo_lambda': agent.algorithm.lam,
                 'physics_dt_s': cfg.sim.dt, 'control_dt_s': cfg.sim.dt * cfg.decimation,
                 'additional_iterations': args.max_iterations if args.mode == 'train' else 0,
                 'source_checkpoint': str(checkpoint) if checkpoint else None,
@@ -120,6 +158,7 @@ def main():
             runner.load(str(checkpoint), load_optimizer=args.mode == 'train')
             if args.mode == 'train':
                 runner.current_learning_iteration += 1
+        metadata['exploration_std_at_start'] = runner.alg.policy.std.detach().cpu().tolist()
         metadata.update(status='running', start_iteration=runner.current_learning_iteration)
         record.write_text(json.dumps(metadata, indent=2), encoding='utf-8')
         dump_yaml(str(log / 'params/env.yaml'), cfg)
@@ -168,7 +207,7 @@ def main():
             falls = base.completed['fallen'] - counts['fallen']
             escapes = base.completed['out_of_bounds'] - counts['out_of_bounds']
             passed = passed and falls == 0 and escapes == 0 and max_effort <= 1.0001
-            metadata['evaluation'] = {'passed': passed, 'step_height_m': sensing.HEIGHTS_M[args.level],
+            metadata['evaluation'] = {'passed': passed, 'step_height_m': cfg.stair_heights_m[args.level],
                                       'attempts': attempts, 'successes': successes, 'falls': falls,
                                       'out_of_bounds': escapes, 'max_progress_x_m': max_x,
                                       'min_body_clearance_m': min_clearance, 'max_effort_ratio': max_effort}

@@ -1,5 +1,7 @@
 # CAD6 발끝 버튼 + 절대 관절각 정책 — 2026-10-22
 
+> 2026-10-27의 디딤판 깊이 15cm 실험과 설정은 [15cm 계단 학습 기록](stairs_15cm_training_2026-10-27.md)을 참고한다.
+
 `OYW/Develop/MLForLegs`의 `d970d488be5ab0bb6e1c6ebcb218930c450aa8de`를
 참고해 계단 정책을 변경했다. 해당 브랜치의 `joint_angle_control.py`에서 절대각
 변환과 목표각 필터를 가져왔으며, CAD6의 관절 명명 순서를 명시적으로 매핑한다.

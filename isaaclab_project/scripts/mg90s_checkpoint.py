@@ -4,6 +4,18 @@ from pathlib import Path
 import torch
 
 
+def validate_stair_scenario(record, *, tread_m, width_m, strategy, allow_curriculum_transfer=False):
+    """Evaluation must reproduce the source run's tread, width and curriculum."""
+    geometry = record.get('stair_geometry') or {'tread_m': 0.25, 'width_m': 1.2}
+    source = record.get('training_strategy', 'legacy_v1')
+    compatible_transfer = (allow_curriculum_transfer and source == 'staged_v1'
+                           and strategy == 'staged_15cm_v2')
+    if (abs(geometry['tread_m'] - tread_m) > 1e-8
+            or abs(geometry['width_m'] - width_m) > 1e-8
+            or (source != strategy and not compatible_transfer)):
+        raise ValueError('Evaluation scenario does not match checkpoint tread, width, or training strategy.')
+
+
 def validate_checkpoint(path, observations=68, actions=18, task='Isaac-DKSH-MG90S-CAD6-Walk-Direct-v0',
                         actuator_contract='mg996r_4v8_rc920dmg_5v_v1'):
     data = torch.load(Path(path), map_location='cpu', weights_only=True)
