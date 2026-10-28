@@ -118,6 +118,24 @@ seed 42, `model_300.pt`, 정상 종료 및 절대각 export 비교를 기록했�
 150mm 장면은 4환경에서 초기화, PPO 스텝, 정상 종료까지 확인한 것일 뿐
 150mm 계단 통과를 검증한 것은 아니다.
 
+## 150mm 목표 단계 이어 학습 결과
+
+2026-10-27 13:35:24~13:55:43 KST, seed 42, 16환경에서 `model_299.pt`를
+복원하고 추가 300 iteration(300~599, 614,400 transition)을 완료했다.
+관측 244개, 절대각 행동 18개, `staged_15cm_v2`, 발판 깊이 150mm,
+폭 1.2m, 높이 단계 6/10/20/40/60/80/100/120/150mm다.
+원본 checkpoint SHA-256은 `093470fb7210ca3596b8d591b5d2df2923d2c9155c2162c48a2edb5c4e876dae`다.
+
+완료 episode 148개 모두 6mm 단계였다. 성공 1, 낙상 0, 영역 이탈 24,
+시간 종료 123이며 연속 3회 성공에 이르지 못해 10mm 이상으로 진행하지 못했다.
+6개 버튼 눌림 표본 수는 `[136096, 480207, 407921, 82820, 304622, 336479]`이고
+절대각 export 검증은 통과했다. 학습 중 1회 성공은 독립 평가 통과가 아니다.
+
+checkpoint는 `logs/rsl_rl/dksh_cad6_stairs_mg996r_buttons_absolute_v2/2026-10-27_13-35-24_166258/model_599.pt`,
+SHA-256은 `d5be5190a366ef732de7896182db5ec5487b4ba88c9c15bebd561979ab5e2664`다.
+기존 `logs/` 규칙에 따라 원본은 이 PC에 보관한다. `stair_climbing_verified=false`,
+`hardware_deployable=false`를 유지한다.
+
 ## 후속 전략: 상태 특권 교사에서 실기 센서 학생으로 증류
 
 [관절 피드백이 없는 6족 로봇의 조이스트 통과 연구](https://www-video.eecs.berkeley.edu/papers/zixian/hexapod_IROS_2023.pdf)는
