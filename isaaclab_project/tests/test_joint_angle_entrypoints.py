@@ -83,12 +83,12 @@ class JointAngleEntrypointTests(unittest.TestCase):
             exec(compile(ast.Module(body=prefix, type_ignores=[]), str(source), "exec"), namespace)
         return namespace
 
-    def test_runner_defaults_cad6_training_to_toe_button_profile_and_infers_evaluation_profile(self):
+    def test_runner_defaults_cad6_training_to_distal_support_and_infers_evaluation_profile(self):
         train = self.runner_arguments(["--mode=train"])
-        self.assertEqual(train["args"].behavior_profile, "revised_v6")
+        self.assertEqual(train["args"].behavior_profile, "revised_v7")
         self.assertEqual(train["checkpoint_compatibility"]["expected_reward_contract"],
-                         "signed_progress_huber_speed_knee_clearance_full_foot_slip_v1")
-        self.assertEqual(train["checkpoint_compatibility"]["expected_contact_contract"], "cad6_toe_button_hysteresis_v1")
+                         "signed_progress_huber_speed_distal_support_v1")
+        self.assertEqual(train["checkpoint_compatibility"]["expected_contact_contract"], "cad6_distal_support_toe_button_v1")
         evaluation = self.runner_arguments(["--mode=evaluate"])
         self.assertIsNone(evaluation["args"].behavior_profile)
         self.assertEqual(evaluation["checkpoint_compatibility"], {})
@@ -104,6 +104,12 @@ class JointAngleEntrypointTests(unittest.TestCase):
                 self.assertEqual(train["args"].behavior_profile, profile)
                 self.assertEqual(train["checkpoint_compatibility"]["expected_contact_contract"],
                                  "cad6_toe_button_hysteresis_v1")
+
+    def test_distal_support_rejects_tasks_without_onshape_cad6_geometry_before_simulator(self):
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as result:
+            self.runner_arguments(["--mode=train", "--task=Isaac-DKSH-Spider-CAD6-JointAngles-v2",
+                                   "--behavior_profile=revised_v7"])
+        self.assertEqual(result.exception.code, 2)
 
     def test_runner_rejects_nontraining_noise_options_and_invalid_bounds_before_simulator(self):
         for arguments in (["--mode=evaluate", "--initial_noise_std=.08"], ["--mode=play", "--reset_exploration_std"],

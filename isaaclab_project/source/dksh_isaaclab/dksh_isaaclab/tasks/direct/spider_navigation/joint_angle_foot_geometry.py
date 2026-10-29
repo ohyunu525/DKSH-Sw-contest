@@ -11,8 +11,11 @@ The constant transforms map mesh coordinates into each simulated tibia LINK
 frame (not its COM), preserving the distinct frames of legs 4 and 5.
 
 Runtime requires only Python: no USD, SciPy, NumPy, asset loading or hull build.
-Witnesses represent only the fixed FOOT. They do not authorize tibia/shaft
-contact, and vertex sampling remains a terrain-support estimate near edges.
+The full hull includes the long fixed-foot part near the knee as well as its
+toe. It is retained for historical contact contracts and slip diagnostics.
+The distal and non-distal subsets below distinguish toe support from knee or
+middle-shaft grounding. Vertex sampling remains a terrain-support estimate
+near edges.
 """
 
 from __future__ import annotations
@@ -204,16 +207,42 @@ _MESH_TO_TIBIA = (
 )
 
 
-def _support_offsets(matrix):
+def _support_offsets(matrix, points=_FOOT_HULL_POINTS_M):
     return tuple(
         tuple(sum(point[axis] * matrix[axis][coordinate] for axis in range(3))
               + matrix[3][coordinate] for coordinate in range(3))
-        for point in _FOOT_HULL_POINTS_M
+        for point in points
     )
 
 
 # Public leg-major (6, 137, 3) immutable tuple, in each tibia link frame.
 ONSHAPE_FOOT_SUPPORT_OFFSETS = tuple(_support_offsets(matrix) for matrix in _MESH_TO_TIBIA)
+
+# Select patches in the SHARED MESH frame before transforming into each link.
+# In this frame +Y runs from the femur-tibia joint towards the distal tip;
+# link-frame X/Y differ on legs 4 and 5. These are existing collision witnesses,
+# not new contact shapes. Keep the full physical collider and historical hull.
+ONSHAPE_DISTAL_FOOT_LENGTH_M = 0.020
+_DISTAL_FOOT_START_Y_M = max(point[1] for point in _FOOT_HULL_POINTS_M) - ONSHAPE_DISTAL_FOOT_LENGTH_M
+_DISTAL_FOOT_HULL_POINTS_M = tuple(
+    point for point in _FOOT_HULL_POINTS_M
+    if point[1] >= _DISTAL_FOOT_START_Y_M
+)
+_PROXIMAL_FOOT_HULL_POINTS_M = tuple(
+    point for point in _FOOT_HULL_POINTS_M
+    if point[1] < _DISTAL_FOOT_START_Y_M
+)
+ONSHAPE_DISTAL_FOOT_SUPPORT_VERTEX_COUNT = len(_DISTAL_FOOT_HULL_POINTS_M)
+ONSHAPE_PROXIMAL_FOOT_VERTEX_COUNT = len(_PROXIMAL_FOOT_HULL_POINTS_M)
+ONSHAPE_DISTAL_FOOT_SUPPORT_OFFSETS = tuple(
+    _support_offsets(matrix, _DISTAL_FOOT_HULL_POINTS_M) for matrix in _MESH_TO_TIBIA
+)
+# The established "proximal" API name now denotes the entire complementary
+# non-distal patch, including the middle shaft. Checking the knee alone misses
+# shaft support on a stair edge while the tip rests on a lower tread.
+ONSHAPE_PROXIMAL_FOOT_OFFSETS = tuple(
+    _support_offsets(matrix, _PROXIMAL_FOOT_HULL_POINTS_M) for matrix in _MESH_TO_TIBIA
+)
 
 # Distal-most lower collision-hull witness for each fixed foot, in tibia-link
 # coordinates. These are virtual switch locations on the current CAD geometry;

@@ -111,7 +111,10 @@ class EvaluationAccumulator:
         "torque_saturation", "tracking_error_rad", "feet_contact", "goal", "fallen", "out_of_bounds",
     )
     OPTIONAL_METRICS = ("step_progress_speed_mps", "target_excursion_rad", "joint_excursion_rad",
-                        "joint_velocity_rms_rad_s", "mean_foot_clearance_m")
+                        "joint_velocity_rms_rad_s", "mean_foot_clearance_m",
+                        "distal_support_fraction", "non_distal_support_fraction",
+                        "mean_knee_ground_clearance_m", "knee_ground_clearance_violation_fraction",
+                        "knees_below_body_fraction", "approach_low_knee_time_fraction")
 
     def __init__(self, num_envs):
         if num_envs < 1:

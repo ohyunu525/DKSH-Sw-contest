@@ -94,6 +94,8 @@ def load_cfg():
             mixed_servo_actuators=servo_factories()["mixed_servo_actuators"],
             ONSHAPE_FOOT_SUPPORT_OFFSETS=GEOMETRY.ONSHAPE_FOOT_SUPPORT_OFFSETS,
             ONSHAPE_TOE_BUTTON_OFFSETS=GEOMETRY.ONSHAPE_TOE_BUTTON_OFFSETS,
+            ONSHAPE_DISTAL_FOOT_SUPPORT_OFFSETS=GEOMETRY.ONSHAPE_DISTAL_FOOT_SUPPORT_OFFSETS,
+            ONSHAPE_PROXIMAL_FOOT_OFFSETS=GEOMETRY.ONSHAPE_PROXIMAL_FOOT_OFFSETS,
         )
         module.__dict__.update({name: getattr(SERVO, name) for name in vars(SERVO) if name.isupper()})
         exec(compile(tree, str(path), "exec"), module.__dict__)
@@ -114,12 +116,12 @@ class JointAngleConfigurationTests(unittest.TestCase):
                 self.assertEqual(cfg.joint_reset_noise, 0)
                 self.assertGreaterEqual(cfg.goal_min_distance, 0.5)
                 self.assertLess(cfg.speed_cost_scale, 0)
-                expected_profile = "revised_v6" if name == "MG996RHipCad6JointAngleEnvCfg" else "revised_v3"
+                expected_profile = "revised_v7" if name == "MG996RHipCad6JointAngleEnvCfg" else "revised_v3"
                 self.assertEqual(cfg.behavior_profile, expected_profile)
-                expected_reward = ("signed_progress_huber_speed_knee_clearance_full_foot_slip_v1" if expected_profile == "revised_v6"
+                expected_reward = ("signed_progress_huber_speed_distal_support_v1" if expected_profile == "revised_v7"
                                    else "signed_progress_huber_speed_v3")
                 self.assertEqual(cfg.reward_contract, expected_reward)
-                expected_contact = ("cad6_toe_button_hysteresis_v1" if expected_profile in ("revised_v4", "revised_v5", "revised_v6")
+                expected_contact = ("cad6_distal_support_toe_button_v1" if expected_profile == "revised_v7"
                                     else "support_surface_foot_geometry_v3")
                 self.assertEqual(cfg.contact_contract, expected_contact)
                 self.assertEqual((cfg.exploration_initial_std, cfg.exploration_min_std, cfg.exploration_max_std), (0.08, 0.03, 0.30))
@@ -180,6 +182,11 @@ class JointAngleConfigurationTests(unittest.TestCase):
         self.assertEqual((cfg.robot_width, cfg.robot_height), (0.56, 0.24))
         self.assertEqual(cfg.actuator_contract, "mg996r_4v8_rc920dmg_5v_v1")
         self.assertEqual(cfg.foot_support_offsets, GEOMETRY.ONSHAPE_FOOT_SUPPORT_OFFSETS)
+        self.assertEqual(cfg.distal_foot_support_offsets, GEOMETRY.ONSHAPE_DISTAL_FOOT_SUPPORT_OFFSETS)
+        self.assertEqual(cfg.proximal_foot_offsets, GEOMETRY.ONSHAPE_PROXIMAL_FOOT_OFFSETS)
+        self.assertEqual((cfg.knee_ground_clearance_m, cfg.knee_ground_clearance_cost_scale,
+                          cfg.non_distal_support_cost_scale), (0.03, -5.0, -15.0))
+        self.assertEqual((cfg.distal_contact_height_tolerance, cfg.proximal_contact_height_tolerance), (0.004, 0.008))
         self.assertEqual((cfg.sole_contact_height_tolerance, cfg.foot_contact_height_tolerance), (0.012, 0.004))
         self.assertEqual(cfg.servo_velocity_limit,
                          (SERVO.MG996R_NO_LOAD_SPEED_RAD_S, SERVO.RC920DMG_NO_LOAD_SPEED_RAD_S_5V,

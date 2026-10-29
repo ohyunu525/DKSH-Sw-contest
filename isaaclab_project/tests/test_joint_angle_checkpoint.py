@@ -254,6 +254,32 @@ class CheckpointTests(unittest.TestCase):
                     CHECKPOINT.validate_checkpoint(path, TASK, "flat", allow_behavior_transfer=True,
                                                    **compatibility)
 
+    def test_distal_support_preserves_all_saved_profiles_and_requires_explicit_training_transfer(self):
+        current = CHECKPOINT.BEHAVIOR_PROFILES["revised_v7"]
+        self.assertEqual(current, {
+            "reward_contract": "signed_progress_huber_speed_distal_support_v1",
+            "contact_contract": "cad6_distal_support_toe_button_v1",
+        })
+        compatibility = {"expected_reward_contract": current["reward_contract"],
+                         "expected_contact_contract": current["contact_contract"]}
+        with TemporaryDirectory() as root:
+            path = self.create_checkpoint(root, "flat")
+            metadata_path = path.parent / "run_metadata.json"
+            original = json.loads(metadata_path.read_text(encoding="utf-8"))
+            for profile, contracts in CHECKPOINT.BEHAVIOR_PROFILES.items():
+                with self.subTest(profile=profile):
+                    metadata = original | contracts | {"behavior_profile": profile}
+                    metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+                    saved = CHECKPOINT.validate_checkpoint(path, TASK, "flat")
+                    self.assertEqual(CHECKPOINT.behavior_profile_from_metadata(saved), profile)
+                    if profile != "revised_v7":
+                        with self.assertRaisesRegex(ValueError, f"--behavior_profile={profile}.*--allow_behavior_transfer"):
+                            CHECKPOINT.validate_checkpoint(path, TASK, "flat", **compatibility)
+                    else:
+                        CHECKPOINT.validate_checkpoint(path, TASK, "flat", **compatibility)
+                    CHECKPOINT.validate_checkpoint(path, TASK, "flat", allow_behavior_transfer=True,
+                                                   **compatibility)
+
 
 if __name__ == "__main__":
     unittest.main()

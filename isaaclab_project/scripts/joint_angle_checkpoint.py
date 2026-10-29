@@ -13,8 +13,10 @@ OBSERVATION_CONTRACT = "joint_angles_targets_target_velocity_terrain48_v2"
 REWARD_CONTRACT = "signed_progress_huber_speed_v3"
 KNEE_CLEARANCE_REWARD_CONTRACT = "signed_progress_huber_speed_knee_clearance_v1"
 FULL_FOOT_SLIP_REWARD_CONTRACT = "signed_progress_huber_speed_knee_clearance_full_foot_slip_v1"
+DISTAL_SUPPORT_REWARD_CONTRACT = "signed_progress_huber_speed_distal_support_v1"
 CONTACT_CONTRACT = "support_surface_foot_geometry_v3"
 TOE_BUTTON_CONTACT_CONTRACT = "cad6_toe_button_hysteresis_v1"
+DISTAL_SUPPORT_CONTACT_CONTRACT = "cad6_distal_support_toe_button_v1"
 EXPLORATION_PROFILE = "independent_std_bounds_v1"
 BEHAVIOR_PROFILES = {
     "legacy_v2": {"reward_contract": "signed_progress_sustained_speed_v2",
@@ -26,6 +28,8 @@ BEHAVIOR_PROFILES = {
                    "contact_contract": TOE_BUTTON_CONTACT_CONTRACT},
     "revised_v6": {"reward_contract": FULL_FOOT_SLIP_REWARD_CONTRACT,
                    "contact_contract": TOE_BUTTON_CONTACT_CONTRACT},
+    "revised_v7": {"reward_contract": DISTAL_SUPPORT_REWARD_CONTRACT,
+                   "contact_contract": DISTAL_SUPPORT_CONTACT_CONTRACT},
 }
 CONTROL_CONTRACT = "absolute_targets_rate_limited_observed_velocity_v2"
 SCHEMA_CONTRACTS = {

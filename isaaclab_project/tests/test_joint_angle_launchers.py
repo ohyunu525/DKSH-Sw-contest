@@ -93,9 +93,9 @@ class JointAngleLauncherTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--behavior_profile=revised_v3", result.stdout)
 
-    def test_full_foot_slip_and_previous_toe_profiles_are_forwarded(self):
+    def test_distal_support_and_previous_toe_profiles_are_forwarded(self):
         for script in ("run_cad6.ps1", "run_isaaclab.ps1"):
-            for profile in ("revised_v4", "revised_v5", "revised_v6"):
+            for profile in ("revised_v4", "revised_v5", "revised_v6", "revised_v7"):
                 with self.subTest(script=script, profile=profile):
                     result = self.launch(script, "-Mode", "evaluate", "-BehaviorProfile", profile)
                     self.assertEqual(result.returncode, 0, result.stderr)
