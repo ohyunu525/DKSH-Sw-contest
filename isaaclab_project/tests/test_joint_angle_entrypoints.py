@@ -119,6 +119,25 @@ class JointAngleEntrypointTests(unittest.TestCase):
                 self.runner_arguments(arguments)
             self.assertEqual(result.exception.code, 2)
 
+    def test_curriculum_defaults_distal_support_and_disjoint_frozen_evaluation(self):
+        train = self.runner_arguments(["--mode=train", "--environment=curriculum", "--difficulty=0"])["args"]
+        self.assertEqual((train.behavior_profile, train.course_seed, train.course_split, train.flat_fraction),
+                         ("revised_v7", 42, "train", 0.25))
+        evaluation = self.runner_arguments(["--mode=evaluate", "--environment=curriculum"])["args"]
+        self.assertEqual((evaluation.course_seed, evaluation.course_split), (73, "holdout"))
+
+    def test_curriculum_invalid_profiles_splits_and_settings_fail_before_simulator(self):
+        for arguments in (["--mode=train", "--environment=curriculum", "--behavior_profile=revised_v6"],
+                          ["--mode=train", "--environment=curriculum", "--course_split=holdout"],
+                          ["--mode=evaluate", "--environment=curriculum", "--course_split=train"],
+                          ["--mode=train", "--environment=curriculum", "--flat_fraction=0"],
+                          ["--mode=train", "--environment=curriculum", "--curriculum_window=5"],
+                          ["--mode=train", "--environment=curriculum", "--curriculum_promote_threshold=nan"],
+                          ["--mode=train", "--course_seed=7"]):
+            with self.subTest(arguments=arguments), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as result:
+                self.runner_arguments(arguments)
+            self.assertEqual(result.exception.code, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

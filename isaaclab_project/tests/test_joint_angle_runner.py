@@ -293,7 +293,9 @@ class ResumeIntegrationTests(unittest.TestCase):
                              "behavior_profile_from_metadata": CHECKPOINT.behavior_profile_from_metadata,
                              "expected_cad_asset_sha256": CHECKPOINT.expected_cad_asset_sha256,
                              "cad_report": None, "dump_yaml": Mock(),
-                             "PolicyStdConstraint": UTILS.PolicyStdConstraint}
+                             "PolicyStdConstraint": UTILS.PolicyStdConstraint,
+                             "course_configuration": UTILS.course_configuration,
+                             "CurriculumCheckpointState": UTILS.CurriculumCheckpointState}
                 exec(compile(functions, str(source), "exec"), namespace)
                 control = types.ModuleType("dksh_isaaclab.tasks.direct.spider_navigation.joint_angle_control")
                 control.exploration_std = Mock(return_value=0.0211844)

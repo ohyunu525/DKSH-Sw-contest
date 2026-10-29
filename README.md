@@ -100,6 +100,10 @@ git submodule update --init --recursive
 
 ## 학습 환경 선택
 
+평지 보행을 유지하며 무작위 장애물로 전이하려면 `-Environment curriculum -Difficulty 0`을
+사용합니다. 평지 복습과 요철·계단·통로를 섞고 종류별 성공률로 난이도를 조절하며, 학습과
+분리한 새 코스로 평가합니다. [커리큘럼 실행 및 검증 안내](isaaclab_project/docs/terrain_curriculum.md)를 참고하세요.
+
 `-Environment`로 평지(`flat`), 좁은 틈(`narrow`), 진동 바닥(`vibrating`),
 낙하물 위험구역(`falling_debris`), 요철·단차(`rough`), 복합 환경(`mixed`), 연속 계단(`stairs`)을 선택합니다.
 `-Difficulty`는 0~1이며 기본값은 0.5입니다. `-Seed`로 무작위 시드를 지정할 수 있습니다.

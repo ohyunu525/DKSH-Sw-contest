@@ -12,7 +12,7 @@ import importlib
 import math
 
 
-ENVIRONMENTS = ("flat", "narrow", "vibrating", "falling_debris", "rough", "mixed", "stairs")
+ENVIRONMENTS = ("flat", "narrow", "vibrating", "falling_debris", "rough", "mixed", "stairs", "curriculum")
 
 
 def difficulty_value(value: str) -> float:
@@ -36,6 +36,8 @@ def add_environment_args(parser: argparse.ArgumentParser) -> None:
 
 
 def experiment_for_environment(experiment_name: str, environment: str) -> str:
+    if environment == "curriculum":
+        return experiment_name if experiment_name.endswith("_curriculum") else f"{experiment_name}_curriculum"
     if environment != "flat" and not experiment_name.endswith("_obstacles"):
         return f"{experiment_name}_obstacles"
     return experiment_name
@@ -82,6 +84,8 @@ def configure_runner(argv: list[str], *, training: bool) -> list[str]:
         name, separator, value = arg.partition("=")
         normalized.append(f"{aliases[name]}={value}" if separator and name in aliases else arg)
     options, remaining = parser.parse_known_args(normalized)
+    if options.environment == "curriculum":
+        parser.error("curriculum requires the CAD6 direct joint-angle runner")
     if "--use_pretrained_checkpoint" in remaining:
         parser.error("the published checkpoint uses the old observation contract; train an L2 v1 policy")
 

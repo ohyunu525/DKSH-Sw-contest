@@ -141,6 +141,31 @@ class JointAngleLauncherTests(unittest.TestCase):
                 result = self.launch("run_isaaclab.ps1", "-Mode", "train", extra_env=environment)
                 self.assertNotEqual(result.returncode, 0)
 
+    def test_curriculum_course_options_are_forwarded_through_cad6_wrapper(self):
+        result = self.launch("run_cad6.ps1", "-Mode", "train", "-Environment", "curriculum", "-Difficulty", "0",
+                             "-CourseSeed", "123", "-CourseSplit", "train", "-FlatFraction", "0.3",
+                             "-CurriculumWindow", "12", "-CurriculumMinEpisodes", "10",
+                             "-CurriculumPromoteThreshold", "0.9", "-CurriculumDemoteThreshold", "0.2",
+                             "-CurriculumStep", "0.05", "-FreezeCurriculum")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for argument in ("--environment=curriculum", "--difficulty=0", "--course_seed=123", "--course_split=train",
+                         "--flat_fraction=0.3", "--curriculum_window=12", "--curriculum_min_episodes=10",
+                         "--curriculum_promote_threshold=0.9", "--curriculum_demote_threshold=0.2",
+                         "--curriculum_step=0.05", "--freeze_curriculum"):
+            self.assertIn(argument, result.stdout)
+
+    def test_curriculum_flags_cannot_leak_into_fixed_legacy_or_holdout_training(self):
+        for arguments in (("-Mode", "train", "-CourseSeed", "123"),
+                          ("-Mode", "train", "-Environment", "curriculum", "-CourseSplit", "holdout"),
+                          ("-Mode", "evaluate", "-Environment", "curriculum", "-CourseSplit", "train"),
+                          ("-Mode", "train", "-Environment", "curriculum", "-FlatFraction", "1"),
+                          ("-Mode", "train", "-Environment", "curriculum", "-BehaviorProfile", "revised_v6"),
+                          ("-Mode", "check", "-Environment", "curriculum", "-CourseSeed", "123")):
+            with self.subTest(arguments=arguments):
+                result = self.launch("run_cad6.ps1", *arguments)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn("STUB_ARGS", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

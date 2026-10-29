@@ -137,7 +137,7 @@ Environment = namespace["JointAngleNavigationEnv"]
 
 
 def make_env(actions=18, support_offsets=None, *, behavior_profile="revised_v3", toe_button_offsets=None,
-             distal_offsets=None, proximal_offsets=None):
+             distal_offsets=None, proximal_offsets=None, environment_preset="flat"):
     # Read numeric tuning values from the real cfg, keeping external asset setup
     # out of these tensor tests; no duplicate copy of the reward implementation.
     cfg_tree = ast.parse((FOLDER / "joint_angle_env_cfg.py").read_text(encoding="utf-8"))
@@ -154,7 +154,7 @@ def make_env(actions=18, support_offsets=None, *, behavior_profile="revised_v3",
                 except (ValueError, TypeError, AttributeError):
                     pass
     settings.update(
-        action_space=actions, environment_preset="flat", robot=NS(copy=lambda: NS(spawn=NS(usd_path="test", articulation_props=NS(enabled_self_collisions=False)))),
+        action_space=actions, environment_preset=environment_preset, robot=NS(copy=lambda: NS(spawn=NS(usd_path="test", articulation_props=NS(enabled_self_collisions=False)))),
         minimum_base_height=0.06, robot_height=0.24, max_distance_from_origin=5.5,
         joint_angle_ranges={"hip": (-1.4, 1.4), "femur": (-1.1, 1.4), "tibia": (-0.4, 1.4)},
         servo_velocity_limit=10.0, goal_reward=30, failure_penalty=-10, debris_impact_penalty=-2,
@@ -494,6 +494,51 @@ class JointAngleEnvironmentTests(unittest.TestCase):
     def test_distal_profile_rejects_missing_geometry(self):
         with self.assertRaisesRegex(ValueError, "requires distal_foot_support_offsets"):
             make_env(behavior_profile="revised_v7")
+
+    def test_curriculum_requires_existing_distal_support_behavior(self):
+        with self.assertRaisesRegex(ValueError, "requires revised_v7"):
+            make_env(environment_preset="curriculum")
+
+    def test_curriculum_bounds_use_each_environments_actual_corridor(self):
+        env = self.distal_env()
+        env._robot.data.root_pos_w[:, 1] = 0.4
+        env._scenario = NS(collect_impacts=lambda: None, layout=NS(corridor_width=1.6),
+                           corridor_widths=torch.tensor([0.6, 1.6]),
+                           surface_heights=lambda p: torch.zeros(p.shape[:2]))
+        env._get_dones()
+        torch.testing.assert_close(env._out_of_bounds, torch.tensor([True, False]))
+
+    def test_completed_courses_are_snapshotted_before_reset_with_failure_precedence(self):
+        env = self.distal_env()
+        env.cfg.environment_preset = "curriculum"
+        env.cfg.evaluation_mode = True
+        env.episode_length_buf[:] = 10
+        env.reset_terminated[:] = True
+        env._reached_goal[:] = True
+        env._robot.data.projected_gravity_b[1, 2] = 0.0
+        outcomes = []
+        env._scenario = NS(
+            episode_metadata=lambda ids: [{"environment_index": int(i), "course_id": f"old_{i}"}
+                                          for i in ids],
+            record_outcomes=lambda ids, success: outcomes.append((ids.clone(), success.clone())),
+            statistics=lambda: {"difficulty/stairs": 0.2},
+        )
+        env._reset_idx(torch.tensor([1, 0]))
+        self.assertEqual([item["course_id"] for item in env.completed_course_records], ["old_0", "old_1"])
+        self.assertEqual([item["outcome"] for item in env.completed_course_records], ["goal", "fallen"])
+        torch.testing.assert_close(outcomes[0][1], torch.tensor([True, False]))
+        self.assertEqual(env.extras["log"]["Curriculum/difficulty/stairs"], 0.2)
+        self.assertFalse(env._reached_goal.any())
+
+    def test_manual_or_initial_course_reset_does_not_update_success_rate(self):
+        env = self.distal_env()
+        env.cfg.environment_preset = "curriculum"
+        env.cfg.evaluation_mode = True
+        env.episode_length_buf[:] = 10
+        env._scenario = NS(statistics=lambda: {},
+                           record_outcomes=lambda *args: self.fail("An unfinished episode changed the curriculum"))
+        env._reset_idx(torch.tensor([0, 1]))
+        self.assertEqual(env.completed_course_records, [])
 
 
 if __name__ == "__main__":

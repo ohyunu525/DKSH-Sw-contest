@@ -3,8 +3,139 @@
 from __future__ import annotations
 
 import math
+import hashlib
+import json
+import os
+from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 import torch
+
+
+COURSE_CONTRACT = "mixed_randomized_courses_v1"
+COURSE_FAMILIES = ("flat", "rough", "stairs", "narrow")
+
+
+def add_course_args(parser):
+    """Direct-runner options; None defaults distinguish explicit fixed-course overrides."""
+    parser.add_argument("--course_seed", type=int, default=None)
+    parser.add_argument("--course_split", choices=("train", "holdout"), default=None)
+    parser.add_argument("--flat_fraction", type=float, default=None)
+    parser.add_argument("--curriculum_window", type=int, default=None)
+    parser.add_argument("--curriculum_min_episodes", type=int, default=None)
+    parser.add_argument("--curriculum_promote_threshold", type=float, default=None)
+    parser.add_argument("--curriculum_demote_threshold", type=float, default=None)
+    parser.add_argument("--curriculum_step", type=float, default=None)
+    parser.add_argument("--freeze_curriculum", action="store_true")
+
+
+def resolve_course_args(args):
+    """Reject invalid or leaking course settings before launching the simulator."""
+    names = ("course_seed", "course_split", "flat_fraction", "curriculum_window", "curriculum_min_episodes",
+             "curriculum_promote_threshold", "curriculum_demote_threshold", "curriculum_step")
+    specified = any(getattr(args, name) is not None for name in names) or args.freeze_curriculum
+    if args.environment != "curriculum":
+        if specified:
+            raise ValueError("Course randomization and curriculum options require --environment=curriculum")
+        return args
+    if "MG996R-Hip-CAD6" not in args.task:
+        raise ValueError("curriculum requires the MG996R-Hip-CAD6 direct-angle task and revised_v7")
+    if args.behavior_profile not in (None, "revised_v7"):
+        raise ValueError("curriculum requires revised_v7 distal-support behavior")
+    if args.freeze_curriculum and args.mode != "train":
+        raise ValueError("freeze_curriculum is training-only; evaluation is always frozen")
+    split = "train" if args.mode == "train" else "holdout"
+    if args.course_split is not None and args.course_split != split:
+        raise ValueError(f"{args.mode} curriculum requires --course_split={split}")
+    args.course_split = split
+    args.course_seed = args.seed if args.course_seed is None else args.course_seed
+    if not 0 <= args.course_seed <= 2**31 - 1:
+        raise ValueError("course_seed must be between 0 and 2147483647")
+    defaults = {"flat_fraction": 0.25, "curriculum_window": 20, "curriculum_min_episodes": 20,
+                "curriculum_promote_threshold": 0.8, "curriculum_demote_threshold": 0.3, "curriculum_step": 0.1}
+    for name, default in defaults.items():
+        if getattr(args, name) is None:
+            setattr(args, name, default)
+    if not math.isfinite(args.flat_fraction) or not 0 < args.flat_fraction < 1:
+        raise ValueError("flat_fraction must be finite and strictly between 0 and 1")
+    if args.curriculum_window < 1 or not 1 <= args.curriculum_min_episodes <= args.curriculum_window:
+        raise ValueError("curriculum_min_episodes must be between 1 and curriculum_window")
+    low, high = args.curriculum_demote_threshold, args.curriculum_promote_threshold
+    if not all(math.isfinite(value) for value in (low, high)) or not 0 <= low < high <= 1:
+        raise ValueError("curriculum thresholds must satisfy 0 <= demote < promote <= 1")
+    if not math.isfinite(args.curriculum_step) or not 0 < args.curriculum_step <= 1:
+        raise ValueError("curriculum_step must be finite and in (0, 1]")
+    return args
+
+
+def apply_course_cfg(cfg, args):
+    if args.environment != "curriculum":
+        return cfg
+    for name in ("course_seed", "course_split", "curriculum_window", "curriculum_min_episodes",
+                 "curriculum_promote_threshold", "curriculum_demote_threshold", "curriculum_step"):
+        setattr(cfg, name, getattr(args, name))
+    cfg.curriculum_flat_fraction = args.flat_fraction
+    cfg.curriculum_enabled = args.mode == "train" and not args.freeze_curriculum
+    return cfg
+
+
+def course_configuration(cfg, environment):
+    if environment != "curriculum":
+        return None
+    names = ("course_seed", "course_split", "curriculum_enabled", "curriculum_flat_fraction", "curriculum_window",
+             "curriculum_min_episodes", "curriculum_promote_threshold", "curriculum_demote_threshold", "curriculum_step")
+    return {"contract": COURSE_CONTRACT, "initial_difficulty": cfg.environment_difficulty,
+            "num_envs": getattr(getattr(cfg, "scene", None), "num_envs", None),
+            "robot_width": getattr(cfg, "robot_width", None), "robot_height": getattr(cfg, "robot_height", None),
+            **{name: getattr(cfg, name) for name in names}}
+
+
+class CurriculumCheckpointState:
+    """Save course state beside the exact model checkpoint, never beside a different iteration."""
+
+    def __init__(self, runner, runtime, configuration):
+        self.runner, self.runtime, self.configuration = runner, runtime, configuration
+        self.original_save = runner.save
+        runner.save = self.save
+
+    @staticmethod
+    def sidecar(path):
+        return Path(str(path) + ".courses.json")
+
+    def save(self, path, *args, **kwargs):
+        result = self.original_save(path, *args, **kwargs)
+        model = Path(path)
+        payload = {"configuration": self.configuration, "model_sha256": hashlib.sha256(model.read_bytes()).hexdigest(),
+                   "state": self.runtime.state_dict(), "resume_scope": "course_sequence_and_curriculum_not_physics_state"}
+        sidecar = self.sidecar(model)
+        temporary = None
+        try:
+            with NamedTemporaryFile("w", encoding="utf-8", dir=sidecar.parent, prefix=sidecar.name + ".",
+                                    suffix=".tmp", delete=False) as handle:
+                temporary = Path(handle.name)
+                json.dump(payload, handle, indent=2, allow_nan=False)
+                handle.flush()
+                os.fsync(handle.fileno())
+            temporary.replace(sidecar)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+        return result
+
+    def restore(self, path):
+        sidecar = self.sidecar(path)
+        if not sidecar.is_file():
+            return "fresh_curriculum_no_checkpoint_sidecar"
+        payload = json.loads(sidecar.read_text(encoding="utf-8"))
+        if payload.get("configuration") != self.configuration:
+            return "fresh_curriculum_configuration_changed"
+        if payload.get("model_sha256") != hashlib.sha256(Path(path).read_bytes()).hexdigest():
+            raise ValueError("Curriculum state sidecar does not match its model checkpoint")
+        self.runtime.load_state_dict(payload["state"])
+        return "restored_course_sequence_and_curriculum"
+
+    def close(self):
+        self.runner.save = self.original_save
 
 
 def effective_seed(mode, seed):
@@ -112,6 +243,7 @@ class EvaluationAccumulator:
     )
     OPTIONAL_METRICS = ("step_progress_speed_mps", "target_excursion_rad", "joint_excursion_rad",
                         "joint_velocity_rms_rad_s", "mean_foot_clearance_m",
+                        "foot_slip_m2_s2",
                         "distal_support_fraction", "non_distal_support_fraction",
                         "mean_knee_ground_clearance_m", "knee_ground_clearance_violation_fraction",
                         "knees_below_body_fraction", "approach_low_knee_time_fraction")
@@ -130,8 +262,10 @@ class EvaluationAccumulator:
         self.max_target_rate = 0.0
         self.optional_totals = {}
         self.optional_samples = {}
+        self.episode_diagnostics = {name: torch.zeros_like(self.duration) for name in
+                                    ("body_contact_fraction", "non_distal_support_fraction", "foot_slip_m2_s2")}
 
-    def update(self, metrics, dones, dt):
+    def update(self, metrics, dones, dt, *, course_records=None):
         if not math.isfinite(dt) or dt <= 0:
             raise ValueError("Evaluation dt must be finite and positive")
         values = {}
@@ -152,6 +286,16 @@ class EvaluationAccumulator:
         done = torch.as_tensor(dones, dtype=torch.bool).reshape(-1).cpu()
         if done.shape != (self.num_envs,):
             raise ValueError("Episode done flags must contain one value per environment")
+        course_by_env = None
+        if course_records is not None:
+            records = list(course_records)
+            course_by_env = {record["environment_index"]: record for record in records}
+            if len(course_by_env) != len(records) or set(course_by_env) != set(done.nonzero(as_tuple=False).flatten().tolist()):
+                raise ValueError("Completed course metadata must match each terminal environment exactly once")
+        self.episode_diagnostics["body_contact_fraction"] += values["body_contact"] * dt
+        for name in ("non_distal_support_fraction", "foot_slip_m2_s2"):
+            if name in metrics:
+                self.episode_diagnostics[name] += torch.as_tensor(metrics[name]).detach().to(device="cpu", dtype=torch.float64).reshape(-1) * dt
         self.duration += dt
         self.progress += values["progress_m"]
         self.travel += values["travel_distance_m"]
@@ -165,12 +309,22 @@ class EvaluationAccumulator:
                        "goal" if values["goal"][index] > 0 else "time_out")
             duration = float(self.duration[index])
             progress = float(self.progress[index])
-            self.completed.append({
+            record = {
                 "environment_index": index, "outcome": outcome, "duration_s": duration,
                 "signed_progress_m": progress, "travel_distance_m": float(self.travel[index]),
                 "mechanical_energy_j": float(self.energy[index]),
                 "sustained_progress_speed_mps": progress / duration,
-            })
+                **{name: float(value[index]) / duration for name, value in self.episode_diagnostics.items()},
+            }
+            if course_by_env is not None:
+                course = course_by_env[index]
+                if course.get("outcome", outcome) != outcome:
+                    raise ValueError("Course snapshot and evaluation outcome disagree")
+                record.update({name: course[name] for name in
+                               ("family", "difficulty", "course_id", "course_seed", "split")})
+            self.completed.append(record)
+            for value in self.episode_diagnostics.values():
+                value[index] = 0
             self.duration[index] = self.progress[index] = self.travel[index] = self.energy[index] = 0
 
     def report(self, *, target_speed, minimum_speed_fraction, dt):
@@ -226,3 +380,47 @@ class EvaluationAccumulator:
             **{name: total / self.optional_samples[name] for name, total in self.optional_totals.items()},
             "locomotion_pass": passed, "failure_reasons": reasons,
         }
+
+
+def heldout_course_report(completed, *, target_speed, minimum_speed_fraction, minimum_unique_courses=2,
+                          max_non_distal_support_fraction=0.05):
+    """Require independent held-out evidence for every family, including flat replay."""
+    records = list(completed)
+    expected = set(COURSE_FAMILIES)
+    if any(record.get("family") not in expected or record.get("split") != "holdout" for record in records):
+        raise ValueError("Held-out evaluation requires recognized families from the holdout split")
+    groups = {}
+    by_family = {}
+    reasons = []
+    minimum_speed = target_speed * minimum_speed_fraction
+
+    def summarize(rows):
+        duration = sum(row["duration_s"] for row in rows)
+        progress = sum(row["signed_progress_m"] for row in rows)
+        goals = sum(row["outcome"] == "goal" for row in rows)
+        falls = sum(row["outcome"] == "fallen" for row in rows)
+        out_of_bounds = sum(row["outcome"] == "out_of_bounds" for row in rows)
+        unique = len({row["course_id"] for row in rows})
+        non_distal = (sum(row.get("non_distal_support_fraction", 0) * row["duration_s"] for row in rows)
+                      / duration if duration else 0)
+        success_rate = goals / max(1, len(rows))
+        speed = progress / duration if duration else 0
+        return {"episodes": len(rows), "goal": goals, "fallen": falls, "out_of_bounds": out_of_bounds,
+                "unique_courses": unique, "success_rate": success_rate, "sustained_progress_speed_mps": speed,
+                "non_distal_support_fraction": non_distal,
+                "pass": bool(unique >= minimum_unique_courses and success_rate >= 0.8 and not falls
+                             and not out_of_bounds and speed >= minimum_speed
+                             and non_distal <= max_non_distal_support_fraction)}
+
+    for family in COURSE_FAMILIES:
+        rows = [row for row in records if row["family"] == family]
+        by_family[family] = summarize(rows)
+        if not by_family[family]["pass"]:
+            reasons.append(f"{family}: insufficient course coverage, success, speed or distal support")
+        for difficulty in sorted({row["difficulty"] for row in rows}):
+            key = f"{family}@{float(difficulty):.6g}"
+            groups[key] = summarize([row for row in rows if row["difficulty"] == difficulty])
+    return {"course_contract": COURSE_CONTRACT, "course_split": "holdout", "course_families": by_family,
+            "course_family_difficulty_groups": groups, "minimum_unique_courses_per_family": minimum_unique_courses,
+            "max_non_distal_support_fraction": max_non_distal_support_fraction,
+            "heldout_course_pass": not reasons, "heldout_failure_reasons": reasons}

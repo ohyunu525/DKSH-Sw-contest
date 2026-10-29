@@ -21,6 +21,8 @@ from .joint_angle_contact import (
 
 class JointAngleNavigationEnv(SpiderNavigationEnv):
     def __init__(self, cfg, render_mode=None, **kwargs):
+        if cfg.environment_preset == "curriculum" and cfg.behavior_profile != "revised_v7":
+            raise ValueError("Mixed-course curriculum requires revised_v7 distal-support behavior")
         cfg.robot = cfg.robot.copy()
         cfg.robot.spawn.activate_contact_sensors = True
         cfg.robot.spawn.articulation_props.enabled_self_collisions = cfg.enable_self_collisions
@@ -96,6 +98,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         if self._servo_velocity_limits.shape[-1] not in (1, cfg.action_space):
             raise ValueError("servo_velocity_limit must be scalar or provide one value per action")
         self.completed = {name: 0 for name in ("episodes", "goal", "fallen", "time_out", "out_of_bounds")}
+        self.completed_course_records = []
         self._episode_sums = {name: torch.zeros(self.num_envs, device=self.device) for name in (
             "progress", "speed", "upright", "joint_limit", "joint_velocity", "torque", "power",
             "target_acceleration", "body_contact", "foot_slip", "angular_velocity", "stillness",
@@ -278,7 +281,8 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         if self._scenario is None:
             self._out_of_bounds = torch.linalg.vector_norm(local[:, :2], dim=-1) > self.cfg.max_distance_from_origin
         else:
-            self._out_of_bounds = (local[:, 0].abs() > 2.5) | (local[:, 1].abs() > self._scenario.layout.corridor_width / 2)
+            widths = getattr(self._scenario, "corridor_widths", self._scenario.layout.corridor_width)
+            self._out_of_bounds = (local[:, 0].abs() > 2.5) | (local[:, 1].abs() > widths / 2)
         return self._reached_goal | self._fallen() | self._out_of_bounds, self.episode_length_buf >= self.max_episode_length - 1
 
     def _get_rewards(self):
@@ -429,6 +433,22 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         if env_ids is None:
             env_ids = self._robot._ALL_INDICES
         valid = env_ids[self.episode_length_buf[env_ids] > 0]
+        if self.cfg.environment_preset == "curriculum" and len(valid):
+            # Capture the completed course before the parent's reset samples
+            # its replacement. Initial/manual resets never count as failures.
+            finished = valid[(self.reset_terminated | self.reset_time_outs)[valid]].sort().values
+            if len(finished):
+                fallen = self._fallen()[finished]
+                outside = self._out_of_bounds[finished]
+                successes = self._reached_goal[finished] & ~fallen & ~outside
+                if self.cfg.evaluation_mode:
+                    records = self._scenario.episode_metadata(finished)
+                    for index, record in enumerate(records):
+                        record["outcome"] = ("fallen" if bool(fallen[index]) else
+                                             "out_of_bounds" if bool(outside[index]) else
+                                             "goal" if bool(successes[index]) else "time_out")
+                    self.completed_course_records.extend(records)
+                self._scenario.record_outcomes(finished, successes)
         counts = {name: 0 for name in self.completed}
         counts["episodes"] = len(valid)
         if len(valid):
@@ -439,6 +459,9 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         for name, count in counts.items():
             self.completed[name] += count
         super()._reset_idx(env_ids)
+        if self.cfg.environment_preset == "curriculum":
+            self.extras["log"].update({f"Curriculum/{key}": value
+                                      for key, value in self._scenario.statistics().items()})
         if hasattr(self, "_toe_button_pressed"):
             self._toe_button_pressed[env_ids] = False
         if self.cfg.evaluation_mode and self._scenario is None:

@@ -53,6 +53,9 @@ env.joint_angle_targets_rad는 실제 적용 목표각을 반환한다. 초기 �
 
 ## 새로 학습하고 평가하기
 
+평지 정책을 유지하며 무작위 장애물로 전이하는 `-Environment curriculum` 실행법은
+[혼합 코스 커리큘럼 안내](terrain_curriculum.md)를 참고한다. 기본 v7 접지·보상·관측은 유지한다.
+
 Isaac 실행은 [개발 컴퓨터 기준](../../DEVELOPMENT_REQUIREMENTS.md)의 GPU 장비에서 수행한다.
 잠정 CAD·서보 가정은 [혼합 서보 문서](mg996r_hip_correction.md)를 따른다.
 

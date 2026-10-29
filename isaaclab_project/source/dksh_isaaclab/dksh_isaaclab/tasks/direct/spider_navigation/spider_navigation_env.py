@@ -73,7 +73,11 @@ class SpiderNavigationEnv(DirectRLEnv):
                 physics_material=self.cfg.sim.physics_material,
             ),
         )
-        if self.cfg.environment_preset != "flat":
+        if self.cfg.environment_preset == "curriculum":
+            from .terrain_curriculum_runtime import CurriculumScenarioRuntime
+
+            self._scenario = CurriculumScenarioRuntime(self)
+        elif self.cfg.environment_preset != "flat":
             self._scenario = ScenarioRuntime(self)
         self.scene.clone_environments(copy_from_source=False)
         self.scene.filter_collisions(global_prim_paths=["/World/ground"])
@@ -287,13 +291,16 @@ class SpiderNavigationEnv(DirectRLEnv):
             # through a narrow wall before the policy can take its first action.
             yaw = (torch.rand(count, device=self.device) - 0.5) * 0.10
             root_state[:, 3:7] = quat_from_euler_xyz(zeros, zeros, yaw)
-            root_state[:, 0] += layout.spawn[0]
-            root_state[:, 1] += layout.spawn[1]
+            if hasattr(self._scenario, "spawn_positions"):
+                spawn = self._scenario.spawn_positions[env_ids]
+                goal = self._scenario.goal_positions[env_ids]
+            else:
+                spawn = root_state.new_tensor(layout.spawn).expand(count, -1)
+                goal = root_state.new_tensor(layout.goal).expand(count, -1)
+            root_state[:, :2] += spawn[:, :2]
             root_state[:, 2] += self._scenario.floor_height[env_ids]
             root_state[:, 7:10] = self._scenario.floor_velocity[env_ids]
-            self._target_positions_w[env_ids] = self.scene.env_origins[env_ids] + torch.tensor(
-                layout.goal, device=self.device
-            )
+            self._target_positions_w[env_ids] = self.scene.env_origins[env_ids] + goal
             self._target_positions_w[env_ids, 2] += 0.015
             self._previous_goal_distance[env_ids] = torch.linalg.vector_norm(
                 self._target_positions_w[env_ids, :2] - root_state[:, :2], dim=1

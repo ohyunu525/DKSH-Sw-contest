@@ -48,6 +48,17 @@ def _cad6_joint_angle_robot():
 
 @configclass
 class JointAngleNavigationEnvCfg(SpiderNavigationEnvCfg):
+    # Opt in with --environment=curriculum. Static baseline presets retain
+    # their existing scene and reset behavior.
+    course_seed = None
+    course_split = "train"
+    curriculum_enabled = True
+    curriculum_flat_fraction = 0.25
+    curriculum_window = 20
+    curriculum_min_episodes = 20
+    curriculum_promote_threshold = 0.80
+    curriculum_demote_threshold = 0.30
+    curriculum_step = 0.10
     action_semantics = "absolute_joint_angles_v2"
     terrain_observation_contract = "terrain_full48_all_presets_v2"
     observation_contract = "joint_angles_targets_target_velocity_terrain48_v2"
