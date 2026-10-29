@@ -26,6 +26,8 @@ BEHAVIOR_PROFILES = {
                    "contact_contract": TOE_BUTTON_CONTACT_CONTRACT},
     "revised_v6": {"reward_contract": FULL_FOOT_SLIP_REWARD_CONTRACT,
                    "contact_contract": TOE_BUTTON_CONTACT_CONTRACT},
+    "revised_v7": {"reward_contract": "signed_progress_huber_speed_knee_clearance_com_foot_slip_v2",
+                   "contact_contract": TOE_BUTTON_CONTACT_CONTRACT},
 }
 CONTROL_CONTRACT = "absolute_targets_rate_limited_observed_velocity_v2"
 SCHEMA_CONTRACTS = {

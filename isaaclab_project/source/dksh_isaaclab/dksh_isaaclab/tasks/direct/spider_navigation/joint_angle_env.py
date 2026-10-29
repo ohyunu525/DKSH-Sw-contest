@@ -125,7 +125,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         self._processed_actions[:, self._joint_ids] = targets
 
     def _contact_state(self):
-        if self.cfg.behavior_profile in ("revised_v4", "revised_v5", "revised_v6"):
+        if self.cfg.behavior_profile in ("revised_v4", "revised_v5", "revised_v6", "revised_v7"):
             if self._toe_button_offsets is None or self._foot_support_offsets is None:
                 raise ValueError("Toe-button profiles require CAD toe-button and foot-support geometry")
             points, surfaces = self._foot_support_geometry()
@@ -273,7 +273,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             points, surfaces = self._foot_support_geometry()
             support, support_height, _ = closest_foot_support(points, surfaces)
             offset = support - data.body_link_pos_w[:, self._feet]
-            if self.cfg.behavior_profile == "revised_v6":
+            if self.cfg.behavior_profile in ("revised_v6", "revised_v7"):
                 # A raised toe button does not remove a grounded heel's slip.
                 # Use the closest hull witness already selected for velocity,
                 # while observations and goal gates retain the button bits.
@@ -289,6 +289,8 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             support = data.body_link_pos_w[:, self._feet] + offset
             support_height = (self.scene.env_origins[:, 2:3] if self._scenario is None
                               else self._scenario.surface_heights(support))
+        if self.cfg.behavior_profile == "revised_v7":
+            offset = support - data.body_com_pos_w[:, self._feet]
         velocity = point_velocity(data.body_link_lin_vel_w[:, self._feet], data.body_link_ang_vel_w[:, self._feet], offset)
         if self._scenario is not None:
             velocity = velocity - self._scenario.floor_velocity[:, None, :]
@@ -298,7 +300,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         knee_below_body_fraction = torch.zeros_like(self._goal_hold_time)
         approach_low_knee_fraction = torch.zeros_like(self._goal_hold_time)
         knee_clearance_rate = torch.zeros_like(self._goal_hold_time)
-        if self.cfg.behavior_profile in ("revised_v5", "revised_v6"):
+        if self.cfg.behavior_profile in ("revised_v5", "revised_v6", "revised_v7"):
             knee_z = data.body_link_pos_w[:, self._knees, 2]
             body_bottom_offset = torch.zeros_like(data.root_pos_w)
             body_bottom_offset[:, 2] = self.cfg.body_bottom_offset_z_m

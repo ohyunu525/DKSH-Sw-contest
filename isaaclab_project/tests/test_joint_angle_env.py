@@ -140,7 +140,7 @@ def make_env(actions=18, support_offsets=None, *, behavior_profile="revised_v3",
     # out of these tensor tests; no duplicate copy of the reward implementation.
     cfg_tree = ast.parse((FOLDER / "joint_angle_env_cfg.py").read_text(encoding="utf-8"))
     classes = [next(node for node in cfg_tree.body if isinstance(node, ast.ClassDef))]
-    if behavior_profile in ("revised_v5", "revised_v6"):
+    if behavior_profile in ("revised_v5", "revised_v6", "revised_v7"):
         classes.append(next(node for node in cfg_tree.body
                             if isinstance(node, ast.ClassDef) and node.name == "MG996RHipCad6JointAngleEnvCfg"))
     settings = {}
@@ -380,6 +380,17 @@ class JointAngleEnvironmentTests(unittest.TestCase):
                 for _ in range(12):
                     env._get_dones()
                 self.assertFalse(env._reached_goal.any())  # A heel is not a pressed toe button.
+
+    def test_v7_uses_center_of_mass_for_support_velocity(self):
+        env = self.toe_button_env("revised_v7")
+        data = env._robot.data
+        data.body_com_pos_w = data.body_link_pos_w.clone()
+        data.body_com_pos_w[:, env._feet, 0] += 0.05
+        data.body_link_ang_vel_w[:, env._feet, 2] = 1.0
+        data.body_link_lin_vel_w[:, env._feet, 0] = 0.0
+        data.body_link_lin_vel_w[:, env._feet, 1] = -0.07
+        env._get_rewards()
+        torch.testing.assert_close(env.step_metrics["foot_slip_m2_s2"], torch.zeros(2), atol=1e-7, rtol=0)
 
     def test_full_foot_slip_excludes_airborne_and_unsupported_impacts(self):
         env = self.toe_button_env("revised_v6")
