@@ -93,6 +93,7 @@ def load_cfg():
             SpiderNavigationEnvCfg=Base, SpiderNavigationPPORunnerCfg=Runner,
             mixed_servo_actuators=servo_factories()["mixed_servo_actuators"],
             ONSHAPE_FOOT_SUPPORT_OFFSETS=GEOMETRY.ONSHAPE_FOOT_SUPPORT_OFFSETS,
+            ONSHAPE_TOE_BUTTON_OFFSETS=GEOMETRY.ONSHAPE_TOE_BUTTON_OFFSETS,
         )
         module.__dict__.update({name: getattr(SERVO, name) for name in vars(SERVO) if name.isupper()})
         exec(compile(tree, str(path), "exec"), module.__dict__)
@@ -113,12 +114,12 @@ class JointAngleConfigurationTests(unittest.TestCase):
                 self.assertEqual(cfg.joint_reset_noise, 0)
                 self.assertGreaterEqual(cfg.goal_min_distance, 0.5)
                 self.assertLess(cfg.speed_cost_scale, 0)
-                expected_profile = "revised_v5" if name == "MG996RHipCad6JointAngleEnvCfg" else "revised_v3"
+                expected_profile = "revised_v6" if name == "MG996RHipCad6JointAngleEnvCfg" else "revised_v3"
                 self.assertEqual(cfg.behavior_profile, expected_profile)
-                expected_reward = ("signed_progress_huber_speed_knee_clearance_v1" if expected_profile == "revised_v5"
+                expected_reward = ("signed_progress_huber_speed_knee_clearance_full_foot_slip_v1" if expected_profile == "revised_v6"
                                    else "signed_progress_huber_speed_v3")
                 self.assertEqual(cfg.reward_contract, expected_reward)
-                expected_contact = ("cad6_toe_button_hysteresis_v1" if expected_profile in ("revised_v4", "revised_v5")
+                expected_contact = ("cad6_toe_button_hysteresis_v1" if expected_profile in ("revised_v4", "revised_v5", "revised_v6")
                                     else "support_surface_foot_geometry_v3")
                 self.assertEqual(cfg.contact_contract, expected_contact)
                 self.assertEqual((cfg.exploration_initial_std, cfg.exploration_min_std, cfg.exploration_max_std), (0.08, 0.03, 0.30))

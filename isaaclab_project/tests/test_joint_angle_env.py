@@ -48,6 +48,7 @@ class Robot:
             default_joint_pos=pos.clone(), joint_pos=pos.clone(), joint_vel=torch.zeros_like(pos),
             applied_torque=torch.zeros_like(pos), joint_effort_limits=torch.ones_like(pos),
             root_pos_w=torch.tensor([[0, 0, 0.132]]).expand(count, 3).clone(),
+            root_quat_w=root_state[:, 3:7].clone(),
             root_lin_vel_w=torch.zeros((count, 3)), root_lin_vel_b=torch.zeros((count, 3)),
             root_ang_vel_b=torch.zeros((count, 3)), projected_gravity_b=torch.tensor([[0, 0, -1.0]]).expand(count, 3).clone(),
             body_link_quat_w=quat, body_link_lin_vel_w=torch.zeros((count, len(self.body_names), 3)),
@@ -61,6 +62,7 @@ class Robot:
 
     def write_root_state_to_sim(self, state, env_ids):
         self.data.root_pos_w[env_ids] = state[:, :3]
+        self.data.root_quat_w[env_ids] = state[:, 3:7]
 
     def write_joint_state_to_sim(self, pos, vel, env_ids):
         self.data.joint_pos[env_ids] = pos
@@ -123,6 +125,7 @@ namespace = {"torch": torch, "SpiderNavigationEnv": Parent, "quat_rotate": quat_
              "sole_contact_state": CONTACT.sole_contact_state,
              "foot_contact_state": CONTACT.foot_contact_state,
              "closest_foot_support": CONTACT.closest_foot_support,
+             "toe_button_contact_state": CONTACT.toe_button_contact_state,
              **{name: getattr(CONTROL, name) for name in (
                  "action_to_angles", "bounded_angle_targets", "joint_names", "motion_costs",
                  "normalize_angles", "observation_size", "point_velocity", "signed_progress", "speed_tracking_cost",
@@ -132,24 +135,29 @@ exec(compile(ast.Module(body=[definition], type_ignores=[]), "joint_angle_env.py
 Environment = namespace["JointAngleNavigationEnv"]
 
 
-def make_env(actions=18, support_offsets=None):
+def make_env(actions=18, support_offsets=None, *, behavior_profile="revised_v3", toe_button_offsets=None):
     # Read numeric tuning values from the real cfg, keeping external asset setup
     # out of these tensor tests; no duplicate copy of the reward implementation.
     cfg_tree = ast.parse((FOLDER / "joint_angle_env_cfg.py").read_text(encoding="utf-8"))
-    base = next(node for node in cfg_tree.body if isinstance(node, ast.ClassDef))
+    classes = [next(node for node in cfg_tree.body if isinstance(node, ast.ClassDef))]
+    if behavior_profile in ("revised_v5", "revised_v6"):
+        classes.append(next(node for node in cfg_tree.body
+                            if isinstance(node, ast.ClassDef) and node.name == "MG996RHipCad6JointAngleEnvCfg"))
     settings = {}
-    for node in base.body:
-        if isinstance(node, ast.Assign):
-            try:
-                settings[node.targets[0].id] = ast.literal_eval(node.value)
-            except (ValueError, TypeError, AttributeError):
-                pass
+    for cls in classes:
+        for node in cls.body:
+            if isinstance(node, ast.Assign):
+                try:
+                    settings[node.targets[0].id] = ast.literal_eval(node.value)
+                except (ValueError, TypeError, AttributeError):
+                    pass
     settings.update(
         action_space=actions, environment_preset="flat", robot=NS(copy=lambda: NS(spawn=NS(usd_path="test", articulation_props=NS(enabled_self_collisions=False)))),
         minimum_base_height=0.06, robot_height=0.24, max_distance_from_origin=5.5,
         joint_angle_ranges={"hip": (-1.4, 1.4), "femur": (-1.1, 1.4), "tibia": (-0.4, 1.4)},
         servo_velocity_limit=10.0, goal_reward=30, failure_penalty=-10, debris_impact_penalty=-2,
         foot_support_offsets=support_offsets,
+        behavior_profile=behavior_profile, toe_button_offsets=toe_button_offsets,
     )
     env = Environment(NS(**settings))
     env._reset_idx(torch.tensor([0, 1]))
@@ -341,6 +349,67 @@ class JointAngleEnvironmentTests(unittest.TestCase):
         feet, body = env._contact_state()
         self.assertFalse(feet.any())
         self.assertTrue(body.all())
+
+    def toe_button_env(self, profile):
+        offsets = tuple(((0.12, 0.0, 0.0), (0.12, 0.0, 0.01275)) for _ in range(6))
+        buttons = tuple((0.12, 0.0, 0.01275) for _ in range(6))
+        env = make_env(support_offsets=offsets, behavior_profile=profile, toe_button_offsets=buttons)
+        env._contacts.data.net_forces_w_history[:, :, env._sensor_feet, 2] = 2
+        env._robot.data.body_link_lin_vel_w[:, env._feet, 0] = 0.2
+        return env
+
+    def test_full_foot_slip_penalizes_heel_sliding_without_changing_button_observations(self):
+        for profile in ("revised_v4", "revised_v5", "revised_v6"):
+            with self.subTest(profile=profile):
+                env = self.toe_button_env(profile)
+                feet, body = env._contact_state()
+                self.assertFalse(feet.any())
+                self.assertFalse(body.any())
+                observation = env._get_observations()["policy"]
+                self.assertEqual(observation.shape, (2, 140))
+                torch.testing.assert_close(observation[:, 84:90], torch.zeros((2, 6)))
+                sliding = env._get_rewards().clone()
+                expected_slip = 0.04 if profile == "revised_v6" else 0.0
+                torch.testing.assert_close(env.step_metrics["foot_slip_m2_s2"], torch.full((2,), expected_slip))
+                torch.testing.assert_close(env.step_metrics["feet_contact"], torch.zeros(2))
+                env._robot.data.body_link_lin_vel_w.zero_()
+                stationary = env._get_rewards()
+                expected_cost = env.cfg.foot_slip_cost_scale * expected_slip * env.step_dt
+                torch.testing.assert_close(sliding - stationary, torch.full((2,), expected_cost))
+                self.support_at_goal(env)
+                for _ in range(12):
+                    env._get_dones()
+                self.assertFalse(env._reached_goal.any())  # A heel is not a pressed toe button.
+
+    def test_full_foot_slip_excludes_airborne_and_unsupported_impacts(self):
+        env = self.toe_button_env("revised_v6")
+        # One environment is airborne despite a near-ground heel. The other
+        # has a tibia impact above the ground, without any supporting witness.
+        env._contacts.data.net_forces_w_history[0].zero_()
+        env._robot.data.body_link_pos_w[1, env._feet, 2] = 0.05
+        env._get_rewards()
+        torch.testing.assert_close(env.step_metrics["foot_slip_m2_s2"], torch.zeros(2))
+        torch.testing.assert_close(env.step_metrics["body_contact"], torch.tensor([0.0, 1.0]))
+
+    def test_full_foot_slip_uses_support_point_rotation_and_floor_velocity(self):
+        env = self.toe_button_env("revised_v6")
+        env._robot.data.body_link_ang_vel_w[:, env._feet, 2] = 1.0
+        env._scenario = NS(
+            surface_heights=lambda p: torch.zeros(p.shape[:2]),
+            floor_velocity=torch.tensor([[0.2, 0.0, 0.0], [0.1, 0.0, 0.0]]),
+        )
+        env._get_rewards()
+        # The grounded heel has a 0.12 m arm; floor motion cancels only the
+        # matching translational component, leaving rotational slip intact.
+        torch.testing.assert_close(env.step_metrics["foot_slip_m2_s2"], torch.tensor([0.12 ** 2, 0.1 ** 2 + 0.12 ** 2]))
+
+    def test_full_foot_slip_preserves_v5_knee_clearance_penalty(self):
+        for profile in ("revised_v5", "revised_v6"):
+            env = self.toe_button_env(profile)
+            env._robot.data.body_link_pos_w[:, env._knees, 2] = -0.01
+            env._get_rewards()
+            expected = env.cfg.knee_below_body_penalty_scale * env.step_dt
+            torch.testing.assert_close(env._episode_sums["knee_clearance"], torch.full((2,), expected))
 
 
 if __name__ == "__main__":

@@ -125,9 +125,9 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         self._processed_actions[:, self._joint_ids] = targets
 
     def _contact_state(self):
-        if self.cfg.behavior_profile in ("revised_v4", "revised_v5"):
+        if self.cfg.behavior_profile in ("revised_v4", "revised_v5", "revised_v6"):
             if self._toe_button_offsets is None or self._foot_support_offsets is None:
-                raise ValueError("revised_v4/revised_v5 require CAD toe-button and foot-support geometry")
+                raise ValueError("Toe-button profiles require CAD toe-button and foot-support geometry")
             points, surfaces = self._foot_support_geometry()
             button_points = self._toe_button_world_positions()
             button_surfaces = self._surface_heights(button_points)
@@ -268,10 +268,22 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             self._effort_limits, self._servo_velocity_limits,
         )
         feet, body_contact = self._contact_state()
+        slip_feet = feet
         if not legacy and self.cfg.foot_support_offsets is not None:
             points, surfaces = self._foot_support_geometry()
             support, support_height, _ = closest_foot_support(points, surfaces)
             offset = support - data.body_link_pos_w[:, self._feet]
+            if self.cfg.behavior_profile == "revised_v6":
+                # A raised toe button does not remove a grounded heel's slip.
+                # Use the closest hull witness already selected for velocity,
+                # while observations and goal gates retain the button bits.
+                slip_feet, _ = sole_contact_state(
+                    self._contacts.data.net_forces_w_history,
+                    sensor_feet=self._sensor_feet, sensor_body=self._sensor_body,
+                    sole_positions_w=support, surface_heights=support_height,
+                    force_threshold=self.cfg.contact_threshold,
+                    height_tolerance=self.cfg.foot_contact_height_tolerance,
+                )
         else:
             offset = self._sole_world_offset()
             support = data.body_link_pos_w[:, self._feet] + offset
@@ -280,13 +292,13 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         velocity = point_velocity(data.body_link_lin_vel_w[:, self._feet], data.body_link_ang_vel_w[:, self._feet], offset)
         if self._scenario is not None:
             velocity = velocity - self._scenario.floor_velocity[:, None, :]
-        slip = (velocity[..., :2].square().sum(-1) * feet).sum(-1) / feet.sum(-1).clamp_min(1)
+        slip = (velocity[..., :2].square().sum(-1) * slip_feet).sum(-1) / slip_feet.sum(-1).clamp_min(1)
         acceleration = ((self._target_velocity - self._previous_target_velocity) / self.cfg.target_rate_limit).square().mean(-1)
         failed = self._fallen() | self._out_of_bounds
         knee_below_body_fraction = torch.zeros_like(self._goal_hold_time)
         approach_low_knee_fraction = torch.zeros_like(self._goal_hold_time)
         knee_clearance_rate = torch.zeros_like(self._goal_hold_time)
-        if self.cfg.behavior_profile == "revised_v5":
+        if self.cfg.behavior_profile in ("revised_v5", "revised_v6"):
             knee_z = data.body_link_pos_w[:, self._knees, 2]
             body_bottom_offset = torch.zeros_like(data.root_pos_w)
             body_bottom_offset[:, 2] = self.cfg.body_bottom_offset_z_m

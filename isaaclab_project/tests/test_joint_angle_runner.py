@@ -222,7 +222,7 @@ class ResumeIntegrationTests(unittest.TestCase):
         source = Path(__file__).resolve().parents[1] / "scripts/joint_angle_runner.py"
         tree = ast.parse(source.read_text(encoding="utf-8"))
         functions = ast.Module(body=[node for node in tree.body if isinstance(node, ast.FunctionDef)
-                                     and node.name in ("train", "write_json")], type_ignores=[])
+                                     and node.name in ("train", "write_json", "toe_button_sensor_metadata")], type_ignores=[])
         for reset in (False, True):
             with self.subTest(reset=reset), TemporaryDirectory() as directory:
                 root = Path(directory)
@@ -246,7 +246,8 @@ class ResumeIntegrationTests(unittest.TestCase):
                           _angle_limits=torch.tensor([[[-1.57, 1.57]] * 18]), _servo_velocity_limits=torch.ones((1, 18)))
                 cfg = NS(exploration_reference_saturation_probability=0.01, exploration_initial_std=0.08,
                          exploration_min_std=0.03, exploration_max_std=0.30, behavior_profile="legacy_v2",
-                         target_rate_limit=1.5, target_smoothing=0.35, seed=42, action_space=18, observation_space=140)
+                         target_rate_limit=1.5, target_smoothing=0.35, seed=42, action_space=18, observation_space=140,
+                         target_speed=0.20, speed_tracking_sigma=0.015, progress_reward_scale=25.0, speed_cost_scale=-0.50)
                 args = NS(task="Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2", environment="flat", difficulty=0.5,
                           max_iterations=1, reset_exploration_std=reset, allow_behavior_transfer=False)
                 log = root / "resumed"

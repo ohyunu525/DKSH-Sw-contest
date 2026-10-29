@@ -12,6 +12,7 @@ TERRAIN_OBSERVATION_CONTRACT = "terrain_full48_all_presets_v2"
 OBSERVATION_CONTRACT = "joint_angles_targets_target_velocity_terrain48_v2"
 REWARD_CONTRACT = "signed_progress_huber_speed_v3"
 KNEE_CLEARANCE_REWARD_CONTRACT = "signed_progress_huber_speed_knee_clearance_v1"
+FULL_FOOT_SLIP_REWARD_CONTRACT = "signed_progress_huber_speed_knee_clearance_full_foot_slip_v1"
 CONTACT_CONTRACT = "support_surface_foot_geometry_v3"
 TOE_BUTTON_CONTACT_CONTRACT = "cad6_toe_button_hysteresis_v1"
 EXPLORATION_PROFILE = "independent_std_bounds_v1"
@@ -22,6 +23,8 @@ BEHAVIOR_PROFILES = {
     "revised_v4": {"reward_contract": REWARD_CONTRACT,
                    "contact_contract": TOE_BUTTON_CONTACT_CONTRACT},
     "revised_v5": {"reward_contract": KNEE_CLEARANCE_REWARD_CONTRACT,
+                   "contact_contract": TOE_BUTTON_CONTACT_CONTRACT},
+    "revised_v6": {"reward_contract": FULL_FOOT_SLIP_REWARD_CONTRACT,
                    "contact_contract": TOE_BUTTON_CONTACT_CONTRACT},
 }
 CONTROL_CONTRACT = "absolute_targets_rate_limited_observed_velocity_v2"
@@ -98,8 +101,9 @@ def validate_checkpoint(path, task, environment, *, expected_reward_contract=Non
         if expected_contract is not None and expected_contract not in known:
             raise ValueError(f"Unknown requested {name}")
         if expected_contract is not None and metadata[name] != expected_contract and not allow_behavior_transfer:
-            raise ValueError("Checkpoint behavior differs from this training profile; select --behavior_profile=legacy_v2 "
-                             "for a noise-only resume or explicitly pass --allow_behavior_transfer")
+            saved_profile = behavior_profile_from_metadata(metadata)
+            raise ValueError(f"Checkpoint behavior differs from this training profile; select --behavior_profile={saved_profile} "
+                             "to preserve its behavior or explicitly pass --allow_behavior_transfer")
     cad_hash = expected_cad_asset_sha256(task)
     if cad_hash is not None and metadata.get("cad_asset_sha256") != cad_hash:
         raise ValueError("Checkpoint CAD asset differs from the current Onshape model; train a new policy")

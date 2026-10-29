@@ -85,7 +85,9 @@ class JointAngleEntrypointTests(unittest.TestCase):
 
     def test_runner_defaults_cad6_training_to_toe_button_profile_and_infers_evaluation_profile(self):
         train = self.runner_arguments(["--mode=train"])
-        self.assertEqual(train["args"].behavior_profile, "revised_v5")
+        self.assertEqual(train["args"].behavior_profile, "revised_v6")
+        self.assertEqual(train["checkpoint_compatibility"]["expected_reward_contract"],
+                         "signed_progress_huber_speed_knee_clearance_full_foot_slip_v1")
         self.assertEqual(train["checkpoint_compatibility"]["expected_contact_contract"], "cad6_toe_button_hysteresis_v1")
         evaluation = self.runner_arguments(["--mode=evaluate"])
         self.assertIsNone(evaluation["args"].behavior_profile)
@@ -94,6 +96,14 @@ class JointAngleEntrypointTests(unittest.TestCase):
         legacy = self.runner_arguments(["--mode=train", "--behavior_profile=legacy_v2", "--reset_exploration_std"])
         self.assertEqual(legacy["checkpoint_compatibility"]["expected_reward_contract"], "signed_progress_sustained_speed_v2")
         self.assertTrue(legacy["args"].reset_exploration_std)
+
+    def test_previous_toe_button_profiles_remain_explicitly_selectable(self):
+        for profile in ("revised_v4", "revised_v5", "revised_v6"):
+            with self.subTest(profile=profile):
+                train = self.runner_arguments(["--mode=train", f"--behavior_profile={profile}"])
+                self.assertEqual(train["args"].behavior_profile, profile)
+                self.assertEqual(train["checkpoint_compatibility"]["expected_contact_contract"],
+                                 "cad6_toe_button_hysteresis_v1")
 
     def test_runner_rejects_nontraining_noise_options_and_invalid_bounds_before_simulator(self):
         for arguments in (["--mode=evaluate", "--initial_noise_std=.08"], ["--mode=play", "--reset_exploration_std"],

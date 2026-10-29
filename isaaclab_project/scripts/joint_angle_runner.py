@@ -37,7 +37,7 @@ parser.add_argument("--max_noise_std", type=float, default=None)
 parser.add_argument("--reset_exploration_std", action="store_true",
                     help="On resume, reset only policy std and its optimizer state before collecting rollouts")
 parser.add_argument("--behavior_profile", choices=tuple(BEHAVIOR_PROFILES), default=None,
-                    help="CAD6 training defaults revised_v5; other tasks default revised_v3; evaluation infers the saved profile")
+                    help="CAD6 training defaults revised_v6; other tasks default revised_v3; evaluation infers the saved profile")
 parser.add_argument("--allow_behavior_transfer", action="store_true",
                     help="Explicitly allow training a known v2 reward/contact profile with another profile")
 add_environment_args(parser)
@@ -52,9 +52,9 @@ try:
                                 or args.reset_exploration_std or args.allow_behavior_transfer):
         raise ValueError("Noise std overrides, exploration reset and behavior transfer are training-only options")
     if args.mode == "train":
-        default_profile = "revised_v5" if "MG996R-Hip-CAD6" in args.task else "revised_v3"
+        default_profile = "revised_v6" if "MG996R-Hip-CAD6" in args.task else "revised_v3"
         args.behavior_profile = args.behavior_profile or default_profile
-        if args.behavior_profile in ("revised_v4", "revised_v5") and "MG996R-Hip-CAD6" not in args.task:
+        if args.behavior_profile in ("revised_v4", "revised_v5", "revised_v6") and "MG996R-Hip-CAD6" not in args.task:
             raise ValueError(f"{args.behavior_profile} toe-button contacts require the MG996R CAD6 toe geometry")
         validate_exploration_bounds(args.initial_noise_std if args.initial_noise_std is not None else 0.08,
                                     args.min_noise_std if args.min_noise_std is not None else 0.03,

@@ -225,6 +225,35 @@ class CheckpointTests(unittest.TestCase):
                 with self.subTest(changed=changed), self.assertRaisesRegex(ValueError, "contract|profile"):
                     CHECKPOINT.validate_checkpoint(path, TASK, "flat", allow_behavior_transfer=True)
 
+    def test_full_foot_slip_preserves_saved_profiles_and_requires_explicit_transfer(self):
+        expected_rewards = {
+            "revised_v4": "signed_progress_huber_speed_v3",
+            "revised_v5": "signed_progress_huber_speed_knee_clearance_v1",
+            "revised_v6": "signed_progress_huber_speed_knee_clearance_full_foot_slip_v1",
+        }
+        current = CHECKPOINT.BEHAVIOR_PROFILES["revised_v6"]
+        compatibility = {"expected_reward_contract": current["reward_contract"],
+                         "expected_contact_contract": current["contact_contract"]}
+        with TemporaryDirectory() as root:
+            path = self.create_checkpoint(root, "flat")
+            metadata_path = path.parent / "run_metadata.json"
+            original = json.loads(metadata_path.read_text(encoding="utf-8"))
+            for profile, reward in expected_rewards.items():
+                with self.subTest(profile=profile):
+                    contracts = CHECKPOINT.BEHAVIOR_PROFILES[profile]
+                    self.assertEqual(contracts["reward_contract"], reward)
+                    self.assertEqual(contracts["contact_contract"], "cad6_toe_button_hysteresis_v1")
+                    metadata = original | contracts | {"behavior_profile": profile}
+                    metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+                    saved = CHECKPOINT.validate_checkpoint(path, TASK, "flat")
+                    self.assertEqual(CHECKPOINT.behavior_profile_from_metadata(saved), profile)
+                    self.assertEqual((saved["observations"], saved["actions"]), (140, 18))
+                    if profile != "revised_v6":
+                        with self.assertRaisesRegex(ValueError, f"--behavior_profile={profile}.*--allow_behavior_transfer"):
+                            CHECKPOINT.validate_checkpoint(path, TASK, "flat", **compatibility)
+                    CHECKPOINT.validate_checkpoint(path, TASK, "flat", allow_behavior_transfer=True,
+                                                   **compatibility)
+
 
 if __name__ == "__main__":
     unittest.main()
