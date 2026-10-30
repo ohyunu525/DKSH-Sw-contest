@@ -34,6 +34,9 @@ class Nav2CallbackTests(unittest.TestCase):
         self.backend.generation = 4
         self.backend.pending, self.backend.handle, self.backend.canceling = True, None, False
         self.backend.state, self.backend.path, self.backend.distance_remaining = "Accepted", [], 0
+        self.sim_now = 2.
+        self.backend.node = SimpleNamespace(get_clock=lambda: SimpleNamespace(
+            now=lambda: SimpleNamespace(nanoseconds=int(self.sim_now * 1e9))))
 
     def test_cancel_while_acceptance_is_pending_cancels_late_handle(self):
         self.backend.cancel()
@@ -54,6 +57,13 @@ class Nav2CallbackTests(unittest.TestCase):
         self.assertIs(self.backend.handle, handle)
         self.assertEqual(self.backend.state, "Accepted")
         self.assertEqual(self.backend.distance_remaining, 0)
+
+    def test_feedback_after_completed_result_cannot_revive_goal(self):
+        self.backend.finished(4, Future(SimpleNamespace(status=4, result=SimpleNamespace(error_code=0))))
+        self.backend.feedback(4, SimpleNamespace(feedback=SimpleNamespace(distance_remaining=88)))
+        self.assertEqual(self.backend.state, "Succeeded")
+        self.assertEqual(self.backend.distance_remaining, 0)
+        self.assertIsNone(self.backend.handle)
 
     def test_old_accepted_handle_is_canceled(self):
         handle = Handle()
@@ -129,6 +139,47 @@ class Nav2CallbackTests(unittest.TestCase):
             self.assertFalse(self.backend.motion_stopped)
             self.assertEqual(self.backend.still_since, 101.)
         msg.header.stamp.sec = 3
+        self.sim_now = 3.
         with patch("dksh_remote_navigation.nav2_backend.time.monotonic", return_value=101.4):
             self.backend.on_odom(msg)
             self.assertTrue(self.backend.motion_stopped)
+
+    def test_queued_or_future_scan_does_not_refresh_sensor_readiness(self):
+        self.backend.last_scan, self.backend.scan_at = (1, 0), 100.
+        self.sim_now = 10.
+        for sec in (2, 11):
+            self.backend.on_scan(SimpleNamespace(
+                header=SimpleNamespace(stamp=SimpleNamespace(sec=sec, nanosec=0)), ranges=[1.]))
+            self.assertEqual(self.backend.scan_at, 100.)
+            self.assertEqual(self.backend.last_scan, (1, 0))
+
+    def test_current_scan_refreshes_sensor_readiness(self):
+        self.backend.last_scan, self.backend.scan_at = (1, 0), 100.
+        msg = SimpleNamespace(header=SimpleNamespace(stamp=SimpleNamespace(sec=2, nanosec=0)), ranges=[1.])
+        with patch("dksh_remote_navigation.nav2_backend.time.monotonic", return_value=101.):
+            self.backend.on_scan(msg)
+        self.assertEqual(self.backend.scan_at, 101.)
+        self.assertEqual(self.backend.last_scan, (2, 0))
+
+    def test_queued_or_future_odom_cannot_confirm_stopped_motion(self):
+        self.backend.pending = False
+        self.backend.last_odom, self.backend.odom_at, self.backend.still_since = (1, 0), 100., 99.
+        self.sim_now = 10.
+        for sec in (2, 11):
+            msg = SimpleNamespace(header=SimpleNamespace(stamp=SimpleNamespace(sec=sec, nanosec=0)),
+                                  twist=SimpleNamespace(twist=SimpleNamespace(
+                                      linear=SimpleNamespace(x=0., y=0.), angular=SimpleNamespace(z=0.))))
+            with patch("dksh_remote_navigation.nav2_backend.time.monotonic", return_value=101.):
+                self.backend.on_odom(msg)
+                self.assertFalse(self.backend.motion_stopped)
+            self.assertEqual(self.backend.odom_at, 100.)
+
+    def test_out_of_order_sensor_samples_do_not_refresh_freshness(self):
+        self.backend.last_scan, self.backend.scan_at = (2, 0), 100.
+        self.backend.last_odom, self.backend.odom_at = (2, 0), 100.
+        self.sim_now = 2.2
+        older = SimpleNamespace(sec=1, nanosec=900000000)
+        self.backend.on_scan(SimpleNamespace(header=SimpleNamespace(stamp=older), ranges=[1.]))
+        self.backend.on_odom(SimpleNamespace(header=SimpleNamespace(stamp=older)))
+        self.assertEqual(self.backend.scan_at, 100.)
+        self.assertEqual(self.backend.odom_at, 100.)

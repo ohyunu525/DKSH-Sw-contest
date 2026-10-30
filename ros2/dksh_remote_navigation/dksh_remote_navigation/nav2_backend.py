@@ -91,12 +91,21 @@ class Nav2SimulationBackend:
 
     def on_scan(self, msg):
         stamp = self.stamp(msg.header.stamp)
-        if stamp != self.last_scan and msg.ranges:
+        if (self.fresh_stamp(msg.header.stamp) and
+                (self.last_scan is None or stamp > self.last_scan) and msg.ranges):
             self.last_scan, self.scan_at = stamp, time.monotonic()
+
+    def fresh_stamp(self, stamp):
+        # Callback receipt time alone cannot establish freshness: queued ROS
+        # messages may be delivered long after their sensor samples were taken.
+        sim_now = self.node.get_clock().now().nanoseconds / 1e9
+        sample_time = stamp.sec + stamp.nanosec / 1e9
+        return 0 <= sim_now - sample_time < .5
 
     def on_odom(self, msg):
         stamp = self.stamp(msg.header.stamp)
-        if stamp == self.last_odom:
+        if (not self.fresh_stamp(msg.header.stamp) or
+                (self.last_odom is not None and stamp <= self.last_odom)):
             return
         now = time.monotonic()
         if now - self.odom_at >= .5:
@@ -143,7 +152,8 @@ class Nav2SimulationBackend:
             self.state, self.detail = "Failed", "Nav2 goal submission failed."
 
     def feedback(self, generation, message):
-        if generation == self.generation and not self.canceling:
+        if (generation == self.generation and not self.canceling and
+                self.state in ("Accepted", "Navigating")):
             distance = float(message.feedback.distance_remaining)
             if not math.isfinite(distance) or distance < 0:
                 self.cancel()

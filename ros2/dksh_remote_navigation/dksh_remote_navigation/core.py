@@ -168,6 +168,9 @@ class MissionGateway:
             raise ProtocolError("Unsupported command envelope.")
         if not self.session or packet.get("session") != self.session:
             raise ProtocolError("Invalid operator session.")
+        # A heartbeat arriving between timer ticks must not revive an expired
+        # lease. Latch the stop before any command can renew ownership freshness.
+        self.check_fences()
         command = packet.get("command")
         if command not in ("heartbeat", "submit", "cancel", "stop", "reset_stop"):
             raise ProtocolError("Command is not allowed.")

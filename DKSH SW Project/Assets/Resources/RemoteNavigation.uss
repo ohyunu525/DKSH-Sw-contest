@@ -16,7 +16,9 @@
 .legend-colors { color: #71d4de; font-size: 12px; }
 .muted { color: #8ca2b5; font-size: 12px; white-space: normal; }
 .hint { margin-top: 12px; min-height: 38px; color: #bbcbd6; white-space: normal; font-size: 13px; }
-.sidebar { width: 310px; flex-shrink: 0; min-height: 0; }
+.sidebar-column { width: 310px; flex-shrink: 0; min-height: 0; }
+.sidebar { flex-grow: 1; min-height: 0; }
+.safety-controls { flex-shrink: 0; padding-top: 8px; }
 .card { padding: 15px; background-color: #192534; border-radius: 6px; margin-bottom: 10px; flex-shrink: 0; }
 .state { font-size: 24px; color: #6de0c4; -unity-font-style: bold; margin-bottom: 5px; }
 .state.warning { color: #ffc879; }
@@ -30,6 +32,8 @@
 .waypoint-row { flex-direction: row; align-items: center; padding: 5px 0; }
 .waypoint-index { color: #ffcb79; width: 26px; font-size: 12px; }
 .waypoint-coordinate { flex-grow: 1; font-size: 12px; }
+.draft-actions { margin-bottom: 6px; }
+.draft-actions Button { flex-grow: 1; margin-left: 3px; margin-right: 3px; }
 Button { border-width: 0; border-radius: 4px; padding: 9px 12px; color: #dde9f1; background-color: #2a3b4e; margin: 2px 0; -unity-font-style: bold; }
 Button:hover { background-color: #3c536b; }
 Button:disabled { opacity: 0.38; }

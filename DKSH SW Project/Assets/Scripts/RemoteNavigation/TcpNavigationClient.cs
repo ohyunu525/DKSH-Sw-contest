@@ -39,7 +39,7 @@ namespace DKSH.Spiderbot.RemoteNavigation
         { type = "status", state = "Connecting", detail = "Connecting to the virtual robot gateway.", path = Array.Empty<Waypoint>() };
         public bool Connected => !disposed && !timedOut && session.Length > 0 &&
             Now - lastStatus < 1.5;
-        public bool CanSubmit => Connected && Status.ready && Map != null && !Status.stop_latched &&
+        public bool CanSubmit => Connected && Status.ready && Map != null && Status.map_revision == Map.Revision && !Status.stop_latched &&
             string.IsNullOrEmpty(pendingMission) && (Status.state == "Idle" ||
             Status.state == "Succeeded" || Status.state == "Canceled" || Status.state == "Rejected");
 
@@ -143,15 +143,11 @@ namespace DKSH.Spiderbot.RemoteNavigation
                     else if (packet.type == "status")
                     {
                         if (packet.session != session || session.Length == 0 || packet.seq <= statusSequence) continue;
-                        if (!NavigationMap.Finite(packet.x) || !NavigationMap.Finite(packet.y) ||
-                            !NavigationMap.Finite(packet.yaw) || !NavigationMap.Finite(packet.footprint_radius) ||
-                            packet.footprint_radius <= 0 || string.IsNullOrEmpty(packet.challenge))
-                            throw new ArgumentException("Invalid robot state.");
+                        ValidateStatus(packet);
                         statusSequence = packet.seq; challenge = packet.challenge;
                         lastStatus = received.At;
                         Status = packet;
                         if (packet.mission_id == pendingMission && packet.state != "Idle") pendingMission = "";
-                        if (packet.state == "Rejected") pendingMission = "";
                     }
                 }
                 catch (Exception e) when (e is ArgumentException || e is OverflowException)
@@ -168,6 +164,30 @@ namespace DKSH.Spiderbot.RemoteNavigation
             { Status.state = "Sent"; Status.detail = "Awaiting mission acknowledgement."; }
             if (Connected && now >= nextHeartbeat && challenge.Length > 0)
             { Send("heartbeat"); nextHeartbeat = now + .2; }
+        }
+
+        private static void ValidateStatus(GatewayPacket packet)
+        {
+            if (!NavigationMap.Finite(packet.x) || !NavigationMap.Finite(packet.y) ||
+                !NavigationMap.Finite(packet.yaw) || !NavigationMap.Finite(packet.footprint_radius) ||
+                packet.footprint_radius <= 0 || !NavigationMap.Finite(packet.distance_remaining) ||
+                packet.distance_remaining < 0 || string.IsNullOrEmpty(packet.challenge) ||
+                packet.waypoint_count < 0 || packet.waypoint_count > 10 || packet.waypoint_index < 0 ||
+                packet.waypoint_index > packet.waypoint_count || packet.path == null ||
+                packet.path.Length > NavigationMap.MaximumCells ||
+                (packet.ready && string.IsNullOrWhiteSpace(packet.map_revision)))
+                throw new ArgumentException("Invalid robot state.");
+            switch (packet.state)
+            {
+                case "Idle": case "Accepted": case "Navigating": case "Canceling":
+                case "StopUnconfirmed": case "Stopped": case "Canceled": case "Succeeded":
+                case "Rejected": case "Failed": break;
+                default: throw new ArgumentException("Unknown mission state.");
+            }
+            foreach (Waypoint point in packet.path)
+                if (point == null || !NavigationMap.Finite(point.x) || !NavigationMap.Finite(point.y) ||
+                    !NavigationMap.Finite(point.yaw))
+                    throw new ArgumentException("Invalid route coordinates.");
         }
 
         public bool Submit(IReadOnlyList<Waypoint> waypoints, string mapRevision)

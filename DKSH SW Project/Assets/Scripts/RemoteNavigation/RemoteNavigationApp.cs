@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -15,7 +16,7 @@ namespace DKSH.Spiderbot.RemoteNavigation
         private readonly WaypointEditor editor = new WaypointEditor();
         private OccupancyGridView view;
         private Label stateLabel, detailLabel, positionLabel, progressLabel, modeLabel, hintLabel, mapLabel;
-        private Button execute, cancel, stop, reset, linkButton;
+        private Button execute, cancel, stop, reset, linkButton, saveDraft, loadDraft;
         private TextField hostField, tokenField;
         private IntegerField portField;
         private VisualElement rows;
@@ -27,6 +28,7 @@ namespace DKSH.Spiderbot.RemoteNavigation
         public INavigationClient Client => client;
         public WaypointEditor Editor => editor;
         public OccupancyGridView MapView => view;
+        public string SavedDraftPath => Path.Combine(Application.persistentDataPath, "Missions", "last-mission.json");
 
         private void OnEnable()
         {
@@ -60,6 +62,8 @@ namespace DKSH.Spiderbot.RemoteNavigation
             mapLabel.text = client.Map == null ? "Waiting for map" :
                 $"map  ·  {client.Map.Width * client.Map.Resolution:F1} × {client.Map.Height * client.Map.Resolution:F1} m  ·  {client.Map.Resolution:F2} m / cell";
             execute.SetEnabled(client.CanSubmit && editor.Points.Count > 0);
+            saveDraft.SetEnabled(client.CanSubmit && editor.Points.Count > 0);
+            loadDraft.SetEnabled(client.CanSubmit);
             cancel.SetEnabled(client.Connected && busy);
             stop.SetEnabled(client.Connected);
             reset.SetEnabled(client.Connected && status.ready && status.stop_latched && !busy && status.state != "StopUnconfirmed");
@@ -97,6 +101,22 @@ namespace DKSH.Spiderbot.RemoteNavigation
             executingGoals = editor.Copy();
             hintLabel.text = "Mission submitted. Robot state shows its progress.";
             return true;
+        }
+
+        public bool SaveDraft()
+        {
+            if (client == null || !client.CanSubmit || editor.MapRevision != client.Map?.Revision) return false;
+            bool saved = MissionDraftStore.Save(SavedDraftPath, client.Map, editor.Points, client.Status.footprint_radius, out string reason);
+            if (built) hintLabel.text = reason;
+            return saved;
+        }
+
+        public bool LoadDraft()
+        {
+            if (client == null || !client.CanSubmit) return false;
+            bool loaded = MissionDraftStore.Load(SavedDraftPath, client.Map, client.Status.footprint_radius, editor, out string reason);
+            if (built) { hintLabel.text = reason; if (loaded) RefreshRows(); }
+            return loaded;
         }
 
         public void AddWaypoint(Waypoint point)
@@ -137,8 +157,9 @@ namespace DKSH.Spiderbot.RemoteNavigation
             Label(legend, "● robot   ● waypoint   ━ route", "legend-colors");
             Label(legend, "Wheel: zoom   ·   Middle drag: pan", "muted");
             hintLabel = Label(mapColumn, "", "hint");
+            var sidebarColumn = Element(body, "sidebar-column");
             sidebar = new ScrollView(ScrollViewMode.Vertical);
-            sidebar.AddToClassList("sidebar"); body.Add(sidebar);
+            sidebar.AddToClassList("sidebar"); sidebarColumn.Add(sidebar);
             var statusCard = Element(sidebar, "card");
             Label(statusCard, "ROBOT STATUS", "eyebrow");
             stateLabel = Label(statusCard, "Idle", "state");
@@ -154,10 +175,14 @@ namespace DKSH.Spiderbot.RemoteNavigation
             append.RegisterValueChangedCallback(evt => editor.AppendMode = evt.newValue); missionCard.Add(append);
             var scroll = new ScrollView(ScrollViewMode.Vertical); scroll.AddToClassList("waypoint-scroll"); missionCard.Add(scroll);
             rows = scroll.contentContainer;
+            var draftActions = Element(missionCard, "section-row", "draft-actions");
+            saveDraft = Button(draftActions, "Save draft", () => SaveDraft(), "small-button");
+            loadDraft = Button(draftActions, "Load draft", () => LoadDraft(), "small-button");
             execute = Button(missionCard, "Execute mission", () => ExecuteDraft(), "primary-button");
             cancel = Button(missionCard, "Cancel mission", () => client.Cancel(), "secondary-button");
-            stop = Button(sidebar, "STOP", () => client.Stop(), "stop-button");
-            reset = Button(sidebar, "Reset stop", () => client.ResetStop(), "secondary-button");
+            var safetyControls = Element(sidebarColumn, "safety-controls");
+            stop = Button(safetyControls, "STOP", () => client.Stop(), "stop-button");
+            reset = Button(safetyControls, "Reset stop", () => client.ResetStop(), "secondary-button");
             connectionCard = Element(sidebar, "card", "connection-card");
             Label(connectionCard, "SIMULATION SOURCE", "eyebrow");
             hostField = new TextField("Host") { value = gatewayHost }; connectionCard.Add(hostField);

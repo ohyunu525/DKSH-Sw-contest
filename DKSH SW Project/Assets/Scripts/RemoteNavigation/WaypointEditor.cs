@@ -12,7 +12,8 @@ namespace DKSH.Spiderbot.RemoteNavigation
         public bool AppendMode { get; set; }
         public bool Add(Waypoint point, string revision)
         {
-            if (point == null || string.IsNullOrEmpty(revision)) return false;
+            if (point == null || string.IsNullOrWhiteSpace(revision) ||
+                !NavigationMap.Finite(point.x) || !NavigationMap.Finite(point.y) || !NavigationMap.Finite(point.yaw)) return false;
             if (MapRevision != revision) Clear();
             if (!AppendMode) points.Clear();
             if (points.Count >= 10) return false;
@@ -26,6 +27,20 @@ namespace DKSH.Spiderbot.RemoteNavigation
             var point = points[index]; points.RemoveAt(index); points.Insert(target, point);
         }
         public void Clear() { points.Clear(); MapRevision = null; }
+        public bool Replace(IReadOnlyList<Waypoint> replacement, NavigationMap map, float radius, out string reason)
+        {
+            reason = "Select between 1 and 10 valid waypoints.";
+            if (map == null || replacement == null || replacement.Count < 1 || replacement.Count > 10) return false;
+            var copy = new List<Waypoint>();
+            foreach (var point in replacement)
+            {
+                if (point == null || !NavigationMap.Finite(point.yaw)) return false;
+                if (!map.Validate(point.Position, radius, out reason)) return false;
+                copy.Add(new Waypoint(point.Position, point.yaw));
+            }
+            points.Clear(); points.AddRange(copy); MapRevision = map.Revision;
+            reason = ""; return true;
+        }
         public Waypoint[] Copy() => points.ConvertAll(p => new Waypoint(p.Position, p.yaw)).ToArray();
     }
 }

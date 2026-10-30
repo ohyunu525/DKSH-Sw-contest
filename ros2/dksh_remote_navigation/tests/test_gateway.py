@@ -68,6 +68,21 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual((self.backend.x, self.backend.y), position)
         self.assertEqual(self.core.state, "Stopped")
 
+    def test_late_heartbeat_cannot_revive_expired_lease_between_ticks(self):
+        self.core.handle(self.command("submit"))
+        self.core.tick(.1)
+        position = self.backend.x, self.backend.y
+        self.clock.now += 1.01
+        # A newly published challenge is still valid even though the old lease
+        # expired. The heartbeat can renew freshness only after stop is latched.
+        self.assertTrue(self.core.handle(self.command("heartbeat")))
+        self.assertTrue(self.core.stop_latched)
+        self.assertEqual(self.core.state, "Stopped")
+        self.core.tick(.1)
+        self.assertEqual((self.backend.x, self.backend.y), position)
+        self.assertFalse(self.core.handle(self.command("submit", mission_id="late")))
+        self.assertEqual(self.backend.starts, 1)
+
     def test_request_and_mission_replay_survive_many_heartbeats(self):
         old = self.command("submit")
         self.core.handle(old)

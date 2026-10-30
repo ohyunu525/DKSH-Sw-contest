@@ -29,9 +29,16 @@ ROS2/Nav2를 연결하는 별도 씬·서버 어댑터·launch도 포함한다.
 `Clear`는 목록을 비운다. 휠은 확대·축소, 가운데 버튼 드래그는 지도 이동, `Fit map`은 원래 보기다.
 미탐색 영역·장애물·지도 밖·로봇 여유 폭이 부족한 위치는 지정할 수 없다.
 
+`Save draft`는 마지막 초안 하나를 Unity의 `Application.persistentDataPath/Missions/last-mission.json`에
+저장한다. `Load draft`는 저장 당시와 지도 revision·크기·해상도·원점이 같을 때만 불러오고,
+현재 장애물과 로봇 여유 폭으로 모든 지점을 다시 검사한다. 불러오기 실패 시 현재 초안은 유지된다.
+불러온 후 지도에서 확인하고 **Execute mission**을 눌러야 이동한다. 인증값·접속 세션·진행 중 임무는
+저장하지 않는다. Nav2 게이트웨이를 재시작해 지도 세션이 바뀌면 기존 초안을 사용할 수 없다.
+
 `Cancel mission`은 현재 임무와 남은 지점을 취소한다. `STOP`은 정지 상태를 유지하며 새 임무를
 차단한다. `Reset stop`을 누른 뒤 **Execute mission**을 눌러야 다시 이동한다. `Test link loss`로
 연결 끊김을 시험하고 `Restore link`로 복구해도 임무가 자동으로 재개되지 않는다.
+`STOP`과 `Reset stop`은 오른쪽 하단에 고정되어 목록이나 연결 설정을 스크롤해도 보인다.
 
 이 데모의 지도는 합성 지도이고 로봇은 2D 위치 모델이다. 보행 정책·관절·서보·실제 SLAM을 실행하지
 않는다. 이동 속도 0.65 m/s와 원형 footprint 0.35 m는 화면 시험용 값이다. 실제 6족 정책의 속도나
@@ -149,6 +156,19 @@ Unity Test Runner에서 `DKSH.Spiderbot.RemoteNavigation.Tests`의 EditMode 시�
 Python mock 서버를 기본 `127.0.0.1:8765`, 빈 token으로 실행한 상태에서는
 `DKSH.Spiderbot.RemoteNavigation.Integration.Tests`의 PlayMode `GatewayIntegration` 시험도 실행한다.
 이 시험 중 다른 Unity UI를 같은 게이트웨이에 접속시키지 않는다.
+
+2026-10-30 추가 검증 및 보완:
+
+- 임무 초안 저장·불러오기: 지도 identity와 현재 점유값 검사, 실패 시 기존 초안 보존, 파일 크기 제한과 원자적 교체.
+- 지도와 상태의 revision이 다르면 새 임무 전송 차단. 이전 임무의 지연된 거절 응답이 새 임무의 응답 대기를 해제하지 않도록 보완.
+- 잘못된 상태·진행값·경로 좌표는 Unity 렌더링 전에 연결 오류로 처리.
+- 만료된 lease를 늦은 heartbeat가 되살리지 않도록 보완. Nav2의 오래되거나 순서가 뒤바뀐 scan/odom은 준비·정지 확인 자료로 사용하지 않음.
+- Nav2 목표 완료 후 늦은 feedback이 상태를 다시 주행 중으로 되돌리지 않도록 보완.
+- Python 41개, Unity EditMode 22개, PlayMode 5개 통과. PlayMode는 실제 C#↔Python 왕복 2개와 임시 loopback 서버의 통신 회귀 시험 3개다.
+- 실제 Unity 화면에서 두 지점 순차 도착과 최종 방향을 확인하고, 연결 설정까지 스크롤한 상태에서도 고정 STOP이 보임을 확인했다.
+- 누락된 URP 기본 Volume Profile 참조를 복구하고 Windows x64 실행 파일을 갱신했다. 기존 ML-Agents `OnDisable` 숨김과 Sentis 셰이더 빌드 경고는 남아 있다.
+
+아래는 이전 검증 기록이다.
 
 2026-10-13에 확인한 결과:
 
