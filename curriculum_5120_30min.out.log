@@ -854,3 +854,987 @@ Metrics/knee_ground_clearance_violation_fraction: 0.3176
                         Total time: 503.10s
                                ETA: 1271.0s
 
+################################################################################
+                    [1m Learning iteration 27771/27818 [0m                    
+
+                       Computation: 25335 steps/s (collection: 25.233s, learning 0.635s)
+             Mean action noise std: 0.04
+                    value_function: 11.0624
+                         surrogate: 0.0033
+                           entropy: -31.6873
+         Metrics/forward_speed_mps: 0.0010
+   Metrics/step_progress_speed_mps: 0.0022
+        Metrics/mechanical_power_w: 3.5337
+                Metrics/progress_m: 0.0000
+         Metrics/reward_progress_m: 0.0000
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0000
+           Metrics/foot_slip_m2_s2: 0.0289
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.7070
+         Metrics/torque_saturation: 0.0388
+        Metrics/tracking_error_rad: 0.1197
+              Metrics/feet_contact: 5.2020
+      Metrics/target_excursion_rad: 0.4213
+       Metrics/joint_excursion_rad: 0.3829
+  Metrics/joint_velocity_rms_rad_s: 0.8411
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.5997
+Metrics/non_distal_support_fraction: 0.4003
+Metrics/mean_knee_ground_clearance_m: 0.0376
+Metrics/knee_ground_clearance_violation_fraction: 0.3179
+--------------------------------------------------------------------------------
+                   Total timesteps: 13107200
+                    Iteration time: 25.87s
+                        Total time: 528.97s
+                               ETA: 1243.1s
+
+################################################################################
+                    [1m Learning iteration 27772/27818 [0m                    
+
+                       Computation: 25321 steps/s (collection: 25.226s, learning 0.656s)
+             Mean action noise std: 0.04
+                    value_function: 11.7372
+                         surrogate: 0.0048
+                           entropy: -31.6776
+         Metrics/forward_speed_mps: 0.0016
+   Metrics/step_progress_speed_mps: 0.0028
+        Metrics/mechanical_power_w: 3.5267
+                Metrics/progress_m: 0.0001
+         Metrics/reward_progress_m: 0.0001
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0000
+           Metrics/foot_slip_m2_s2: 0.0288
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.7054
+         Metrics/torque_saturation: 0.0390
+        Metrics/tracking_error_rad: 0.1197
+              Metrics/feet_contact: 5.2076
+      Metrics/target_excursion_rad: 0.4209
+       Metrics/joint_excursion_rad: 0.3821
+  Metrics/joint_velocity_rms_rad_s: 0.8399
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.6035
+Metrics/non_distal_support_fraction: 0.3965
+Metrics/mean_knee_ground_clearance_m: 0.0377
+Metrics/knee_ground_clearance_violation_fraction: 0.3166
+--------------------------------------------------------------------------------
+                   Total timesteps: 13762560
+                    Iteration time: 25.88s
+                        Total time: 554.85s
+                               ETA: 1215.4s
+
+################################################################################
+                    [1m Learning iteration 27773/27818 [0m                    
+
+                       Computation: 25063 steps/s (collection: 25.511s, learning 0.637s)
+             Mean action noise std: 0.04
+                    value_function: 10.7766
+                         surrogate: 0.0263
+                           entropy: -31.6803
+         Metrics/forward_speed_mps: 0.0021
+   Metrics/step_progress_speed_mps: 0.0032
+        Metrics/mechanical_power_w: 3.5408
+                Metrics/progress_m: 0.0001
+         Metrics/reward_progress_m: 0.0001
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0000
+           Metrics/foot_slip_m2_s2: 0.0289
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.7055
+         Metrics/torque_saturation: 0.0383
+        Metrics/tracking_error_rad: 0.1195
+              Metrics/feet_contact: 5.2108
+      Metrics/target_excursion_rad: 0.4196
+       Metrics/joint_excursion_rad: 0.3808
+  Metrics/joint_velocity_rms_rad_s: 0.8446
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.6029
+Metrics/non_distal_support_fraction: 0.3971
+Metrics/mean_knee_ground_clearance_m: 0.0376
+Metrics/knee_ground_clearance_violation_fraction: 0.3183
+--------------------------------------------------------------------------------
+                   Total timesteps: 14417920
+                    Iteration time: 26.15s
+                        Total time: 581.00s
+                               ETA: 1188.4s
+
+################################################################################
+                    [1m Learning iteration 27774/27818 [0m                    
+
+                       Computation: 25258 steps/s (collection: 25.308s, learning 0.638s)
+             Mean action noise std: 0.04
+                    value_function: 10.1968
+                         surrogate: 0.0154
+                           entropy: -31.6711
+         Metrics/forward_speed_mps: 0.0027
+   Metrics/step_progress_speed_mps: 0.0038
+        Metrics/mechanical_power_w: 3.5269
+                Metrics/progress_m: 0.0001
+         Metrics/reward_progress_m: 0.0001
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0000
+           Metrics/foot_slip_m2_s2: 0.0289
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.7031
+         Metrics/torque_saturation: 0.0381
+        Metrics/tracking_error_rad: 0.1194
+              Metrics/feet_contact: 5.2221
+      Metrics/target_excursion_rad: 0.4194
+       Metrics/joint_excursion_rad: 0.3805
+  Metrics/joint_velocity_rms_rad_s: 0.8411
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.6077
+Metrics/non_distal_support_fraction: 0.3923
+Metrics/mean_knee_ground_clearance_m: 0.0376
+Metrics/knee_ground_clearance_violation_fraction: 0.3175
+--------------------------------------------------------------------------------
+                   Total timesteps: 15073280
+                    Iteration time: 25.95s
+                        Total time: 606.94s
+                               ETA: 1161.1s
+
+################################################################################
+                    [1m Learning iteration 27775/27818 [0m                    
+
+                       Computation: 25354 steps/s (collection: 25.209s, learning 0.639s)
+             Mean action noise std: 0.04
+                    value_function: 9.7372
+                         surrogate: 0.0089
+                           entropy: -31.6619
+         Metrics/forward_speed_mps: 0.0029
+   Metrics/step_progress_speed_mps: 0.0039
+        Metrics/mechanical_power_w: 3.5249
+                Metrics/progress_m: 0.0001
+         Metrics/reward_progress_m: 0.0001
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0000
+           Metrics/foot_slip_m2_s2: 0.0288
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.7020
+         Metrics/torque_saturation: 0.0380
+        Metrics/tracking_error_rad: 0.1193
+              Metrics/feet_contact: 5.2249
+      Metrics/target_excursion_rad: 0.4192
+       Metrics/joint_excursion_rad: 0.3804
+  Metrics/joint_velocity_rms_rad_s: 0.8401
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.6108
+Metrics/non_distal_support_fraction: 0.3892
+Metrics/mean_knee_ground_clearance_m: 0.0376
+Metrics/knee_ground_clearance_violation_fraction: 0.3185
+--------------------------------------------------------------------------------
+                   Total timesteps: 15728640
+                    Iteration time: 25.85s
+                        Total time: 632.79s
+                               ETA: 1133.8s
+
+################################################################################
+                    [1m Learning iteration 27776/27818 [0m                    
+
+                       Computation: 25376 steps/s (collection: 25.185s, learning 0.641s)
+             Mean action noise std: 0.04
+                    value_function: 11.3108
+                         surrogate: 0.0023
+                           entropy: -31.6559
+         Metrics/forward_speed_mps: 0.0034
+   Metrics/step_progress_speed_mps: 0.0044
+        Metrics/mechanical_power_w: 3.5166
+                Metrics/progress_m: 0.0001
+         Metrics/reward_progress_m: 0.0001
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0000
+           Metrics/foot_slip_m2_s2: 0.0286
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.7007
+         Metrics/torque_saturation: 0.0378
+        Metrics/tracking_error_rad: 0.1193
+              Metrics/feet_contact: 5.2307
+      Metrics/target_excursion_rad: 0.4196
+       Metrics/joint_excursion_rad: 0.3809
+  Metrics/joint_velocity_rms_rad_s: 0.8363
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.6162
+Metrics/non_distal_support_fraction: 0.3838
+Metrics/mean_knee_ground_clearance_m: 0.0377
+Metrics/knee_ground_clearance_violation_fraction: 0.3169
+--------------------------------------------------------------------------------
+                   Total timesteps: 16384000
+                    Iteration time: 25.83s
+                        Total time: 658.62s
+                               ETA: 1106.5s
+
+################################################################################
+                    [1m Learning iteration 27777/27818 [0m                    
+
+                       Computation: 25239 steps/s (collection: 25.300s, learning 0.666s)
+             Mean action noise std: 0.04
+                    value_function: 11.0087
+                         surrogate: 0.0120
+                           entropy: -31.6526
+         Metrics/forward_speed_mps: 0.0037
+   Metrics/step_progress_speed_mps: 0.0047
+        Metrics/mechanical_power_w: 3.5119
+                Metrics/progress_m: 0.0001
+         Metrics/reward_progress_m: 0.0001
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0000
+           Metrics/foot_slip_m2_s2: 0.0285
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.6998
+         Metrics/torque_saturation: 0.0375
+        Metrics/tracking_error_rad: 0.1192
+              Metrics/feet_contact: 5.2331
+      Metrics/target_excursion_rad: 0.4193
+       Metrics/joint_excursion_rad: 0.3807
+  Metrics/joint_velocity_rms_rad_s: 0.8330
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.6194
+Metrics/non_distal_support_fraction: 0.3806
+Metrics/mean_knee_ground_clearance_m: 0.0378
+Metrics/knee_ground_clearance_violation_fraction: 0.3172
+--------------------------------------------------------------------------------
+                   Total timesteps: 17039360
+                    Iteration time: 25.97s
+                        Total time: 684.58s
+                               ETA: 1079.5s
+
+################################################################################
+                    [1m Learning iteration 27778/27818 [0m                    
+
+                       Computation: 24599 steps/s (collection: 26.000s, learning 0.641s)
+             Mean action noise std: 0.04
+                    value_function: 10.3597
+                         surrogate: 0.0098
+                           entropy: -31.6603
+         Metrics/forward_speed_mps: 0.0039
+   Metrics/step_progress_speed_mps: 0.0049
+        Metrics/mechanical_power_w: 3.4851
+                Metrics/progress_m: 0.0001
+         Metrics/reward_progress_m: 0.0001
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0000
+           Metrics/foot_slip_m2_s2: 0.0284
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.6976
+         Metrics/torque_saturation: 0.0375
+        Metrics/tracking_error_rad: 0.1190
+              Metrics/feet_contact: 5.2371
+      Metrics/target_excursion_rad: 0.4187
+       Metrics/joint_excursion_rad: 0.3800
+  Metrics/joint_velocity_rms_rad_s: 0.8275
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.6235
+Metrics/non_distal_support_fraction: 0.3765
+Metrics/mean_knee_ground_clearance_m: 0.0378
+Metrics/knee_ground_clearance_violation_fraction: 0.3160
+--------------------------------------------------------------------------------
+                   Total timesteps: 17694720
+                    Iteration time: 26.64s
+                        Total time: 711.23s
+                               ETA: 1053.7s
+
+################################################################################
+                    [1m Learning iteration 27779/27818 [0m                    
+
+                       Computation: 24070 steps/s (collection: 26.597s, learning 0.629s)
+             Mean action noise std: 0.04
+                    value_function: 9.4365
+                         surrogate: 0.0093
+                           entropy: -31.6657
+         Metrics/forward_speed_mps: 0.0041
+   Metrics/step_progress_speed_mps: 0.0050
+        Metrics/mechanical_power_w: 3.4662
+                Metrics/progress_m: 0.0001
+         Metrics/reward_progress_m: 0.0001
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0000
+           Metrics/foot_slip_m2_s2: 0.0282
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.6968
+         Metrics/torque_saturation: 0.0374
+        Metrics/tracking_error_rad: 0.1190
+              Metrics/feet_contact: 5.2438
+      Metrics/target_excursion_rad: 0.4186
+       Metrics/joint_excursion_rad: 0.3800
+  Metrics/joint_velocity_rms_rad_s: 0.8232
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.6263
+Metrics/non_distal_support_fraction: 0.3737
+Metrics/mean_knee_ground_clearance_m: 0.0378
+Metrics/knee_ground_clearance_violation_fraction: 0.3160
+--------------------------------------------------------------------------------
+                   Total timesteps: 18350080
+                    Iteration time: 27.23s
+                        Total time: 738.45s
+                               ETA: 1028.6s
+
+################################################################################
+                    [1m Learning iteration 27780/27818 [0m                    
+
+                       Computation: 25397 steps/s (collection: 25.168s, learning 0.637s)
+             Mean action noise std: 0.04
+                    value_function: 9.7988
+                         surrogate: 0.0091
+                           entropy: -31.6663
+         Metrics/forward_speed_mps: 0.0043
+   Metrics/step_progress_speed_mps: 0.0052
+        Metrics/mechanical_power_w: 3.4565
+                Metrics/progress_m: 0.0001
+         Metrics/reward_progress_m: 0.0001
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0000
+           Metrics/foot_slip_m2_s2: 0.0282
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.6951
+         Metrics/torque_saturation: 0.0373
+        Metrics/tracking_error_rad: 0.1189
+              Metrics/feet_contact: 5.2431
+      Metrics/target_excursion_rad: 0.4178
+       Metrics/joint_excursion_rad: 0.3792
+  Metrics/joint_velocity_rms_rad_s: 0.8201
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.6283
+Metrics/non_distal_support_fraction: 0.3717
+Metrics/mean_knee_ground_clearance_m: 0.0378
+Metrics/knee_ground_clearance_violation_fraction: 0.3168
+--------------------------------------------------------------------------------
+                   Total timesteps: 19005440
+                    Iteration time: 25.80s
+                        Total time: 764.26s
+                               ETA: 1001.4s
+
+################################################################################
+                    [1m Learning iteration 27781/27818 [0m                    
+
+                       Computation: 25142 steps/s (collection: 25.436s, learning 0.630s)
+             Mean action noise std: 0.04
+                    value_function: 9.4800
+                         surrogate: 0.0077
+                           entropy: -31.6648
+         Metrics/forward_speed_mps: 0.0044
+   Metrics/step_progress_speed_mps: 0.0053
+        Metrics/mechanical_power_w: 3.4351
+                Metrics/progress_m: 0.0001
+         Metrics/reward_progress_m: 0.0001
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0000
+           Metrics/foot_slip_m2_s2: 0.0280
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.6933
+         Metrics/torque_saturation: 0.0373
+        Metrics/tracking_error_rad: 0.1189
+              Metrics/feet_contact: 5.2492
+      Metrics/target_excursion_rad: 0.4173
+       Metrics/joint_excursion_rad: 0.3787
+  Metrics/joint_velocity_rms_rad_s: 0.8152
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.6297
+Metrics/non_distal_support_fraction: 0.3703
+Metrics/mean_knee_ground_clearance_m: 0.0378
+Metrics/knee_ground_clearance_violation_fraction: 0.3177
+--------------------------------------------------------------------------------
+                   Total timesteps: 19660800
+                    Iteration time: 26.07s
+                        Total time: 790.32s
+                               ETA: 974.7s
+
+################################################################################
+                    [1m Learning iteration 27782/27818 [0m                    
+
+                       Computation: 25452 steps/s (collection: 25.110s, learning 0.638s)
+             Mean action noise std: 0.04
+                    value_function: 9.6167
+                         surrogate: 0.0051
+                           entropy: -31.6662
+         Metrics/forward_speed_mps: 0.0045
+   Metrics/step_progress_speed_mps: 0.0054
+        Metrics/mechanical_power_w: 3.4230
+                Metrics/progress_m: 0.0001
+         Metrics/reward_progress_m: 0.0001
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0000
+           Metrics/foot_slip_m2_s2: 0.0279
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.6919
+         Metrics/torque_saturation: 0.0376
+        Metrics/tracking_error_rad: 0.1190
+              Metrics/feet_contact: 5.2550
+      Metrics/target_excursion_rad: 0.4162
+       Metrics/joint_excursion_rad: 0.3775
+  Metrics/joint_velocity_rms_rad_s: 0.8117
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.6313
+Metrics/non_distal_support_fraction: 0.3687
+Metrics/mean_knee_ground_clearance_m: 0.0378
+Metrics/knee_ground_clearance_violation_fraction: 0.3167
+--------------------------------------------------------------------------------
+                   Total timesteps: 20316160
+                    Iteration time: 25.75s
+                        Total time: 816.07s
+                               ETA: 947.7s
+
+################################################################################
+                    [1m Learning iteration 27783/27818 [0m                    
+
+                       Computation: 25409 steps/s (collection: 25.157s, learning 0.634s)
+             Mean action noise std: 0.04
+                    value_function: 9.2411
+                         surrogate: 0.0073
+                           entropy: -31.6658
+         Metrics/forward_speed_mps: 0.0048
+   Metrics/step_progress_speed_mps: 0.0056
+        Metrics/mechanical_power_w: 3.4112
+                Metrics/progress_m: 0.0001
+         Metrics/reward_progress_m: 0.0001
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0000
+           Metrics/foot_slip_m2_s2: 0.0278
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.6916
+         Metrics/torque_saturation: 0.0374
+        Metrics/tracking_error_rad: 0.1189
+              Metrics/feet_contact: 5.2601
+      Metrics/target_excursion_rad: 0.4165
+       Metrics/joint_excursion_rad: 0.3780
+  Metrics/joint_velocity_rms_rad_s: 0.8076
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.6333
+Metrics/non_distal_support_fraction: 0.3667
+Metrics/mean_knee_ground_clearance_m: 0.0378
+Metrics/knee_ground_clearance_violation_fraction: 0.3166
+--------------------------------------------------------------------------------
+                   Total timesteps: 20971520
+                    Iteration time: 25.79s
+                        Total time: 841.86s
+                               ETA: 920.8s
+
+################################################################################
+                    [1m Learning iteration 27784/27818 [0m                    
+
+                       Computation: 25443 steps/s (collection: 25.116s, learning 0.642s)
+             Mean action noise std: 0.04
+                    value_function: 9.5142
+                         surrogate: 0.0091
+                           entropy: -31.6637
+         Metrics/forward_speed_mps: 0.0048
+   Metrics/step_progress_speed_mps: 0.0057
+        Metrics/mechanical_power_w: 3.3930
+                Metrics/progress_m: 0.0001
+         Metrics/reward_progress_m: 0.0001
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0000
+           Metrics/foot_slip_m2_s2: 0.0277
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.6898
+         Metrics/torque_saturation: 0.0377
+        Metrics/tracking_error_rad: 0.1188
+              Metrics/feet_contact: 5.2609
+      Metrics/target_excursion_rad: 0.4164
+       Metrics/joint_excursion_rad: 0.3778
+  Metrics/joint_velocity_rms_rad_s: 0.8031
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.6373
+Metrics/non_distal_support_fraction: 0.3627
+Metrics/mean_knee_ground_clearance_m: 0.0379
+Metrics/knee_ground_clearance_violation_fraction: 0.3149
+--------------------------------------------------------------------------------
+                   Total timesteps: 21626880
+                    Iteration time: 25.76s
+                        Total time: 867.62s
+                               ETA: 893.9s
+
+################################################################################
+                    [1m Learning iteration 27785/27818 [0m                    
+
+                       Computation: 25382 steps/s (collection: 25.172s, learning 0.647s)
+             Mean action noise std: 0.04
+                    value_function: 9.0330
+                         surrogate: 0.0078
+                           entropy: -31.6601
+         Metrics/forward_speed_mps: 0.0048
+   Metrics/step_progress_speed_mps: 0.0056
+        Metrics/mechanical_power_w: 3.3727
+                Metrics/progress_m: 0.0001
+         Metrics/reward_progress_m: 0.0001
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0000
+           Metrics/foot_slip_m2_s2: 0.0277
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.6886
+         Metrics/torque_saturation: 0.0375
+        Metrics/tracking_error_rad: 0.1187
+              Metrics/feet_contact: 5.2647
+      Metrics/target_excursion_rad: 0.4160
+       Metrics/joint_excursion_rad: 0.3776
+  Metrics/joint_velocity_rms_rad_s: 0.7991
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.6381
+Metrics/non_distal_support_fraction: 0.3619
+Metrics/mean_knee_ground_clearance_m: 0.0380
+Metrics/knee_ground_clearance_violation_fraction: 0.3149
+--------------------------------------------------------------------------------
+                   Total timesteps: 22282240
+                    Iteration time: 25.82s
+                        Total time: 893.44s
+                               ETA: 867.2s
+
+################################################################################
+                    [1m Learning iteration 27786/27818 [0m                    
+
+                       Computation: 25187 steps/s (collection: 25.383s, learning 0.636s)
+             Mean action noise std: 0.04
+                    value_function: 9.4901
+                         surrogate: 0.0105
+                           entropy: -31.6533
+         Metrics/forward_speed_mps: 0.0049
+   Metrics/step_progress_speed_mps: 0.0057
+        Metrics/mechanical_power_w: 3.3796
+                Metrics/progress_m: 0.0001
+         Metrics/reward_progress_m: 0.0001
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0000
+           Metrics/foot_slip_m2_s2: 0.0276
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.6891
+         Metrics/torque_saturation: 0.0374
+        Metrics/tracking_error_rad: 0.1186
+              Metrics/feet_contact: 5.2672
+      Metrics/target_excursion_rad: 0.4162
+       Metrics/joint_excursion_rad: 0.3780
+  Metrics/joint_velocity_rms_rad_s: 0.7989
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.6390
+Metrics/non_distal_support_fraction: 0.3610
+Metrics/mean_knee_ground_clearance_m: 0.0380
+Metrics/knee_ground_clearance_violation_fraction: 0.3155
+--------------------------------------------------------------------------------
+                   Total timesteps: 22937600
+                    Iteration time: 26.02s
+                        Total time: 919.46s
+                               ETA: 840.6s
+
+################################################################################
+                    [1m Learning iteration 27787/27818 [0m                    
+
+                       Computation: 25489 steps/s (collection: 25.075s, learning 0.636s)
+             Mean action noise std: 0.04
+                    value_function: 9.0069
+                         surrogate: 0.0170
+                           entropy: -31.6498
+         Metrics/forward_speed_mps: 0.0051
+   Metrics/step_progress_speed_mps: 0.0058
+        Metrics/mechanical_power_w: 3.3656
+                Metrics/progress_m: 0.0001
+         Metrics/reward_progress_m: 0.0001
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0000
+           Metrics/foot_slip_m2_s2: 0.0274
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.6883
+         Metrics/torque_saturation: 0.0373
+        Metrics/tracking_error_rad: 0.1185
+              Metrics/feet_contact: 5.2702
+      Metrics/target_excursion_rad: 0.4166
+       Metrics/joint_excursion_rad: 0.3785
+  Metrics/joint_velocity_rms_rad_s: 0.7952
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.6407
+Metrics/non_distal_support_fraction: 0.3593
+Metrics/mean_knee_ground_clearance_m: 0.0380
+Metrics/knee_ground_clearance_violation_fraction: 0.3152
+--------------------------------------------------------------------------------
+                   Total timesteps: 23592960
+                    Iteration time: 25.71s
+                        Total time: 945.17s
+                               ETA: 813.9s
+
+################################################################################
+                    [1m Learning iteration 27788/27818 [0m                    
+
+                       Computation: 25445 steps/s (collection: 25.120s, learning 0.636s)
+             Mean action noise std: 0.04
+                    value_function: 9.0054
+                         surrogate: 0.0069
+                           entropy: -31.6416
+         Metrics/forward_speed_mps: 0.0053
+   Metrics/step_progress_speed_mps: 0.0060
+        Metrics/mechanical_power_w: 3.3654
+                Metrics/progress_m: 0.0001
+         Metrics/reward_progress_m: 0.0001
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0001
+           Metrics/foot_slip_m2_s2: 0.0272
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.6878
+         Metrics/torque_saturation: 0.0372
+        Metrics/tracking_error_rad: 0.1186
+              Metrics/feet_contact: 5.2712
+      Metrics/target_excursion_rad: 0.4173
+       Metrics/joint_excursion_rad: 0.3792
+  Metrics/joint_velocity_rms_rad_s: 0.7931
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.6412
+Metrics/non_distal_support_fraction: 0.3588
+Metrics/mean_knee_ground_clearance_m: 0.0380
+Metrics/knee_ground_clearance_violation_fraction: 0.3146
+--------------------------------------------------------------------------------
+                   Total timesteps: 24248320
+                    Iteration time: 25.76s
+                        Total time: 970.92s
+                               ETA: 787.2s
+
+################################################################################
+                    [1m Learning iteration 27789/27818 [0m                    
+
+                       Computation: 25424 steps/s (collection: 25.139s, learning 0.638s)
+             Mean action noise std: 0.04
+                    value_function: 9.1889
+                         surrogate: 0.0249
+                           entropy: -31.6329
+         Metrics/forward_speed_mps: 0.0053
+   Metrics/step_progress_speed_mps: 0.0061
+        Metrics/mechanical_power_w: 3.3516
+                Metrics/progress_m: 0.0001
+         Metrics/reward_progress_m: 0.0001
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0001
+           Metrics/foot_slip_m2_s2: 0.0271
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.6874
+         Metrics/torque_saturation: 0.0372
+        Metrics/tracking_error_rad: 0.1184
+              Metrics/feet_contact: 5.2713
+      Metrics/target_excursion_rad: 0.4173
+       Metrics/joint_excursion_rad: 0.3794
+  Metrics/joint_velocity_rms_rad_s: 0.7899
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.6416
+Metrics/non_distal_support_fraction: 0.3584
+Metrics/mean_knee_ground_clearance_m: 0.0380
+Metrics/knee_ground_clearance_violation_fraction: 0.3151
+--------------------------------------------------------------------------------
+                   Total timesteps: 24903680
+                    Iteration time: 25.78s
+                        Total time: 996.70s
+                               ETA: 760.6s
+
+################################################################################
+                    [1m Learning iteration 27790/27818 [0m                    
+
+                       Computation: 25471 steps/s (collection: 25.095s, learning 0.634s)
+             Mean action noise std: 0.04
+                    value_function: 9.6525
+                         surrogate: 0.0042
+                           entropy: -31.6197
+         Metrics/forward_speed_mps: 0.0056
+   Metrics/step_progress_speed_mps: 0.0063
+        Metrics/mechanical_power_w: 3.3512
+                Metrics/progress_m: 0.0001
+         Metrics/reward_progress_m: 0.0001
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0001
+           Metrics/foot_slip_m2_s2: 0.0270
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.6868
+         Metrics/torque_saturation: 0.0371
+        Metrics/tracking_error_rad: 0.1184
+              Metrics/feet_contact: 5.2717
+      Metrics/target_excursion_rad: 0.4173
+       Metrics/joint_excursion_rad: 0.3796
+  Metrics/joint_velocity_rms_rad_s: 0.7881
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.6396
+Metrics/non_distal_support_fraction: 0.3604
+Metrics/mean_knee_ground_clearance_m: 0.0380
+Metrics/knee_ground_clearance_violation_fraction: 0.3174
+--------------------------------------------------------------------------------
+                   Total timesteps: 25559040
+                    Iteration time: 25.73s
+                        Total time: 1022.43s
+                               ETA: 734.1s
+
+################################################################################
+                    [1m Learning iteration 27791/27818 [0m                    
+
+                       Computation: 25452 steps/s (collection: 25.113s, learning 0.635s)
+             Mean action noise std: 0.04
+                    value_function: 9.6649
+                         surrogate: 0.0069
+                           entropy: -31.6225
+         Metrics/forward_speed_mps: 0.0060
+   Metrics/step_progress_speed_mps: 0.0067
+        Metrics/mechanical_power_w: 3.3565
+                Metrics/progress_m: 0.0001
+         Metrics/reward_progress_m: 0.0001
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0001
+           Metrics/foot_slip_m2_s2: 0.0270
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.6867
+         Metrics/torque_saturation: 0.0372
+        Metrics/tracking_error_rad: 0.1184
+              Metrics/feet_contact: 5.2643
+      Metrics/target_excursion_rad: 0.4179
+       Metrics/joint_excursion_rad: 0.3802
+  Metrics/joint_velocity_rms_rad_s: 0.7902
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.6401
+Metrics/non_distal_support_fraction: 0.3599
+Metrics/mean_knee_ground_clearance_m: 0.0380
+Metrics/knee_ground_clearance_violation_fraction: 0.3162
+--------------------------------------------------------------------------------
+                   Total timesteps: 26214400
+                    Iteration time: 25.75s
+                        Total time: 1048.18s
+                               ETA: 707.5s
+
+################################################################################
+                    [1m Learning iteration 27792/27818 [0m                    
+
+                       Computation: 25454 steps/s (collection: 25.108s, learning 0.638s)
+             Mean action noise std: 0.04
+                    value_function: 9.2443
+                         surrogate: 0.0098
+                           entropy: -31.6208
+         Metrics/forward_speed_mps: 0.0060
+   Metrics/step_progress_speed_mps: 0.0067
+        Metrics/mechanical_power_w: 3.3558
+                Metrics/progress_m: 0.0001
+         Metrics/reward_progress_m: 0.0001
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0001
+           Metrics/foot_slip_m2_s2: 0.0268
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.6863
+         Metrics/torque_saturation: 0.0374
+        Metrics/tracking_error_rad: 0.1185
+              Metrics/feet_contact: 5.2603
+      Metrics/target_excursion_rad: 0.4184
+       Metrics/joint_excursion_rad: 0.3806
+  Metrics/joint_velocity_rms_rad_s: 0.7892
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.6410
+Metrics/non_distal_support_fraction: 0.3590
+Metrics/mean_knee_ground_clearance_m: 0.0381
+Metrics/knee_ground_clearance_violation_fraction: 0.3151
+--------------------------------------------------------------------------------
+                   Total timesteps: 26869760
+                    Iteration time: 25.75s
+                        Total time: 1073.92s
+                               ETA: 681.0s
+
+################################################################################
+                    [1m Learning iteration 27793/27818 [0m                    
+
+                       Computation: 25447 steps/s (collection: 25.113s, learning 0.640s)
+             Mean action noise std: 0.04
+                    value_function: 9.6608
+                         surrogate: 0.0022
+                           entropy: -31.6143
+         Metrics/forward_speed_mps: 0.0062
+   Metrics/step_progress_speed_mps: 0.0069
+        Metrics/mechanical_power_w: 3.3727
+                Metrics/progress_m: 0.0001
+         Metrics/reward_progress_m: 0.0001
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0001
+           Metrics/foot_slip_m2_s2: 0.0270
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.6880
+         Metrics/torque_saturation: 0.0372
+        Metrics/tracking_error_rad: 0.1185
+              Metrics/feet_contact: 5.2579
+      Metrics/target_excursion_rad: 0.4184
+       Metrics/joint_excursion_rad: 0.3809
+  Metrics/joint_velocity_rms_rad_s: 0.7915
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.6406
+Metrics/non_distal_support_fraction: 0.3594
+Metrics/mean_knee_ground_clearance_m: 0.0381
+Metrics/knee_ground_clearance_violation_fraction: 0.3151
+--------------------------------------------------------------------------------
+                   Total timesteps: 27525120
+                    Iteration time: 25.75s
+                        Total time: 1099.68s
+                               ETA: 654.6s
+
+################################################################################
+                    [1m Learning iteration 27794/27818 [0m                    
+
+                       Computation: 25483 steps/s (collection: 25.076s, learning 0.641s)
+             Mean action noise std: 0.04
+                    value_function: 10.7104
+                         surrogate: 0.0046
+                           entropy: -31.6110
+         Metrics/forward_speed_mps: 0.0060
+   Metrics/step_progress_speed_mps: 0.0067
+        Metrics/mechanical_power_w: 3.3642
+                Metrics/progress_m: 0.0001
+         Metrics/reward_progress_m: 0.0001
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0001
+           Metrics/foot_slip_m2_s2: 0.0267
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0011
+    Metrics/target_rate_saturation: 0.6868
+         Metrics/torque_saturation: 0.0373
+        Metrics/tracking_error_rad: 0.1185
+              Metrics/feet_contact: 5.2574
+      Metrics/target_excursion_rad: 0.4183
+       Metrics/joint_excursion_rad: 0.3808
+  Metrics/joint_velocity_rms_rad_s: 0.7884
+     Metrics/mean_foot_clearance_m: 0.0001
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.6432
+Metrics/non_distal_support_fraction: 0.3568
+Metrics/mean_knee_ground_clearance_m: 0.0381
+Metrics/knee_ground_clearance_violation_fraction: 0.3141
+--------------------------------------------------------------------------------
+                   Total timesteps: 28180480
+                    Iteration time: 25.72s
+                        Total time: 1125.40s
+                               ETA: 628.1s
+

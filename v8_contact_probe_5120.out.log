@@ -1,0 +1,83 @@
+[INFO] Using python from: C:\Users\COM\Documents\GitHub\DKSH-Sw-contest\IsaacLab\\_isaac_sim\python.bat
+[INFO][AppLauncher]: Loading experience file: C:\Users\COM\Documents\GitHub\DKSH-Sw-contest\IsaacLab\apps\isaaclab.python.headless.kit
+Loading user config located at: 'c:/users/com/documents/github/dksh-sw-contest/isaaclab/_isaac_sim/kit/data/Kit/Isaac-Sim/4.5/user.config.json'
+[Info] [carb] Logging to file: c:/users/com/documents/github/dksh-sw-contest/isaaclab/_isaac_sim/kit/logs/Kit/Isaac-Sim/4.5/kit_20261031_172715.log
+2026-10-31 08:27:15 [0ms] [Warning] [omni.kit.app.plugin] No crash reporter present, dumps uploading isn't available.
+2026-10-31 08:27:16 [777ms] [Warning] [omni.usd_config.extension] Enable omni.materialx.libs extension to use MaterialX
+2026-10-31 08:27:16 [1,181ms] [Warning] [omni.datastore] OmniHub is inaccessible
+2026-10-31 08:27:17 [1,463ms] [Warning] [omni.isaac.dynamic_control] omni.isaac.dynamic_control is deprecated as of Isaac Sim 4.5. No action is needed from end-users.
+
+|---------------------------------------------------------------------------------------------|
+| Driver Version: 560.94        | Graphics API: D3D12
+|=============================================================================================|
+| GPU | Name                             | Active | LDA | GPU Memory | Vendor-ID | LUID       |
+|     |                                  |        |     |            | Device-ID | UUID       |
+|     |                                  |        |     |            | Bus-ID    |            |
+|---------------------------------------------------------------------------------------------|
+| 0   | NVIDIA GeForce RTX 3070          | Yes: 0 |     | 8018    MB | 10de      | d0db0000.. |
+|     |                                  |        |     |            | 2488      | 0          |
+|     |                                  |        |     |            | 1         |            |
+|=============================================================================================|
+| OS: Windows 10 Education, Version: 10.0 (22H2), Build: 19045, Kernel: 10.0.19041.6456
+| Processor: 12th Gen Intel(R) Core(TM) i5-12600KF
+| Cores: 10 | Logical Cores: 16
+|---------------------------------------------------------------------------------------------|
+| Total Memory (MB): 32619 | Free Memory: 21796
+| Total Page/Swap (MB): 37483 | Free Page/Swap: 21143
+|---------------------------------------------------------------------------------------------|
+[INFO]: Parsing configuration from: dksh_isaaclab.tasks.direct.spider_navigation.joint_angle_env_cfg:MG996RHipCad6JointAngleEnvCfg
+Setting seed: 42
+[INFO]: Base environment:
+	Environment device    : cuda:0
+	Environment seed      : 42
+	Physics step-size     : 0.005
+	Rendering step-size   : 0.02
+	Environment step-size : 0.02
+[INFO]: Time taken for scene creation : 2.965353 seconds
+[INFO]: Scene manager:  <class InteractiveScene>
+	Number of environments: 5120
+	Environment spacing   : 7.0
+	Source prim name      : /World/envs/env_0
+	Global prim paths     : ['/World/ground']
+	Replicate physics     : True
+[INFO]: Starting the simulation. This may take a few seconds. Please wait...
+[INFO]: Time taken for simulation start : 5.862451 seconds
+[INFO]: Completed setting up the environment...
+2026-10-31 08:27:31 [15,527ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdPreviewSurface.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 08:27:31 [15,528ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdUVTexture.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 08:27:31 [15,529ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdPrimvarReader_float.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 08:27:31 [15,529ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdPrimvarReader_float2.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 08:27:31 [15,530ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdPrimvarReader_float3.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 08:27:31 [15,530ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdPrimvarReader_float4.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 08:27:31 [15,530ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdPrimvarReader_int.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 08:27:31 [15,531ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdPrimvarReader_string.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 08:27:31 [15,531ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdPrimvarReader_normal.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 08:27:31 [15,531ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdPrimvarReader_point.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 08:27:31 [15,532ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdPrimvarReader_vector.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 08:27:31 [15,532ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdPrimvarReader_matrix.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 08:27:31 [15,532ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdTransform2d.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+CONTACT_PROBE {'age': 5, 'min_gap_link': 'leg_1_tibia', 'min_gap_m': 0.02689545229077339, 'force_at_gap_n': 4.560525417327881, 'top_forces_n': [('leg_5_tibia', 8.891), ('leg_2_tibia', 7.193), ('base', 6.217), ('leg_5_femur', 6.217)], 'invalid_legs': [False, False, False, False, False, True], 'support': [True, True, True, True, True, False]}
+CONTACT_PROBE {'age': 5, 'min_gap_link': 'leg_0_tibia', 'min_gap_m': 0.027153991162776947, 'force_at_gap_n': 1.5114940404891968, 'top_forces_n': [('leg_5_femur', 9.072), ('base', 9.072), ('leg_5_tibia', 8.537), ('leg_1_tibia', 7.32)], 'invalid_legs': [False, False, False, False, False, True], 'support': [True, True, True, True, True, False]}
+CONTACT_PROBE {'age': 6, 'min_gap_link': 'leg_3_tibia', 'min_gap_m': 0.02701450139284134, 'force_at_gap_n': 4.962882995605469, 'top_forces_n': [('leg_4_tibia', 7.822), ('leg_0_tibia', 6.351), ('leg_3_tibia', 4.963), ('leg_2_tibia', 4.548)], 'invalid_legs': [False, False, False, False, True, False], 'support': [True, True, True, True, False, True]}
+CONTACT_PROBE {'age': 6, 'min_gap_link': 'leg_0_tibia', 'min_gap_m': 0.027044154703617096, 'force_at_gap_n': 1.7937180995941162, 'top_forces_n': [('leg_1_femur', 13.077), ('base', 13.077), ('leg_1_tibia', 8.381), ('leg_5_tibia', 6.233)], 'invalid_legs': [False, True, False, False, False, False], 'support': [True, False, True, True, True, True]}
+CONTACT_PROBE {'age': 7, 'min_gap_link': 'leg_3_tibia', 'min_gap_m': 0.02685707062482834, 'force_at_gap_n': 3.5376992225646973, 'top_forces_n': [('leg_2_tibia', 7.442), ('leg_2_femur', 5.178), ('base', 5.178), ('leg_5_tibia', 4.951)], 'invalid_legs': [False, False, True, False, False, False], 'support': [True, True, False, True, False, True]}
+CONTACT_PROBE {'age': 7, 'min_gap_link': 'leg_2_tibia', 'min_gap_m': 0.026531342417001724, 'force_at_gap_n': 3.983086347579956, 'top_forces_n': [('leg_1_tibia', 8.372), ('leg_1_femur', 5.465), ('base', 5.465), ('leg_3_tibia', 5.161)], 'invalid_legs': [False, True, False, False, False, False], 'support': [True, False, True, True, True, True]}
+CONTACT_PROBE {'age': 8, 'min_gap_link': 'leg_4_tibia', 'min_gap_m': 0.026498708873987198, 'force_at_gap_n': 1.2822023630142212, 'top_forces_n': [('leg_3_femur', 9.065), ('base', 9.065), ('leg_3_tibia', 8.224), ('leg_5_tibia', 5.568)], 'invalid_legs': [False, False, False, True, False, False], 'support': [True, False, True, False, True, True]}
+CONTACT_PROBE {'age': 8, 'min_gap_link': 'leg_0_tibia', 'min_gap_m': 0.02677927166223526, 'force_at_gap_n': 3.473860740661621, 'top_forces_n': [('leg_5_tibia', 7.358), ('leg_5_femur', 6.234), ('base', 6.234), ('leg_4_tibia', 5.005)], 'invalid_legs': [False, False, False, False, False, True], 'support': [True, True, True, True, True, False]}
+CONTACT_PROBE {'age': 9, 'min_gap_link': 'leg_1_tibia', 'min_gap_m': 0.02664751186966896, 'force_at_gap_n': 2.5143849849700928, 'top_forces_n': [('leg_2_tibia', 7.294), ('leg_0_tibia', 4.743), ('leg_1_tibia', 2.514), ('base', 2.462)], 'invalid_legs': [False, False, True, False, False, False], 'support': [True, True, False, True, True, True]}
+CONTACT_PROBE {'age': 9, 'min_gap_link': 'leg_0_tibia', 'min_gap_m': 0.026009920984506607, 'force_at_gap_n': 2.0242063999176025, 'top_forces_n': [('leg_5_tibia', 6.621), ('leg_1_tibia', 4.743), ('leg_3_tibia', 4.216), ('leg_2_tibia', 2.144)], 'invalid_legs': [False, False, False, False, False, True], 'support': [True, True, True, True, False, False]}
+CONTACT_PROBE {'age': 10, 'min_gap_link': 'leg_3_tibia', 'min_gap_m': 0.02715984359383583, 'force_at_gap_n': 0.8958636522293091, 'top_forces_n': [('leg_2_femur', 10.507), ('base', 10.507), ('leg_2_tibia', 9.158), ('leg_0_tibia', 5.027)], 'invalid_legs': [False, False, True, False, False, False], 'support': [True, False, False, False, True, False]}
+CONTACT_PROBE {'age': 10, 'min_gap_link': 'leg_4_tibia', 'min_gap_m': 0.027398619800806046, 'force_at_gap_n': 1.8992036581039429, 'top_forces_n': [('leg_3_tibia', 8.042), ('leg_3_femur', 7.22), ('base', 7.22), ('leg_1_tibia', 6.185)], 'invalid_legs': [False, False, False, True, False, False], 'support': [False, True, True, False, True, True]}
