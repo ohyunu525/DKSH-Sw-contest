@@ -47,7 +47,9 @@ class CourseArgumentsTests(unittest.TestCase):
         self.assertEqual((cfg.course_split, cfg.course_seed), ("holdout", 73))
 
     def test_strict_distal_profile_is_allowed_for_curriculum(self):
-        self.assertEqual(self.arguments(profile="revised_v8").behavior_profile, "revised_v8")
+        for profile in ("revised_v7", "revised_v8", "revised_v9"):
+            with self.subTest(profile=profile):
+                self.assertEqual(self.arguments(profile=profile).behavior_profile, profile)
 
     def test_invalid_randomization_and_windows_are_rejected(self):
         options = (("--course_seed=-1",), ("--flat_fraction=nan",), ("--flat_fraction=1",),

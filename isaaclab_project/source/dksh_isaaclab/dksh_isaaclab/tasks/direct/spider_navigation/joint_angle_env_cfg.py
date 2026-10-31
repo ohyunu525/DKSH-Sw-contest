@@ -31,6 +31,7 @@ KNEE_CLEARANCE_REWARD_CONTRACT = "signed_progress_huber_speed_knee_clearance_v1"
 FULL_FOOT_SLIP_REWARD_CONTRACT = "signed_progress_huber_speed_knee_clearance_full_foot_slip_v1"
 DISTAL_SUPPORT_REWARD_CONTRACT = "signed_progress_huber_speed_distal_support_v1"
 STRICT_SUPPORT_REWARD_CONTRACT = "signed_progress_huber_speed_strict_support_v1"
+STRICT_CONTACT_SUPPORT_REWARD_CONTRACT = "signed_progress_huber_speed_strict_support_v2"
 # Fixed-foot origins in main's normalized Onshape URDF, in policy leg order.
 ONSHAPE_SOLE_OFFSETS = (
     (0.137, 0.010, -0.01922),
@@ -104,6 +105,8 @@ class JointAngleNavigationEnvCfg(SpiderNavigationEnvCfg):
     proximal_foot_offsets = None
     non_distal_collision_offsets = None
     non_distal_ground_clearance_m = 0.008
+    # Physical contact slop is separate from the larger soft clearance margin.
+    non_distal_contact_height_tolerance_m = 0.001
     non_distal_penetration_tolerance_m = 0.002
     non_distal_clearance_cost_scale = -5.0
     contact_diagnostics_path = None
@@ -181,9 +184,9 @@ def _mg996r_hip_cad6_robot():
 class MG996RHipCad6JointAngleEnvCfg(Cad6JointAngleEnvCfg):
     """Six MG996R hip servos and twelve provisional RC920DMG leg servos."""
     robot = _mg996r_hip_cad6_robot()
-    behavior_profile = "revised_v8"
-    reward_contract = STRICT_SUPPORT_REWARD_CONTRACT
-    contact_contract = "cad6_strict_distal_all_links_v1"
+    behavior_profile = "revised_v9"
+    reward_contract = STRICT_CONTACT_SUPPORT_REWARD_CONTRACT
+    contact_contract = "cad6_strict_distal_all_links_v2"
     joint_angle_ranges = Cad6JointAngleEnvCfg().joint_angle_ranges
     sole_offset = ONSHAPE_SOLE_OFFSETS
     foot_support_offsets = ONSHAPE_FOOT_SUPPORT_OFFSETS

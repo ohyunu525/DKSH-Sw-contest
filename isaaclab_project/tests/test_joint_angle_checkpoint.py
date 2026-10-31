@@ -319,15 +319,15 @@ class CheckpointTests(unittest.TestCase):
                                                        expected_contact_contract=historical["contact_contract"])
 
     def test_strict_checkpoint_discovery_skips_newer_historical_models(self):
-        strict = CHECKPOINT.BEHAVIOR_PROFILES["revised_v8"]
+        strict = CHECKPOINT.BEHAVIOR_PROFILES["revised_v9"]
         compatibility = {"expected_reward_contract": strict["reward_contract"],
                          "expected_contact_contract": strict["contact_contract"]}
         with TemporaryDirectory() as root:
             strict_dir, old_dir = Path(root) / "strict", Path(root) / "historical"
             strict_dir.mkdir()
             old_dir.mkdir()
-            strict_path = self.create_checkpoint(strict_dir, "flat", profile="revised_v8")
-            old_path = self.create_checkpoint(old_dir, "flat", profile="revised_v7")
+            strict_path = self.create_checkpoint(strict_dir, "flat", profile="revised_v9")
+            old_path = self.create_checkpoint(old_dir, "flat", profile="revised_v8")
             os.utime(strict_path, (100, 100))
             os.utime(old_path, (200, 200))
             resolved = CHECKPOINT.resolve_checkpoint("", root, TASK, "flat", **compatibility)
@@ -341,6 +341,44 @@ class CheckpointTests(unittest.TestCase):
             metadata_path = path.parent / "run_metadata.json"
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
             metadata["behavior_profile"] = "revised_v8"
+            metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "profile disagrees"):
+                CHECKPOINT.validate_checkpoint(path, TASK, "flat", allow_behavior_transfer=True)
+
+    def test_v9_contact_threshold_contract_preserves_v8_and_requires_explicit_transfer(self):
+        current = CHECKPOINT.BEHAVIOR_PROFILES["revised_v9"]
+        self.assertEqual(current, {
+            "reward_contract": "signed_progress_huber_speed_strict_support_v2",
+            "contact_contract": "cad6_strict_distal_all_links_v2",
+        })
+        self.assertEqual(CHECKPOINT.BEHAVIOR_PROFILES["revised_v8"], {
+            "reward_contract": "signed_progress_huber_speed_strict_support_v1",
+            "contact_contract": "cad6_strict_distal_all_links_v1",
+        })
+        compatibility = {"expected_reward_contract": current["reward_contract"],
+                         "expected_contact_contract": current["contact_contract"]}
+        with TemporaryDirectory() as root:
+            for profile in CHECKPOINT.BEHAVIOR_PROFILES:
+                with self.subTest(profile=profile):
+                    path = self.create_checkpoint(root, "flat", profile=profile)
+                    saved = CHECKPOINT.validate_checkpoint(path, TASK, "flat")
+                    self.assertEqual(CHECKPOINT.behavior_profile_from_metadata(saved), profile)
+                    self.assertEqual((saved["observations"], saved["actions"]), (140, 18))
+                    if profile == "revised_v9":
+                        CHECKPOINT.validate_checkpoint(path, TASK, "flat", **compatibility)
+                    else:
+                        with self.assertRaisesRegex(ValueError, f"--behavior_profile={profile}.*--allow_behavior_transfer"):
+                            CHECKPOINT.validate_checkpoint(path, TASK, "flat", **compatibility)
+                        transferred = CHECKPOINT.validate_checkpoint(path, TASK, "flat", allow_behavior_transfer=True,
+                                                                     **compatibility)
+                        self.assertEqual(transferred["behavior_profile"], profile)
+
+    def test_transfer_cannot_relabel_v8_metadata_as_v9_without_new_contracts(self):
+        with TemporaryDirectory() as root:
+            path = self.create_checkpoint(root, "flat", profile="revised_v8")
+            metadata_path = path.parent / "run_metadata.json"
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            metadata["behavior_profile"] = "revised_v9"
             metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "profile disagrees"):
                 CHECKPOINT.validate_checkpoint(path, TASK, "flat", allow_behavior_transfer=True)

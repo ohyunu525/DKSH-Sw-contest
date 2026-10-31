@@ -152,7 +152,7 @@ def make_env(actions=18, support_offsets=None, *, behavior_profile="revised_v3",
     # out of these tensor tests; no duplicate copy of the reward implementation.
     cfg_tree = ast.parse((FOLDER / "joint_angle_env_cfg.py").read_text(encoding="utf-8"))
     classes = [next(node for node in cfg_tree.body if isinstance(node, ast.ClassDef))]
-    if behavior_profile in ("revised_v5", "revised_v6", "revised_v7", "revised_v7_com", "revised_v8"):
+    if behavior_profile in ("revised_v5", "revised_v6", "revised_v7", "revised_v7_com", "revised_v8", "revised_v9"):
         classes.append(next(node for node in cfg_tree.body
                             if isinstance(node, ast.ClassDef) and node.name == "MG996RHipCad6JointAngleEnvCfg"))
     settings = {}
@@ -566,7 +566,7 @@ class JointAngleEnvironmentTests(unittest.TestCase):
 
 
 class StrictContactEnvironmentTests(unittest.TestCase):
-    def strict_env(self, *, servo_contact=False, diagnostic_path=None):
+    def strict_env(self, *, servo_contact=False, diagnostic_path=None, behavior_profile="revised_v8"):
         distal = tuple(((0.12, 0.0, -0.06),) for _ in range(6))
         proximal = tuple(((0.0, 0.0, -0.01),) for _ in range(6))
         hull = tuple(distal[leg] + proximal[leg] for leg in range(6))
@@ -576,7 +576,7 @@ class StrictContactEnvironmentTests(unittest.TestCase):
                 offset_z = (-0.06 if servo_contact else -0.01) if part == "tibia" else 0.0
                 collision[f"leg_{leg}_{part}"] = ((0.0, 0.0, offset_z),)
         env = make_env(
-            support_offsets=hull, behavior_profile="revised_v8",
+            support_offsets=hull, behavior_profile=behavior_profile,
             toe_button_offsets=tuple(points[0] for points in distal),
             distal_offsets=distal, proximal_offsets=proximal, collision_offsets=collision,
             diagnostic_path=diagnostic_path,
@@ -819,6 +819,177 @@ class StrictContactEnvironmentTests(unittest.TestCase):
         self.assertTrue(bool(loaded.all()))
         terminated, _ = env._get_dones()
         torch.testing.assert_close(terminated, torch.tensor([True, False]))
+
+
+class PhysicalContactMarginEnvironmentTests(unittest.TestCase):
+    def strict_env(self, **kwargs):
+        return StrictContactEnvironmentTests().strict_env(behavior_profile="revised_v9", **kwargs)
+
+    def recorded_env(self, profile):
+        fixture = json.loads((Path(__file__).with_name("fixtures")
+                              / "recorded_v8_distal_false_positive.json").read_text(encoding="utf-8"))
+        foot = load_helper("joint_angle_foot_geometry")
+        nonfoot = load_helper("joint_angle_non_distal_geometry")
+        env = make_env(
+            support_offsets=foot.ONSHAPE_FOOT_SUPPORT_OFFSETS, behavior_profile=profile,
+            toe_button_offsets=foot.ONSHAPE_TOE_BUTTON_OFFSETS,
+            distal_offsets=foot.ONSHAPE_DISTAL_FOOT_SUPPORT_OFFSETS,
+            proximal_offsets=foot.ONSHAPE_PROXIMAL_FOOT_OFFSETS,
+            collision_offsets=nonfoot.ONSHAPE_NON_DISTAL_COLLISION_OFFSETS,
+        )
+        states = fixture["body_state"]
+        for name in env._robot.body_names:
+            target = env._robot.body_names.index(name)
+            source = states["names"].index(name)
+            env._robot.data.body_link_pos_w[:, target] = torch.tensor(states["positions_w_m"][source])
+            env._robot.data.body_link_quat_w[:, target] = torch.tensor(states["quaternions_wxyz"][source])
+        history = fixture["net_contact_force_history"]
+        for name in env._contacts.body_names:
+            target = env._contacts.body_names.index(name)
+            source = history["body_names"].index(name)
+            env._contacts.data.net_forces_w_history[:, :, target] = torch.tensor(
+                [sample[source] for sample in history["force_w_n"]]
+            )
+        env.scene.env_origins[:] = torch.tensor(fixture["env_origin_w_m"])
+        root = fixture["root_state"]
+        env._robot.data.root_pos_w[:] = torch.tensor(root["position_w_m"])
+        env._robot.data.root_quat_w[:] = torch.tensor(root["quaternion_wxyz"])
+        env._robot.data.projected_gravity_b[:] = torch.tensor(root["projected_gravity_b"])
+        env._target_positions_w[:] = env._robot.data.root_pos_w
+        env._target_positions_w[:, 0] += 0.5
+        env._target_positions_w[:, 2] = env.scene.env_origins[:, 2] + 0.015
+        env._previous_goal_distance[:] = env._goal_data()[0]
+        return env
+
+    def test_recorded_v8_false_positive_has_six_valid_distal_contacts_in_v9(self):
+        for profile in ("revised_v8", "revised_v9"):
+            with self.subTest(profile=profile):
+                env = self.recorded_env(profile)
+                distal, distal_body, _ = env._distal_contact_state()
+                support, body, invalid, loaded, gaps = env._strict_contact_state()
+                self.assertTrue(bool(loaded.all()))
+                leg5 = list(env.cfg.non_distal_collision_offsets).index("leg_5_tibia")
+                self.assertAlmostEqual(float(gaps[0, leg5]), 0.0078830868, places=7)
+                if profile == "revised_v8":
+                    self.assertFalse(bool(distal[:, 5].any()))
+                    self.assertTrue(bool(distal_body.all()))
+                    self.assertTrue(bool(body.all()))
+                    self.assertTrue(bool(invalid[:, 5].all()))
+                    torch.testing.assert_close(support.sum(-1), torch.full((2,), 5))
+                else:
+                    self.assertEqual(env.cfg.non_distal_contact_height_tolerance_m, 0.001)
+                    self.assertTrue(bool(distal.all()))
+                    self.assertFalse(bool(distal_body.any()))
+                    self.assertTrue(bool(support.all()))
+                    self.assertFalse(bool(body.any()))
+                    self.assertFalse(bool(invalid.any()))
+                terminated, _ = env._get_dones()
+                self.assertEqual(bool(terminated.all()), profile == "revised_v8")
+                env._get_rewards()
+                if profile == "revised_v9":
+                    self.assertFalse(bool(env._strict_contact_failure.any()))
+                    self.assertTrue(bool((env._episode_sums["non_distal_clearance"] < 0).all()))
+
+    def test_contact_slop_and_soft_clearance_are_separate_for_shaft_and_servo(self):
+        for patch in ("proximal_foot", "tibia_servo"):
+            with self.subTest(patch=patch):
+                env = self.strict_env()
+                gaps = torch.tensor([0.0005, 0.001001])
+                if patch == "proximal_foot":
+                    env._proximal_foot_offsets = env._proximal_foot_offsets.clone()
+                    env._proximal_foot_offsets[..., 2] = -0.06 + gaps[:, None, None]
+                else:
+                    env._non_distal_offsets = env._non_distal_offsets.clone()
+                    for indices in env._non_distal_leg_geometry:
+                        env._non_distal_offsets[:, indices[-1], :, 2] = -0.06 + gaps[:, None]
+                distal, _, _ = env._distal_contact_state()
+                if patch == "proximal_foot":
+                    self.assertFalse(bool(distal[0].any()))
+                else:
+                    self.assertTrue(bool(distal[0].all()))
+                self.assertTrue(bool(distal[1].all()))
+                support, body, invalid, loaded, actual_gaps = env._strict_contact_state()
+                torch.testing.assert_close(body, torch.tensor([True, False]))
+                self.assertTrue(bool(invalid[0].all()))
+                self.assertFalse(bool(invalid[1].any()))
+                self.assertFalse(bool(support[0].any()))
+                self.assertTrue(bool(support[1].all()))
+                self.assertTrue(bool(loaded.all()))
+                torch.testing.assert_close(actual_gaps.amin(-1), gaps)
+                terminated, _ = env._get_dones()
+                torch.testing.assert_close(terminated, torch.tensor([True, False]))
+                env._get_rewards()
+                self.assertTrue(bool((env._episode_sums["non_distal_clearance"] < 0).all()))
+                torch.testing.assert_close(env.step_metrics["non_distal_collision_fraction"],
+                                           torch.tensor([1.0, 0.0]))
+
+    def test_unloaded_positive_contact_slop_gets_soft_cost_without_failure(self):
+        env = self.strict_env(servo_contact=True)
+        env._contacts.data.net_forces_w_history.zero_()
+        env._robot.data.body_link_pos_w[:, env._feet, 2] += 0.0005
+        support, body, invalid, loaded, gaps = env._strict_contact_state()
+        self.assertFalse(bool(support.any()))
+        self.assertFalse(bool(body.any()))
+        self.assertFalse(bool(invalid.any()))
+        self.assertFalse(bool(loaded.any()))
+        self.assertTrue(bool((gaps > 0).all()))
+        terminated, _ = env._get_dones()
+        self.assertFalse(bool(terminated.any()))
+        env._get_rewards()
+        self.assertTrue(bool((env._episode_sums["non_distal_clearance"] < 0).all()))
+        self.assertFalse(bool(env._strict_contact_failure.any()))
+
+    def test_actual_hip_and_femur_loads_remain_strict_with_supported_or_airborne_tips(self):
+        helper = StrictContactEnvironmentTests()
+        for link in ("leg_2_hip", "leg_2_femur"):
+            for airborne in (False, True):
+                with self.subTest(link=link, airborne=airborne):
+                    env = self.strict_env()
+                    if airborne:
+                        helper.airborne_tibias(env)
+                    helper.set_link_contact(env, link)
+                    support, body, invalid, loaded, _ = env._strict_contact_state()
+                    self.assertTrue(bool(body.all()))
+                    self.assertTrue(bool(invalid[:, 2].all()))
+                    self.assertTrue(bool(loaded[:, 2].all()))
+                    self.assertFalse(bool(support[:, 2].any()))
+                    terminated, _ = env._get_dones()
+                    self.assertTrue(bool(terminated.all()))
+
+    def test_shaft_on_an_upper_stair_is_rejected_while_tip_is_on_lower_tread(self):
+        env = self.strict_env()
+        # The proximal witness at x=-0.12,z=0.05 lands on the upper tread;
+        # the distal tip at x=0,z=0 and the servo housing stay over lower floor.
+        env._scenario = NS(surface_heights=lambda points: torch.where(points[..., 0] < -0.06, 0.05, 0.0))
+        env._non_distal_offsets = env._non_distal_offsets.clone()
+        for indices in env._non_distal_leg_geometry:
+            env._non_distal_offsets[:, indices[-1], :, 0] = 0.12
+        distal_points, distal_surfaces = env._foot_support_geometry(env._distal_foot_support_offsets)
+        torch.testing.assert_close(distal_points[..., 2] - distal_surfaces, torch.zeros((2, 6, 1)))
+        support, body, invalid, loaded, gaps = env._strict_contact_state()
+        self.assertFalse(bool(support.any()))
+        self.assertTrue(bool(body.all()))
+        self.assertTrue(bool(invalid.all()))
+        self.assertTrue(bool(loaded.all()))
+        torch.testing.assert_close(gaps.amin(-1), torch.zeros(2), atol=1e-8, rtol=0)
+
+    def test_v9_terminal_nonfoot_contact_still_writes_before_reset_evidence(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "contact_failures.jsonl"
+            env = self.strict_env(diagnostic_path=str(path))
+            StrictContactEnvironmentTests().set_link_contact(env, "leg_2_femur", environment=0)
+            env.episode_length_buf[0] = 7
+            terminated, timed_out = env._get_dones()
+            env.reset_terminated.copy_(terminated)
+            env.reset_time_outs.copy_(timed_out)
+            env._get_rewards()
+            env._reset_idx(torch.tensor([0]))
+            records = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+            self.assertEqual(len(records), 1)
+            self.assertEqual(records[0]["behavior_profile"], "revised_v9")
+            self.assertTrue(records[0]["strict_contact_failure"])
+            self.assertIn("strict_contact", records[0]["termination_reasons"])
+            self.assertEqual(records[0]["non_distal_clearance_m"]["leg_2_femur"], 0.0)
 
 
 class TerminalContactDiagnosticTests(unittest.TestCase):

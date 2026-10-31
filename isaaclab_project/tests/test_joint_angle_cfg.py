@@ -120,12 +120,12 @@ class JointAngleConfigurationTests(unittest.TestCase):
                 self.assertEqual(cfg.joint_reset_noise, 0)
                 self.assertGreaterEqual(cfg.goal_min_distance, 0.5)
                 self.assertLess(cfg.speed_cost_scale, 0)
-                expected_profile = "revised_v8" if name == "MG996RHipCad6JointAngleEnvCfg" else "revised_v3"
+                expected_profile = "revised_v9" if name == "MG996RHipCad6JointAngleEnvCfg" else "revised_v3"
                 self.assertEqual(cfg.behavior_profile, expected_profile)
-                expected_reward = ("signed_progress_huber_speed_strict_support_v1" if expected_profile == "revised_v8"
+                expected_reward = ("signed_progress_huber_speed_strict_support_v2" if expected_profile == "revised_v9"
                                    else "signed_progress_huber_speed_v3")
                 self.assertEqual(cfg.reward_contract, expected_reward)
-                expected_contact = ("cad6_strict_distal_all_links_v1" if expected_profile == "revised_v8"
+                expected_contact = ("cad6_strict_distal_all_links_v2" if expected_profile == "revised_v9"
                                     else "support_surface_foot_geometry_v3")
                 self.assertEqual(cfg.contact_contract, expected_contact)
                 self.assertEqual((cfg.exploration_initial_std, cfg.exploration_min_std, cfg.exploration_max_std), (0.08, 0.03, 0.30))
@@ -194,6 +194,8 @@ class JointAngleConfigurationTests(unittest.TestCase):
             f"leg_{leg}_{part}" for leg in range(6) for part in ("hip", "femur", "tibia")})
         self.assertEqual((cfg.non_distal_ground_clearance_m, cfg.non_distal_penetration_tolerance_m,
                           cfg.non_distal_clearance_cost_scale), (0.008, 0.002, -5.0))
+        self.assertEqual(cfg.non_distal_contact_height_tolerance_m, 0.001)
+        self.assertLess(cfg.non_distal_contact_height_tolerance_m, cfg.non_distal_ground_clearance_m)
         self.assertEqual((cfg.knee_ground_clearance_m, cfg.knee_ground_clearance_cost_scale,
                           cfg.non_distal_support_cost_scale), (0.03, -5.0, -15.0))
         self.assertEqual((cfg.distal_contact_height_tolerance, cfg.proximal_contact_height_tolerance), (0.004, 0.008))

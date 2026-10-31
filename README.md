@@ -60,9 +60,10 @@ tailnet 안에서만 허용됩니다. 자세한 조건과 해제 방법은 [ROS2
 방식을 사용하지 않으며, 정책이 허용 범위 전체에서 각 관절의 목표각을 선택합니다.
 관절 제한·명령 변화 속도·접지·에너지 비용과 연속 계단 코스를 포함합니다.
 [직접 관절각 학습과 단계별 실행](isaaclab_project/docs/joint_angle_training.md)을 먼저 참고하세요.
-혼합 CAD6의 기본 실행은 `revised_v8`을 사용합니다. femur·hip·몸체·tibia 비말단 접촉은
+혼합 CAD6의 기본 실행은 `revised_v9`를 사용합니다. 비말단 형상의 8 mm 간격은 여유 비용에만
+사용하고, 하중이 걸린 비말단 형상의 접촉 판정에는 별도 1 mm 허용치를 사용합니다. femur·hip·몸체·tibia 비말단 접촉은
 전진 보상을 차단하고 실패로 종료하며, 평가도 해당 접촉을 허용하지 않습니다.
-기존 v7/COM 모델은 새 계약으로 재학습해야 합니다. [Dynamic Gait 적용 검토](isaaclab_project/docs/dynamic_gait_review.md)도 함께 제공합니다.
+기존 v8/v7/COM 모델은 새 계약으로 재학습하거나 명시적으로 가중치를 전이해야 합니다. [Dynamic Gait 적용 검토](isaaclab_project/docs/dynamic_gait_review.md)도 함께 제공합니다.
 현재 혼합 서보 CAD6는 `run_cad6.ps1`로 실행합니다. MG90S 지원은 제거했습니다.
 공통 실행기의 기존 MG996R baseline v0는 `-ControlMode legacy`로 선택할 수 있습니다.
 v1 모델은 v2에서 새로 학습해야 합니다.

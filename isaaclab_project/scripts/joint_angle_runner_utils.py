@@ -40,8 +40,8 @@ def resolve_course_args(args):
         return args
     if "MG996R-Hip-CAD6" not in args.task:
         raise ValueError("curriculum requires the MG996R-Hip-CAD6 direct-angle task and distal-support behavior")
-    if args.behavior_profile not in (None, "revised_v7", "revised_v8"):
-        raise ValueError("curriculum requires revised_v7 or revised_v8 distal-support behavior")
+    if args.behavior_profile not in (None, "revised_v7", "revised_v8", "revised_v9"):
+        raise ValueError("curriculum requires revised_v7, revised_v8 or revised_v9 distal-support behavior")
     if args.freeze_curriculum and args.mode != "train":
         raise ValueError("freeze_curriculum is training-only; evaluation is always frozen")
     split = "train" if args.mode == "train" else "holdout"

@@ -6,6 +6,7 @@ import builtins
 import hashlib
 import importlib.util
 import itertools
+import json
 import math
 from pathlib import Path
 import unittest
@@ -153,6 +154,74 @@ class NonDistalCollisionGeometryTests(unittest.TestCase):
                             for leg in range(6) for point in foot_geometry.ONSHAPE_PROXIMAL_FOOT_OFFSETS[leg])
         self.assertGreater(non_distal, 0.058)
         self.assertGreater(proximal_foot, 0.028)
+
+    def recorded_false_positive(self):
+        fixture = json.loads((Path(__file__).with_name("fixtures")
+                              / "recorded_v8_distal_false_positive.json").read_text(encoding="utf-8"))
+        states = fixture["body_state"]
+
+        def world_height(name, point):
+            index = states["names"].index(name)
+            w, x, y, z = states["quaternions_wxyz"][index]
+            px, py, pz = point
+            uv = (y*pz - z*py, z*px - x*pz, x*py - y*px)
+            uuv_z = x*uv[1] - y*uv[0]
+            return states["positions_w_m"][index][2] + pz + 2*(w*uv[2] + uuv_z)
+
+        return fixture, world_height
+
+    def test_recorded_failure_keeps_all_non_distal_meshes_above_the_floor(self):
+        fixture, world_height = self.recorded_false_positive()
+        foot = FOOT_HELPERS.GEOMETRY
+        history = fixture["net_contact_force_history"]
+        self.assertEqual(fixture["provenance"]["episode_time_s"], 20.72)
+        self.assertEqual(fixture["provenance"]["behavior_profile"], "revised_v8")
+        self.assertEqual(fixture["reported_support"]["invalid_legs"], [False]*5 + [True])
+        for name, points in GEOMETRY.ONSHAPE_NON_DISTAL_COLLISION_OFFSETS.items():
+            self.assertGreater(min(world_height(name, point) for point in points), 0.015)
+            sensor = history["body_names"].index(name)
+            forces = [sample[sensor] for sample in history["force_w_n"]]
+            if name.endswith("_tibia"):
+                self.assertGreater(min(force[2] for force in forces), 3.0)
+            else:
+                self.assertTrue(all(force == [0.0, 0.0, 0.0] for force in forces))
+        proximal = []
+        for leg in range(6):
+            name = f"leg_{leg}_tibia"
+            distal_gap = min(world_height(name, point) for point in foot.ONSHAPE_DISTAL_FOOT_SUPPORT_OFFSETS[leg])
+            proximal.append(min(world_height(name, point) for point in foot.ONSHAPE_PROXIMAL_FOOT_OFFSETS[leg]))
+            self.assertLess(abs(distal_gap), 0.000020)
+        self.assertAlmostEqual(proximal[5], 0.0078830823969, delta=1e-12)
+        self.assertGreater(min(proximal[:5]), 0.008)
+        self.assertGreater(proximal[5], 0.001)
+        self.assertLess(proximal[5], 0.008)  # Old clearance margin alone caused the termination.
+        servo_gap = min(world_height("leg_5_tibia", point)
+                        for point in GEOMETRY.ONSHAPE_NON_DISTAL_COLLISION_OFFSETS["leg_5_tibia"])
+        self.assertAlmostEqual(servo_gap, 0.0153231522, delta=1e-8)
+
+    @unittest.skipIf(FOOT_HELPERS.Usd is None, "optional pxr USD runtime unavailable")
+    def test_recorded_leg5_shaft_clearance_is_confirmed_by_actual_usd_vertices(self):
+        from pxr import Gf, Usd, UsdGeom
+
+        _, world_height = self.recorded_false_positive()
+        stage = Usd.Stage.Open(str(ASSET_DIR / "onshape_20260928.usd"))
+        body = stage.GetPrimAtPath(stage.GetDefaultPrim().GetPath().AppendChild("leg_5_tibia"))
+        cache = UsdGeom.XformCache()
+        minimums = {}
+        for mesh_prim in Usd.PrimRange(body, Usd.TraverseInstanceProxies()):
+            if not mesh_prim.IsA(UsdGeom.Mesh) or "/collisions/" not in str(mesh_prim.GetPath()):
+                continue
+            matrix = cache.GetLocalToWorldTransform(mesh_prim) * cache.GetLocalToWorldTransform(body).GetInverse()
+            points = [tuple(matrix.Transform(Gf.Vec3d(point)))
+                      for point in UsdGeom.Mesh(mesh_prim).GetPointsAttr().Get()]
+            minimums[mesh_prim.GetParent().GetName()] = min(world_height("leg_5_tibia", point) for point in points)
+        self.assertAlmostEqual(minimums["part_1"], 0.0153231521897, delta=1e-12)
+        self.assertAlmostEqual(minimums["part_1__8"], -0.0000124717159, delta=1e-12)
+        # The foot's minimum is the distal toe. Its middle/proximal witnesses
+        # are 7.883 mm higher, rather than a second physical grounding point.
+        proximal_gap = min(world_height("leg_5_tibia", point)
+                           for point in FOOT_HELPERS.GEOMETRY.ONSHAPE_PROXIMAL_FOOT_OFFSETS[5])
+        self.assertGreater(proximal_gap - minimums["part_1__8"], 0.0078)
 
     @unittest.skipIf(FOOT_HELPERS.Usd is None, "optional pxr USD runtime unavailable")
     def test_actual_usd_collision_meshes_agree_in_every_link_frame(self):

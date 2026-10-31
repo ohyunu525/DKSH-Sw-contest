@@ -99,9 +99,9 @@ Isaac 실행은 [개발 컴퓨터 기준](../../DEVELOPMENT_REQUIREMENTS.md)의 
 
 행동·관측 크기·물리 제어는 v2 그대로이므로 기존 혼합 CAD6 가중치는 명시적으로 전이할 수 있다.
 `legacy_v2`는 수정 전 보상·단일 발끝 접촉을 재현하는 비교 설정이며 MG90S 모드가 아니다.
-MG996R-Hip CAD6는 학습·평가·재생 모두 `revised_v8`을 기본으로 요구한다. 구형 체크포인트를
+MG996R-Hip CAD6는 학습·평가·재생 모두 `revised_v9`를 기본으로 요구한다. 구형 체크포인트를
 지정해도 COM/v7 계약으로 조용히 되돌아가지 않는다. 구형 정책의 비교 재생은
-`-BehaviorProfile revised_v7_com` 또는 해당 저장 계약을 명시해야 하며, v8 수정 검증으로 간주하지 않는다.
+`-BehaviorProfile revised_v8`, `revised_v7_com` 또는 해당 저장 계약을 명시해야 하며, v9 수정 검증으로 간주하지 않는다.
 다른 JointAngles 작업은 `revised_v3` 학습 및 저장된 평가 계약을 유지한다.
 
 `revised_v4`는 CAD 발마다 가상 버튼 접촉 비트 1개를 계산한다. 발끝 지점 근접도와 tibia의
@@ -144,11 +144,21 @@ ContactSensor 합력과 기하학으로 추정한 값이며 실제 접촉점이�
 유효 말단 지지에서 계산한다. 일반·holdout 평가 모두 각 에피소드의 body/비말단 지지/비말단 충돌
 비율을 기본 0으로 요구하며, 완료 전 구간도 검사한다. v8 진단이 누락되거나 일부만 기록되면 실패다.
 
-v8 보상 계약은 `signed_progress_huber_speed_strict_support_v1`, 접촉 계약은
+역사적 v8 보상 계약은 `signed_progress_huber_speed_strict_support_v1`, 접촉 계약은
 `cad6_strict_distal_all_links_v1`이다. 추가 지표는 `non_distal_collision_fraction`,
 `strict_contact_failure_fraction`, `min_non_distal_clearance_m`이며, 마지막 값은 평가 구간의 실제 최솟값이다.
 초기 자세·지형 여유는 CAD 운동학으로, 실패·보상·평가는 CPU 회귀 테스트로 검증했다.
 물리 접촉점 재구성은 아니므로 PhysX 학습 수렴과 실제 보행은 GPU에서 별도 검증해야 한다.
+
+현재 기본값인 `revised_v9`는 **8 mm 여유 비용과 1 mm 접촉 허용치를 분리**한다.
+v8은 정상 발끝 하중이 있는 다리의 비말단 형상이 지면 위 7.883 mm에 있어도 접촉 실패로
+분류할 수 있었다. v9는 실제 비말단 foot hull과 tibia 서보 형상 모두에 별도 1 mm 접촉 허용치를
+적용한다. 1~8 mm 간격은 여유 비용을 주지만 그 이유만으로 에피소드를 종료하지 않는다.
+femur·hip·몸체의 접촉력, 유효 말단 지지가 없는 tibia 충격, 2 mm 초과 관통과 비정상 센서 값은
+계속 실패로 처리한다. 가상 발 버튼·관측 140개·출력 18개는 유지한다.
+v9 보상 계약은 `signed_progress_huber_speed_strict_support_v2`, 접촉 계약은
+`cad6_strict_distal_all_links_v2`다. v8 계약과 판정은 명시적 비교용으로 보존하며, 구형 모델을
+새 판정으로 학습하려면 `-AllowBehaviorTransfer`를 지정한다. 기존 metadata를 v9로 바꿔 재생하지 않는다.
 
 학습 실행은 reset 전에 실패 상태를 `<새 run>/contact_failures.jsonl`에 기록한다.
 기본값은 실행 전체 최대 64건, 제어 스텝당 최대 4건으로 제한하며, 실패가 없으면 파일은 생성하지 않는다.
@@ -179,12 +189,12 @@ GPU에서는 plane 지면의 상대별 접촉 필터가 지원되지 않으므�
 
 ```powershell
 # A 등급 NVIDIA 장비에서 새 말단 지지 정책을 4환경부터 학습
-.\run_cad6.ps1 -Mode train -Environment flat -NumEnvs 4 -MaxIterations 4000 -BehaviorProfile revised_v8 -AllowProvisionalCad
+.\run_cad6.ps1 -Mode train -Environment flat -NumEnvs 4 -MaxIterations 4000 -BehaviorProfile revised_v9 -AllowProvisionalCad
 
 # 기존 v2 가중치에서 명시적으로 전이하는 대안
-.\run_cad6.ps1 -Mode train -Environment flat -NumEnvs 4 -MaxIterations 4000 -Checkpoint '<기존 model_N.pt>' -BehaviorProfile revised_v8 -AllowBehaviorTransfer -AllowProvisionalCad
+.\run_cad6.ps1 -Mode train -Environment flat -NumEnvs 4 -MaxIterations 4000 -Checkpoint '<기존 model_N.pt>' -BehaviorProfile revised_v9 -AllowBehaviorTransfer -AllowProvisionalCad
 
-# 새 v8 계약으로 평가 (구형 모델은 기본 실행에서 거절)
+# 새 v9 계약으로 평가 (구형 모델은 기본 실행에서 거절)
 .\run_cad6.ps1 -Mode evaluate -Environment flat -NumEnvs 4 -Steps 12000 -Seed 73 -Checkpoint '<새 model_N.pt>' -Output 'logs/distal_support_flat.json'
 ```
 

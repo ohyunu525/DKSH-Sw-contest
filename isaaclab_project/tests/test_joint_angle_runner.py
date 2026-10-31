@@ -358,7 +358,8 @@ class ResumeIntegrationTests(unittest.TestCase):
                          target_speed=0.20, speed_tracking_sigma=0.015, progress_reward_scale=25.0, speed_cost_scale=-0.50,
                          distal_contact_height_tolerance=0.004, proximal_contact_height_tolerance=0.008,
                          knee_ground_clearance_m=0.03, knee_ground_clearance_cost_scale=-5.0,
-                         non_distal_support_cost_scale=-15.0)
+                         non_distal_support_cost_scale=-15.0,
+                         non_distal_ground_clearance_m=0.008, non_distal_contact_height_tolerance_m=0.001)
                 args = NS(task="Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2", environment="flat", difficulty=0.5,
                           max_iterations=1, reset_exploration_std=reset, allow_behavior_transfer=False)
                 log = root / "resumed"
@@ -404,7 +405,8 @@ class ResumeIntegrationTests(unittest.TestCase):
                 self.assertEqual(metadata["cad_asset_sha256"], CHECKPOINT.expected_cad_asset_sha256(args.task))
                 for name in ("distal_contact_height_tolerance", "proximal_contact_height_tolerance",
                              "knee_ground_clearance_m", "knee_ground_clearance_cost_scale",
-                             "non_distal_support_cost_scale"):
+                             "non_distal_support_cost_scale", "non_distal_ground_clearance_m",
+                             "non_distal_contact_height_tolerance_m"):
                     self.assertEqual(metadata[name], getattr(cfg, name))
                 self.assertEqual(metadata["learning_rate_before"], 0.001)
                 self.assertEqual(metadata["learning_rate_after"], 0.001)

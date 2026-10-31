@@ -1,6 +1,6 @@
 # 평지 복습과 무작위 장애물 커리큘럼
 
-`-Environment curriculum`의 기본 실행은 혼합 서보 CAD6의 `revised_v8`을 사용한다. 18개 절대 목표각,
+`-Environment curriculum`의 기본 실행은 혼합 서보 CAD6의 `revised_v9`를 사용한다. 18개 절대 목표각,
 140개 관측, tibia 말단 20 mm 지지, 비말단 접지·미끄럼·무릎 여유 비용과 서보 제한은 유지한다.
 기존 `flat`, `stairs`, `rough`, `mixed` 등 고정 코스도 비교용으로 그대로 사용할 수 있다.
 
@@ -57,7 +57,7 @@ Isaac Sim 실행은 `DEVELOPMENT_REQUIREMENTS.md`의 A 등급 NVIDIA 장비에�
 ```powershell
 .\run_cad6.ps1 -Mode check -Environment curriculum -Difficulty 0 -NumEnvs 4
 
-.\run_cad6.ps1 -Mode train -Environment curriculum -Difficulty 0 -NumEnvs 4 -FlatFraction 0.25 -Seed 42 -CourseSeed 42 -MaxIterations 4000 -Checkpoint '<평지 revised_v8 model_N.pt>' -AllowProvisionalCad
+.\run_cad6.ps1 -Mode train -Environment curriculum -Difficulty 0 -NumEnvs 4 -FlatFraction 0.25 -Seed 42 -CourseSeed 42 -MaxIterations 4000 -Checkpoint '<평지 revised_v9 model_N.pt>' -AllowProvisionalCad
 ```
 
 체크포인트를 생략하면 새 가중치로 시작한다. 기본 단계를 변경하는 예시는 다음과 같다.
@@ -82,7 +82,7 @@ Torch의 무작위 수 소비는 이 생성 순서를 바꾸지 않는다. 동�
 복습 비율, seed와 난이도도 동일하게 유지한다.
 
 ```powershell
-.\run_cad6.ps1 -Mode evaluate -Environment curriculum -Difficulty 0.3 -NumEnvs 4 -Seed 73 -CourseSeed 42 -CourseSplit holdout -Steps 48000 -Checkpoint '<커리큘럼 revised_v8 model_N.pt>' -Output 'logs/heldout_d03.json'
+.\run_cad6.ps1 -Mode evaluate -Environment curriculum -Difficulty 0.3 -NumEnvs 4 -Seed 73 -CourseSeed 42 -CourseSplit holdout -Steps 48000 -Checkpoint '<커리큘럼 revised_v9 model_N.pt>' -Output 'logs/heldout_d03.json'
 ```
 
 난이도 0, 0.3, 0.6, 1에서 각각 같은 방식으로 평가하고, 최종 성능 보고에 사용할 seed는 학습

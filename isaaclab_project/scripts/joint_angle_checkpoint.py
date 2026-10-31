@@ -15,6 +15,7 @@ KNEE_CLEARANCE_REWARD_CONTRACT = "signed_progress_huber_speed_knee_clearance_v1"
 FULL_FOOT_SLIP_REWARD_CONTRACT = "signed_progress_huber_speed_knee_clearance_full_foot_slip_v1"
 DISTAL_SUPPORT_REWARD_CONTRACT = "signed_progress_huber_speed_distal_support_v1"
 STRICT_SUPPORT_REWARD_CONTRACT = "signed_progress_huber_speed_strict_support_v1"
+STRICT_CONTACT_SUPPORT_REWARD_CONTRACT = "signed_progress_huber_speed_strict_support_v2"
 CONTACT_CONTRACT = "support_surface_foot_geometry_v3"
 TOE_BUTTON_CONTACT_CONTRACT = "cad6_toe_button_hysteresis_v1"
 DISTAL_SUPPORT_CONTACT_CONTRACT = "cad6_distal_support_toe_button_v1"
@@ -35,6 +36,8 @@ BEHAVIOR_PROFILES = {
                    "contact_contract": DISTAL_SUPPORT_CONTACT_CONTRACT},
     "revised_v8": {"reward_contract": STRICT_SUPPORT_REWARD_CONTRACT,
                    "contact_contract": "cad6_strict_distal_all_links_v1"},
+    "revised_v9": {"reward_contract": STRICT_CONTACT_SUPPORT_REWARD_CONTRACT,
+                   "contact_contract": "cad6_strict_distal_all_links_v2"},
 }
 CONTROL_CONTRACT = "absolute_targets_rate_limited_observed_velocity_v2"
 SCHEMA_CONTRACTS = {
