@@ -26,7 +26,7 @@ param(
     [double]$MinNoiseStd,
     [double]$MaxNoiseStd,
     [switch]$ResetExplorationStd,
-    [ValidateSet('legacy_v2', 'revised_v3', 'revised_v4', 'revised_v5', 'revised_v6', 'revised_v7', 'revised_v7_com')][string]$BehaviorProfile,
+    [ValidateSet('legacy_v2', 'revised_v3', 'revised_v4', 'revised_v5', 'revised_v6', 'revised_v7', 'revised_v7_com', 'revised_v8')][string]$BehaviorProfile,
     [switch]$AllowBehaviorTransfer,
     [ValidateRange(0, 2147483647)][int]$CourseSeed,
     [ValidateSet('train', 'holdout')][string]$CourseSplit,
@@ -55,8 +55,8 @@ if ($Environment -eq 'curriculum' -and ($ControlMode -ne 'direct' -or $RobotMode
     throw 'Curriculum requires the mixed-servo CAD6 direct-angle task.'
 }
 if ($Environment -eq 'curriculum') {
-    if ($PSBoundParameters.ContainsKey('BehaviorProfile') -and $BehaviorProfile -ne 'revised_v7') {
-        throw 'Curriculum requires revised_v7 distal-support behavior.'
+    if ($PSBoundParameters.ContainsKey('BehaviorProfile') -and $BehaviorProfile -notin @('revised_v7', 'revised_v8')) {
+        throw 'Curriculum requires revised_v7 or revised_v8 distal-support behavior.'
     }
     $flatShare = if ($PSBoundParameters.ContainsKey('FlatFraction')) { $FlatFraction } else { 0.25 }
     $windowSize = if ($PSBoundParameters.ContainsKey('CurriculumWindow')) { $CurriculumWindow } else { 20 }

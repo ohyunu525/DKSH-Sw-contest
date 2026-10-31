@@ -177,6 +177,79 @@ class EvaluationTests(unittest.TestCase):
         self.assertTrue(report["locomotion_pass"])
         self.assertEqual(report["incomplete_episode_count"], 0)
 
+    def test_femur_contact_during_travel_is_rejected_after_clean_goal_stance(self):
+        accumulator = UTILS.EvaluationAccumulator(1)
+        for index in range(100):
+            metrics = self.metrics(progress=.004, goal=int(index == 99))
+            metrics["body_contact"][:] = int(index < 90)
+            metrics["non_distal_support_fraction"] = torch.zeros(1)
+            accumulator.update(metrics, torch.tensor([index == 99]), .02)
+        report = accumulator.report(target_speed=.2, minimum_speed_fraction=.5, dt=.02)
+        self.assertAlmostEqual(report["body_contact_fraction"], .9)
+        self.assertEqual(report["success_rate"], 1)
+        self.assertFalse(report["locomotion_pass"])
+        self.assertTrue(any("body_contact_fraction" in reason for reason in report["failure_reasons"]))
+
+    def test_clean_episodes_cannot_dilute_one_environments_bad_contact(self):
+        accumulator = UTILS.EvaluationAccumulator(2)
+        metrics = self.metrics(count=2, goal=1)
+        metrics["non_distal_support_fraction"] = torch.tensor([0., .1])
+        accumulator.update(metrics, torch.ones(2, dtype=torch.bool), 1)
+        for _ in range(20):
+            accumulator.update(self.metrics(count=2, goal=1), torch.ones(2, dtype=torch.bool), 1)
+        report = accumulator.report(target_speed=.02, minimum_speed_fraction=.5, dt=1,
+                                    max_non_distal_support_fraction=.05)
+        self.assertFalse(report["locomotion_pass"])
+        self.assertTrue(any("non_distal_support_fraction" in reason for reason in report["failure_reasons"]))
+
+    def test_strict_contact_requires_complete_per_episode_diagnostics(self):
+        for missing_name in ("non_distal_support_fraction", "non_distal_collision_fraction"):
+            with self.subTest(missing_name=missing_name):
+                accumulator = UTILS.EvaluationAccumulator(1)
+                for index in range(2):
+                    metrics = self.metrics(goal=index)
+                    metrics["non_distal_support_fraction"] = torch.zeros(1)
+                    metrics["non_distal_collision_fraction"] = torch.zeros(1)
+                    if index == 0:
+                        del metrics[missing_name]
+                    accumulator.update(metrics, torch.tensor([index == 1]), 1)
+                report = accumulator.report(target_speed=.02, minimum_speed_fraction=.5, dt=1,
+                                            require_strict_contact=True)
+                self.assertFalse(report["locomotion_pass"])
+                self.assertTrue(any(missing_name in reason for reason in report["failure_reasons"]))
+        accumulator = UTILS.EvaluationAccumulator(1)
+        metrics = self.metrics(goal=1)
+        metrics.update(non_distal_support_fraction=torch.zeros(1), non_distal_collision_fraction=torch.zeros(1))
+        accumulator.update(metrics, torch.tensor([True]), 1)
+        self.assertTrue(accumulator.report(target_speed=.02, minimum_speed_fraction=.5, dt=1,
+                                           require_strict_contact=True)["locomotion_pass"])
+
+    def test_collision_geometry_is_rejected_even_with_zero_reported_link_forces(self):
+        accumulator = UTILS.EvaluationAccumulator(1)
+        metrics = self.metrics(goal=1)
+        metrics.update(non_distal_support_fraction=torch.zeros(1), non_distal_collision_fraction=torch.ones(1))
+        accumulator.update(metrics, torch.tensor([True]), 1)
+        report = self.report(accumulator)
+        self.assertFalse(report["locomotion_pass"])
+        self.assertEqual(report["non_distal_collision_fraction"], 1)
+
+    def test_pending_bad_contacts_cannot_be_hidden_by_earlier_clean_success(self):
+        accumulator = UTILS.EvaluationAccumulator(1)
+        accumulator.update(self.metrics(goal=1), torch.tensor([True]), 1)
+        metrics = self.metrics()
+        metrics["body_contact"][:] = 1
+        accumulator.update(metrics, torch.tensor([False]), 1)
+        self.assertFalse(self.report(accumulator)["locomotion_pass"])
+
+    def test_strict_pending_episode_must_also_have_complete_contact_evidence(self):
+        accumulator = UTILS.EvaluationAccumulator(1)
+        metrics = self.metrics(goal=1)
+        metrics.update(non_distal_support_fraction=torch.zeros(1), non_distal_collision_fraction=torch.zeros(1))
+        accumulator.update(metrics, torch.tensor([True]), 1)
+        accumulator.update(self.metrics(), torch.tensor([False]), 1)
+        self.assertFalse(accumulator.report(target_speed=.02, minimum_speed_fraction=.5, dt=1,
+                                            require_strict_contact=True)["locomotion_pass"])
+
     def test_one_fast_environment_cannot_hide_another_environment_that_never_completes(self):
         accumulator = UTILS.EvaluationAccumulator(2)
         for _ in range(2):
@@ -216,7 +289,23 @@ class EvaluationTests(unittest.TestCase):
         self.assertAlmostEqual(report["target_excursion_rad"], 0.12, places=6)
         self.assertTrue(report["locomotion_pass"])
 
-    def test_distal_and_knee_diagnostics_are_averaged_without_requiring_new_fields_on_old_profiles(self):
+    def test_report_preserves_actual_minimum_collision_clearance_across_steps_and_environments(self):
+        accumulator = UTILS.EvaluationAccumulator(2)
+        first = self.metrics(count=2)
+        first.update(min_non_distal_clearance_m=torch.tensor([.04, .02]),
+                     strict_contact_failure=torch.tensor([0., 0.]))
+        accumulator.update(first, torch.zeros(2, dtype=torch.bool), 1)
+        last = self.metrics(count=2, goal=1)
+        last.update(min_non_distal_clearance_m=torch.tensor([-.003, .08]),
+                    strict_contact_failure=torch.tensor([1., 0.]))
+        accumulator.update(last, torch.ones(2, dtype=torch.bool), 1)
+        report = self.report(accumulator)
+        self.assertAlmostEqual(report["min_non_distal_clearance_m"], -.003)
+        self.assertEqual(report["strict_contact_failure_fraction"], .25)
+        self.assertNotIn("strict_contact_failure", report)
+        self.assertFalse(report["locomotion_pass"])
+
+    def test_diagnostics_remain_averaged_but_non_distal_contacts_block_acceptance(self):
         accumulator = UTILS.EvaluationAccumulator(2)
         metrics = self.metrics(count=2, goal=1)
         diagnostics = {
@@ -233,7 +322,7 @@ class EvaluationTests(unittest.TestCase):
         report = self.report(accumulator)
         for name, values in diagnostics.items():
             self.assertAlmostEqual(report[name], sum(values) / len(values), places=6)
-        self.assertTrue(report["locomotion_pass"])
+        self.assertFalse(report["locomotion_pass"])
 
 
 class ResumeIntegrationTests(unittest.TestCase):

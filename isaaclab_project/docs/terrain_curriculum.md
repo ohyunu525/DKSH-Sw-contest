@@ -1,6 +1,6 @@
 # 평지 복습과 무작위 장애물 커리큘럼
 
-`-Environment curriculum`은 혼합 서보 CAD6의 `revised_v7`을 사용한다. 18개 절대 목표각,
+`-Environment curriculum`의 기본 실행은 혼합 서보 CAD6의 `revised_v8`을 사용한다. 18개 절대 목표각,
 140개 관측, tibia 말단 20 mm 지지, 비말단 접지·미끄럼·무릎 여유 비용과 서보 제한은 유지한다.
 기존 `flat`, `stairs`, `rough`, `mixed` 등 고정 코스도 비교용으로 그대로 사용할 수 있다.
 
@@ -57,7 +57,7 @@ Isaac Sim 실행은 `DEVELOPMENT_REQUIREMENTS.md`의 A 등급 NVIDIA 장비에�
 ```powershell
 .\run_cad6.ps1 -Mode check -Environment curriculum -Difficulty 0 -NumEnvs 4
 
-.\run_cad6.ps1 -Mode train -Environment curriculum -Difficulty 0 -NumEnvs 4 -FlatFraction 0.25 -Seed 42 -CourseSeed 42 -MaxIterations 4000 -Checkpoint '<평지 revised_v7 model_N.pt>' -AllowProvisionalCad
+.\run_cad6.ps1 -Mode train -Environment curriculum -Difficulty 0 -NumEnvs 4 -FlatFraction 0.25 -Seed 42 -CourseSeed 42 -MaxIterations 4000 -Checkpoint '<평지 revised_v8 model_N.pt>' -AllowProvisionalCad
 ```
 
 체크포인트를 생략하면 새 가중치로 시작한다. 기본 단계를 변경하는 예시는 다음과 같다.
@@ -82,7 +82,7 @@ Torch의 무작위 수 소비는 이 생성 순서를 바꾸지 않는다. 동�
 복습 비율, seed와 난이도도 동일하게 유지한다.
 
 ```powershell
-.\run_cad6.ps1 -Mode evaluate -Environment curriculum -Difficulty 0.3 -NumEnvs 4 -Seed 73 -CourseSeed 42 -CourseSplit holdout -Steps 48000 -Checkpoint '<커리큘럼 revised_v7 model_N.pt>' -Output 'logs/heldout_d03.json'
+.\run_cad6.ps1 -Mode evaluate -Environment curriculum -Difficulty 0.3 -NumEnvs 4 -Seed 73 -CourseSeed 42 -CourseSplit holdout -Steps 48000 -Checkpoint '<커리큘럼 revised_v8 model_N.pt>' -Output 'logs/heldout_d03.json'
 ```
 
 난이도 0, 0.3, 0.6, 1에서 각각 같은 방식으로 평가하고, 최종 성능 보고에 사용할 seed는 학습
@@ -96,10 +96,12 @@ JSON에는 종료 전 코스 ID·seed·분할·종류·난이도와 결과를 �
 - 서로 다른 완료 코스가 최소 2개.
 - 완료 에피소드 성공률 80% 이상, 낙상 및 이탈 0.
 - 지속 순진행 속도가 기존 최소 속도 기준 이상.
-- 시간 평균 비말단 지지 비율이 5% 이하.
+- 각 에피소드의 몸체·femur·hip 접촉, 비말단 지지 및 비말단 충돌 비율이 모두 0.
+- v8의 지지/충돌 진단이 모든 평가 스텝에서 기록되어야 함.
 
 검사 기준과 부족한 조건도 JSON에 기록한다. 완료하지 않은 코스는 성공으로 세지 않으며,
-표본이 모자라면 통과하지 않는다. 기존 `locomotion_pass`는 전체 이동 성능이고,
+표본이나 접촉 진단이 모자라면 통과하지 않는다. 깨끗한 에피소드나 다른 환경으로 금지 접촉을
+평균 내 가릴 수 없다. `locomotion_pass`도 진행 중 에피소드의 금지 접촉까지 검사하며,
 `heldout_course_pass`가 새 코스의 종류별 검증 결과다. 이 수치는 초기 공학적 판정 기준이며
 실기 검증으로 보정할 대상이다. 목표 속도 0.20 m/s는 달성 속도가 아니다.
 

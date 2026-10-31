@@ -42,8 +42,10 @@ env.joint_angle_targets_rad는 실제 적용 목표각을 반환한다. 초기 �
   각 꼭짓점 아래의 지면을 따로 조회하며 뒤꿈치 접지를 발끝 높이 때문에 거절하지 않는다.
   tibia 축 형상은 발 꼭짓점에 포함하지 않는다. 새 허용값은 4 mm이며 미끄럼은 선택한 접지점의
   속도로 계산한다. 실제 접촉점 재구성은 아니며 작은 지형 모서리에서 유한 표본의 한계가 있다.
-- CAD6 폭 0.56 m, 초기 높이 0.1375 m, 리셋 관절 잡음 0과 자기충돌을 적용한다.
-  q=0 최저 충돌체의 지면 여유는 약 10.9 mm다. 실측하지 않은 하드웨어 각도 한계는 만들지 않는다.
+- 혼합 CAD6 v8은 폭 0.56 m, 초기 높이 0.2025 m, hip 0 / femur·tibia -0.30 rad,
+  리셋 관절 잡음 0과 자기충돌을 적용한다. 초기 최저 말단 여유는 약 10.1 mm다.
+  지면에 내려온 자세의 비말단 foot 여유는 최소 28.7 mm, 다른 충돌체 여유는 최소 58.8 mm다.
+  기존 q=0의 평평한 shaft 착지를 피하기 위한 시뮬레이션 초기값이며, 보행을 강제하는 각도 오프셋은 아니다.
 - GUI는 현재 USD의 링크 형상을 로컬 좌표 그대로 복제하고 원래 렌더 형상을 숨긴다.
   과거 CAD 메쉬를 현재 관절에 붙이던 어긋남·중복 표시를 제거했다.
 
@@ -54,7 +56,7 @@ env.joint_angle_targets_rad는 실제 적용 목표각을 반환한다. 초기 �
 ## 새로 학습하고 평가하기
 
 평지 정책을 유지하며 무작위 장애물로 전이하는 `-Environment curriculum` 실행법은
-[혼합 코스 커리큘럼 안내](terrain_curriculum.md)를 참고한다. 기본 v7 접지·보상·관측은 유지한다.
+[혼합 코스 커리큘럼 안내](terrain_curriculum.md)를 참고한다. 새 학습과 검증은 v8의 엄격한 접촉 계약을 사용한다.
 
 Isaac 실행은 [개발 컴퓨터 기준](../../DEVELOPMENT_REQUIREMENTS.md)의 GPU 장비에서 수행한다.
 잠정 CAD·서보 가정은 [혼합 서보 문서](mg996r_hip_correction.md)를 따른다.
@@ -97,8 +99,10 @@ Isaac 실행은 [개발 컴퓨터 기준](../../DEVELOPMENT_REQUIREMENTS.md)의 
 
 행동·관측 크기·물리 제어는 v2 그대로이므로 기존 혼합 CAD6 가중치는 명시적으로 전이할 수 있다.
 `legacy_v2`는 수정 전 보상·단일 발끝 접촉을 재현하는 비교 설정이며 MG90S 모드가 아니다.
-평가·재생은 옵션을 생략하면 저장된 보상·접촉 설정을 사용한다. MG996R-Hip CAD6는
-새 학습에서 `revised_v7`을 사용한다. 다른 JointAngles 작업은 `revised_v3`를 기본으로 유지한다.
+MG996R-Hip CAD6는 학습·평가·재생 모두 `revised_v8`을 기본으로 요구한다. 구형 체크포인트를
+지정해도 COM/v7 계약으로 조용히 되돌아가지 않는다. 구형 정책의 비교 재생은
+`-BehaviorProfile revised_v7_com` 또는 해당 저장 계약을 명시해야 하며, v8 수정 검증으로 간주하지 않는다.
+다른 JointAngles 작업은 `revised_v3` 학습 및 저장된 평가 계약을 유지한다.
 
 `revised_v4`는 CAD 발마다 가상 버튼 접촉 비트 1개를 계산한다. 발끝 지점 근접도와 tibia의
 위쪽 접촉력을 함께 사용하고, 누름/해제 힘 문턱으로 히스테리시스를 준다. 6개 비트는
@@ -121,21 +125,39 @@ Isaac 실행은 [개발 컴퓨터 기준](../../DEVELOPMENT_REQUIREMENTS.md)의 
 관측의 6개 가상 버튼 비트와 18개 절대각 출력은 유지하지만 접촉·보상 계약이 바뀌므로
 기존 정책을 그대로 재생하는 것만으로 새 보행이 만들어지지는 않는다.
 
-평가 JSON에는 `distal_support_fraction`, `non_distal_support_fraction`,
+v7 평가 JSON에는 `distal_support_fraction`, `non_distal_support_fraction`,
 `mean_knee_ground_clearance_m`, `knee_ground_clearance_violation_fraction`이 추가된다.
 앞의 두 비율은 **힘 문턱을 넘은 tibia 링크 수**를 분모로 하며, 무접촉 구간은 0이다.
 ContactSensor 합력과 기하학으로 추정한 값이며 실제 접촉점이나 하중 분포의 측정치는 아니다.
 목표 속도 0.20 m/s, 목표각 속도 제한 1.5 rad/s, 50 Hz 제어는 유지한다.
 속도 향상은 재학습 후 순진행 속도·낙상·비말단 접지·미끄럼·포화를 함께 비교해 판정한다.
 
+`revised_v8`은 femur·hip가 접촉하고 tibia는 떠 있는 경우도 다리별 잘못된 지지로 집계한다.
+몸체 단독 접촉도 분모가 0이라는 이유로 비용에서 빠지지 않는다. CAD의 base·hip·femur·tibia
+서보 충돌체 62개에서 생성한 hull 점과 비말단 foot 점을 각 링크 자세로 변환해 지면을 검사한다.
+관절 중심이 높아도 외형이 닿으면 거절한다. 비말단 충돌체는 8 mm 여유 비용을 적용하고,
+2 mm를 넘는 관통은 센서 합력이 문턱보다 작아도 실패다. 일반 접촉력 문턱은 1 N이다.
+
+금지 접촉 시 해당 스텝의 양의 진행·목표 보상을 차단하고 실패 비용과 함께 에피소드를 종료한다.
+실패는 reset까지 유지된다. 다른 발의 정상 지지로 가려지지 않으며, 무접촉 비행 자체는 허용한다.
+발 관측 비트는 가상 버튼과 유효 말단 지지를 모두 만족해야 켜진다. 미끄럼 비용은 버튼이 떨어져도
+유효 말단 지지에서 계산한다. 일반·holdout 평가 모두 각 에피소드의 body/비말단 지지/비말단 충돌
+비율을 기본 0으로 요구하며, 완료 전 구간도 검사한다. v8 진단이 누락되거나 일부만 기록되면 실패다.
+
+v8 보상 계약은 `signed_progress_huber_speed_strict_support_v1`, 접촉 계약은
+`cad6_strict_distal_all_links_v1`이다. 추가 지표는 `non_distal_collision_fraction`,
+`strict_contact_failure_fraction`, `min_non_distal_clearance_m`이며, 마지막 값은 평가 구간의 실제 최솟값이다.
+초기 자세·지형 여유는 CAD 운동학으로, 실패·보상·평가는 CPU 회귀 테스트로 검증했다.
+물리 접촉점 재구성은 아니므로 PhysX 학습 수렴과 실제 보행은 GPU에서 별도 검증해야 한다.
+
 ```powershell
 # A 등급 NVIDIA 장비에서 새 말단 지지 정책을 4환경부터 학습
-.\run_cad6.ps1 -Mode train -Environment flat -NumEnvs 4 -MaxIterations 4000 -BehaviorProfile revised_v7 -AllowProvisionalCad
+.\run_cad6.ps1 -Mode train -Environment flat -NumEnvs 4 -MaxIterations 4000 -BehaviorProfile revised_v8 -AllowProvisionalCad
 
 # 기존 v2 가중치에서 명시적으로 전이하는 대안
-.\run_cad6.ps1 -Mode train -Environment flat -NumEnvs 4 -MaxIterations 4000 -Checkpoint '<기존 model_N.pt>' -BehaviorProfile revised_v7 -AllowBehaviorTransfer -AllowProvisionalCad
+.\run_cad6.ps1 -Mode train -Environment flat -NumEnvs 4 -MaxIterations 4000 -Checkpoint '<기존 model_N.pt>' -BehaviorProfile revised_v8 -AllowBehaviorTransfer -AllowProvisionalCad
 
-# 저장된 v7 접촉/보상 설정으로 평가
+# 새 v8 계약으로 평가 (구형 모델은 기본 실행에서 거절)
 .\run_cad6.ps1 -Mode evaluate -Environment flat -NumEnvs 4 -Steps 12000 -Seed 73 -Checkpoint '<새 model_N.pt>' -Output 'logs/distal_support_flat.json'
 ```
 

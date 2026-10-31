@@ -20,6 +20,9 @@ SERVO_SPEC.loader.exec_module(SERVO)
 GEOMETRY_SPEC = importlib.util.spec_from_file_location("_joint_cfg_feet", FOLDER / "joint_angle_foot_geometry.py")
 GEOMETRY = importlib.util.module_from_spec(GEOMETRY_SPEC)
 GEOMETRY_SPEC.loader.exec_module(GEOMETRY)
+NON_DISTAL_SPEC = importlib.util.spec_from_file_location("_joint_cfg_non_distal", FOLDER / "joint_angle_non_distal_geometry.py")
+NON_DISTAL = importlib.util.module_from_spec(NON_DISTAL_SPEC)
+NON_DISTAL_SPEC.loader.exec_module(NON_DISTAL)
 
 
 class Asset:
@@ -96,6 +99,7 @@ def load_cfg():
             ONSHAPE_TOE_BUTTON_OFFSETS=GEOMETRY.ONSHAPE_TOE_BUTTON_OFFSETS,
             ONSHAPE_DISTAL_FOOT_SUPPORT_OFFSETS=GEOMETRY.ONSHAPE_DISTAL_FOOT_SUPPORT_OFFSETS,
             ONSHAPE_PROXIMAL_FOOT_OFFSETS=GEOMETRY.ONSHAPE_PROXIMAL_FOOT_OFFSETS,
+            ONSHAPE_NON_DISTAL_COLLISION_OFFSETS=NON_DISTAL.ONSHAPE_NON_DISTAL_COLLISION_OFFSETS,
         )
         module.__dict__.update({name: getattr(SERVO, name) for name in vars(SERVO) if name.isupper()})
         exec(compile(tree, str(path), "exec"), module.__dict__)
@@ -116,12 +120,12 @@ class JointAngleConfigurationTests(unittest.TestCase):
                 self.assertEqual(cfg.joint_reset_noise, 0)
                 self.assertGreaterEqual(cfg.goal_min_distance, 0.5)
                 self.assertLess(cfg.speed_cost_scale, 0)
-                expected_profile = "revised_v7" if name == "MG996RHipCad6JointAngleEnvCfg" else "revised_v3"
+                expected_profile = "revised_v8" if name == "MG996RHipCad6JointAngleEnvCfg" else "revised_v3"
                 self.assertEqual(cfg.behavior_profile, expected_profile)
-                expected_reward = ("signed_progress_huber_speed_distal_support_v1" if expected_profile == "revised_v7"
+                expected_reward = ("signed_progress_huber_speed_strict_support_v1" if expected_profile == "revised_v8"
                                    else "signed_progress_huber_speed_v3")
                 self.assertEqual(cfg.reward_contract, expected_reward)
-                expected_contact = ("cad6_distal_support_toe_button_v1" if expected_profile == "revised_v7"
+                expected_contact = ("cad6_strict_distal_all_links_v1" if expected_profile == "revised_v8"
                                     else "support_surface_foot_geometry_v3")
                 self.assertEqual(cfg.contact_contract, expected_contact)
                 self.assertEqual((cfg.exploration_initial_std, cfg.exploration_min_std, cfg.exploration_max_std), (0.08, 0.03, 0.30))
@@ -150,8 +154,9 @@ class JointAngleConfigurationTests(unittest.TestCase):
         asset = ROOT / "isaaclab_project/assets/spiderbot_variants/onshape_20260928/robot.training.urdf"
         robot = ET.parse(asset).getroot()
         self.assertEqual(Path(cfg.robot.spawn.usd_path), asset.with_name("onshape_20260928.usd"))
-        self.assertEqual(cfg.robot.init_state.pos, (0, 0, 0.1375))
-        self.assertEqual(cfg.robot.init_state.joint_pos, {".*_joint": 0.0})
+        self.assertEqual(cfg.robot.init_state.pos, (0, 0, 0.2025))
+        self.assertEqual(cfg.robot.init_state.joint_pos,
+                         {".*_hip_joint": 0.0, ".*_femur_joint": -0.30, ".*_tibia_joint": -0.30})
         self.assertTrue(cfg.use_asset_joint_limits)
         self.assertTrue(cfg.enable_self_collisions)
         self.assertGreater(cfg.robot_width, 0.556867)
@@ -184,6 +189,11 @@ class JointAngleConfigurationTests(unittest.TestCase):
         self.assertEqual(cfg.foot_support_offsets, GEOMETRY.ONSHAPE_FOOT_SUPPORT_OFFSETS)
         self.assertEqual(cfg.distal_foot_support_offsets, GEOMETRY.ONSHAPE_DISTAL_FOOT_SUPPORT_OFFSETS)
         self.assertEqual(cfg.proximal_foot_offsets, GEOMETRY.ONSHAPE_PROXIMAL_FOOT_OFFSETS)
+        self.assertEqual(cfg.non_distal_collision_offsets, NON_DISTAL.ONSHAPE_NON_DISTAL_COLLISION_OFFSETS)
+        self.assertEqual(set(cfg.non_distal_collision_offsets), {"base"} | {
+            f"leg_{leg}_{part}" for leg in range(6) for part in ("hip", "femur", "tibia")})
+        self.assertEqual((cfg.non_distal_ground_clearance_m, cfg.non_distal_penetration_tolerance_m,
+                          cfg.non_distal_clearance_cost_scale), (0.008, 0.002, -5.0))
         self.assertEqual((cfg.knee_ground_clearance_m, cfg.knee_ground_clearance_cost_scale,
                           cfg.non_distal_support_cost_scale), (0.03, -5.0, -15.0))
         self.assertEqual((cfg.distal_contact_height_tolerance, cfg.proximal_contact_height_tolerance), (0.004, 0.008))

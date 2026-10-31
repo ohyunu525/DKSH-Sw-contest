@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import math
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -50,7 +51,7 @@ class CheckpointTests(unittest.TestCase):
         self.assertLess(float(std.max()), 0.0175)
         self.assertAlmostEqual(saved["optimizer_state_dict"]["param_groups"][0]["lr"], 1e-5)
 
-    def create_checkpoint(self, root, environment="stairs", task=TASK, semantics="absolute_joint_angles_v2"):
+    def create_checkpoint(self, root, environment="stairs", task=TASK, semantics="absolute_joint_angles_v2", profile=None):
         observations, actions = CHECKPOINT.expected_dimensions(task, environment)
         path = Path(root) / "model_100.pt"
         torch.save({"model_state_dict": {"actor.0.weight": torch.zeros(4, observations), "actor.6.weight": torch.zeros(actions, 4), "std": torch.full((actions,), 0.02)}, "iter": 100}, path)
@@ -59,6 +60,7 @@ class CheckpointTests(unittest.TestCase):
             "actuator_contract": CHECKPOINT.expected_actuator_contract(task),
             "cad_asset_sha256": CHECKPOINT.expected_cad_asset_sha256(task),
             **CHECKPOINT.SCHEMA_CONTRACTS,
+            **({**CHECKPOINT.BEHAVIOR_PROFILES[profile], "behavior_profile": profile} if profile else {}),
             "target_rate_limit_rad_s": 1.5, "target_smoothing": 0.35,
             "control_frequency_hz": 50, "exploration_std_cap": 0.0211844041781,
         }), encoding="utf-8")
@@ -288,6 +290,60 @@ class CheckpointTests(unittest.TestCase):
                         CHECKPOINT.validate_checkpoint(path, TASK, "flat", **compatibility)
                     CHECKPOINT.validate_checkpoint(path, TASK, "flat", allow_behavior_transfer=True,
                                                    **compatibility)
+
+    def test_strict_support_roundtrips_and_rejects_same_size_older_behavior_without_transfer(self):
+        strict = CHECKPOINT.BEHAVIOR_PROFILES["revised_v8"]
+        self.assertEqual(strict, {
+            "reward_contract": "signed_progress_huber_speed_strict_support_v1",
+            "contact_contract": "cad6_strict_distal_all_links_v1",
+        })
+        compatibility = {"expected_reward_contract": strict["reward_contract"],
+                         "expected_contact_contract": strict["contact_contract"]}
+        with TemporaryDirectory() as root:
+            for profile in CHECKPOINT.BEHAVIOR_PROFILES:
+                with self.subTest(profile=profile):
+                    path = self.create_checkpoint(root, "flat", profile=profile)
+                    saved = CHECKPOINT.validate_checkpoint(path, TASK, "flat")
+                    self.assertEqual((saved["observations"], saved["actions"]), (140, 18))
+                    self.assertEqual(CHECKPOINT.behavior_profile_from_metadata(saved), profile)
+                    if profile == "revised_v8":
+                        CHECKPOINT.validate_checkpoint(path, TASK, "flat", **compatibility)
+                    else:
+                        with self.assertRaisesRegex(ValueError, f"--behavior_profile={profile}.*--allow_behavior_transfer"):
+                            CHECKPOINT.validate_checkpoint(path, TASK, "flat", **compatibility)
+                        CHECKPOINT.validate_checkpoint(path, TASK, "flat", allow_behavior_transfer=True,
+                                                       **compatibility)
+                        historical = CHECKPOINT.BEHAVIOR_PROFILES[profile]
+                        CHECKPOINT.validate_checkpoint(path, TASK, "flat",
+                                                       expected_reward_contract=historical["reward_contract"],
+                                                       expected_contact_contract=historical["contact_contract"])
+
+    def test_strict_checkpoint_discovery_skips_newer_historical_models(self):
+        strict = CHECKPOINT.BEHAVIOR_PROFILES["revised_v8"]
+        compatibility = {"expected_reward_contract": strict["reward_contract"],
+                         "expected_contact_contract": strict["contact_contract"]}
+        with TemporaryDirectory() as root:
+            strict_dir, old_dir = Path(root) / "strict", Path(root) / "historical"
+            strict_dir.mkdir()
+            old_dir.mkdir()
+            strict_path = self.create_checkpoint(strict_dir, "flat", profile="revised_v8")
+            old_path = self.create_checkpoint(old_dir, "flat", profile="revised_v7")
+            os.utime(strict_path, (100, 100))
+            os.utime(old_path, (200, 200))
+            resolved = CHECKPOINT.resolve_checkpoint("", root, TASK, "flat", **compatibility)
+            self.assertEqual(resolved, strict_path.resolve())
+            with self.assertRaisesRegex(ValueError, "explicit historical comparison"):
+                CHECKPOINT.resolve_checkpoint(str(old_path), root, TASK, "flat", **compatibility)
+
+    def test_transfer_cannot_relabel_historical_contacts_as_strict_v8(self):
+        with TemporaryDirectory() as root:
+            path = self.create_checkpoint(root, "flat", profile="revised_v7")
+            metadata_path = path.parent / "run_metadata.json"
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            metadata["behavior_profile"] = "revised_v8"
+            metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "profile disagrees"):
+                CHECKPOINT.validate_checkpoint(path, TASK, "flat", allow_behavior_transfer=True)
 
 
 if __name__ == "__main__":

@@ -39,9 +39,9 @@ def resolve_course_args(args):
             raise ValueError("Course randomization and curriculum options require --environment=curriculum")
         return args
     if "MG996R-Hip-CAD6" not in args.task:
-        raise ValueError("curriculum requires the MG996R-Hip-CAD6 direct-angle task and revised_v7")
-    if args.behavior_profile not in (None, "revised_v7"):
-        raise ValueError("curriculum requires revised_v7 distal-support behavior")
+        raise ValueError("curriculum requires the MG996R-Hip-CAD6 direct-angle task and distal-support behavior")
+    if args.behavior_profile not in (None, "revised_v7", "revised_v8"):
+        raise ValueError("curriculum requires revised_v7 or revised_v8 distal-support behavior")
     if args.freeze_curriculum and args.mode != "train":
         raise ValueError("freeze_curriculum is training-only; evaluation is always frozen")
     split = "train" if args.mode == "train" else "holdout"
@@ -233,6 +233,57 @@ class PolicyStdConstraint:
         self.handle.remove()
 
 
+def _contact_limits(max_body_contact_fraction, max_non_distal_support_fraction,
+                    max_non_distal_collision_fraction):
+    limits = {
+        "body_contact_fraction": max_body_contact_fraction,
+        "non_distal_support_fraction": max_non_distal_support_fraction,
+        "non_distal_collision_fraction": max_non_distal_collision_fraction,
+    }
+    if any(isinstance(value, bool) or not isinstance(value, (int, float))
+           or not math.isfinite(value) or not 0 <= value <= 1 for value in limits.values()):
+        raise ValueError("Contact fraction limits must be finite values between zero and one")
+    return limits
+
+
+def _contact_failure_reasons(records, limits, *, require_strict_contact):
+    """Check each episode so clean runs cannot dilute a bad one."""
+    reasons = []
+    for record in records:
+        failure = record.get("strict_contact_failure_fraction", 0.0)
+        if (isinstance(failure, bool) or not isinstance(failure, (int, float))
+                or not math.isfinite(failure) or not 0 <= failure <= 1 or failure > 0):
+            reasons.append("strict contact failure occurred or its evidence is invalid")
+            break
+    for name, limit in limits.items():
+        missing = False
+        violated = False
+        for record in records:
+            coverage = record.get("contact_diagnostic_coverage", {}).get(
+                name, 1.0 if name in record else 0.0
+            )
+            if (isinstance(coverage, bool) or not isinstance(coverage, (int, float))
+                    or not math.isfinite(coverage) or not 0 <= coverage <= 1.0 + 1e-9):
+                missing = True
+                continue
+            if name not in record or coverage < 1.0 - 1e-9:
+                if name == "body_contact_fraction" or require_strict_contact:
+                    missing = True
+            if name not in record:
+                continue
+            value = record[name]
+            if (isinstance(value, bool) or not isinstance(value, (int, float))
+                    or not math.isfinite(value) or not 0 <= value <= 1):
+                missing = True
+            elif value > limit:
+                violated = True
+        if missing:
+            reasons.append(f"evaluated episodes lack complete valid {name} evidence")
+        if violated:
+            reasons.append(f"an evaluated episode exceeds {name} limit {limit:g}")
+    return reasons
+
+
 class EvaluationAccumulator:
     """Count goals and sustained progress only after an actual episode ends."""
 
@@ -244,7 +295,8 @@ class EvaluationAccumulator:
     OPTIONAL_METRICS = ("step_progress_speed_mps", "target_excursion_rad", "joint_excursion_rad",
                         "joint_velocity_rms_rad_s", "mean_foot_clearance_m",
                         "foot_slip_m2_s2",
-                        "distal_support_fraction", "non_distal_support_fraction",
+                        "distal_support_fraction", "non_distal_support_fraction", "non_distal_collision_fraction",
+                        "strict_contact_failure", "min_non_distal_clearance_m",
                         "mean_knee_ground_clearance_m", "knee_ground_clearance_violation_fraction",
                         "knees_below_body_fraction", "approach_low_knee_time_fraction")
 
@@ -262,8 +314,12 @@ class EvaluationAccumulator:
         self.max_target_rate = 0.0
         self.optional_totals = {}
         self.optional_samples = {}
+        self.min_non_distal_clearance_m = None
         self.episode_diagnostics = {name: torch.zeros_like(self.duration) for name in
-                                    ("body_contact_fraction", "non_distal_support_fraction", "foot_slip_m2_s2")}
+                                    ("body_contact_fraction", "non_distal_support_fraction",
+                                     "non_distal_collision_fraction", "strict_contact_failure_fraction", "foot_slip_m2_s2")}
+        self.contact_diagnostic_duration = {name: torch.zeros_like(self.duration) for name in
+                                            ("non_distal_support_fraction", "non_distal_collision_fraction")}
 
     def update(self, metrics, dones, dt, *, course_records=None):
         if not math.isfinite(dt) or dt <= 0:
@@ -273,6 +329,8 @@ class EvaluationAccumulator:
             tensor = torch.as_tensor(metrics[name]).detach().to(device="cpu", dtype=torch.float64).reshape(-1)
             if tensor.shape != (self.num_envs,) or not torch.isfinite(tensor).all():
                 raise ValueError(f"Invalid pre-reset metric {name}")
+            if name == "body_contact" and ((tensor < 0) | (tensor > 1)).any():
+                raise ValueError(f"Invalid pre-reset contact fraction {name}")
             values[name] = tensor
             self.totals[name] += float(tensor.sum())
         for name in self.OPTIONAL_METRICS:
@@ -281,6 +339,14 @@ class EvaluationAccumulator:
             tensor = torch.as_tensor(metrics[name]).detach().to(device="cpu", dtype=torch.float64).reshape(-1)
             if tensor.shape != (self.num_envs,) or not torch.isfinite(tensor).all():
                 raise ValueError(f"Invalid pre-reset metric {name}")
+            if (name in self.contact_diagnostic_duration or name == "strict_contact_failure") and ((tensor < 0) | (tensor > 1)).any():
+                raise ValueError(f"Invalid pre-reset contact fraction {name}")
+            values[name] = tensor
+            if name == "min_non_distal_clearance_m":
+                minimum = float(tensor.min())
+                self.min_non_distal_clearance_m = (minimum if self.min_non_distal_clearance_m is None
+                                                 else min(self.min_non_distal_clearance_m, minimum))
+                continue
             self.optional_totals[name] = self.optional_totals.get(name, 0.0) + float(tensor.sum())
             self.optional_samples[name] = self.optional_samples.get(name, 0) + self.num_envs
         done = torch.as_tensor(dones, dtype=torch.bool).reshape(-1).cpu()
@@ -293,9 +359,13 @@ class EvaluationAccumulator:
             if len(course_by_env) != len(records) or set(course_by_env) != set(done.nonzero(as_tuple=False).flatten().tolist()):
                 raise ValueError("Completed course metadata must match each terminal environment exactly once")
         self.episode_diagnostics["body_contact_fraction"] += values["body_contact"] * dt
-        for name in ("non_distal_support_fraction", "foot_slip_m2_s2"):
-            if name in metrics:
-                self.episode_diagnostics[name] += torch.as_tensor(metrics[name]).detach().to(device="cpu", dtype=torch.float64).reshape(-1) * dt
+        if "strict_contact_failure" in values:
+            self.episode_diagnostics["strict_contact_failure_fraction"] += values["strict_contact_failure"] * dt
+        for name in ("non_distal_support_fraction", "non_distal_collision_fraction", "foot_slip_m2_s2"):
+            if name in values:
+                self.episode_diagnostics[name] += values[name] * dt
+                if name in self.contact_diagnostic_duration:
+                    self.contact_diagnostic_duration[name] += dt
         self.duration += dt
         self.progress += values["progress_m"]
         self.travel += values["travel_distance_m"]
@@ -315,6 +385,9 @@ class EvaluationAccumulator:
                 "mechanical_energy_j": float(self.energy[index]),
                 "sustained_progress_speed_mps": progress / duration,
                 **{name: float(value[index]) / duration for name, value in self.episode_diagnostics.items()},
+                "contact_diagnostic_coverage": {
+                    name: float(value[index]) / duration for name, value in self.contact_diagnostic_duration.items()
+                },
             }
             if course_by_env is not None:
                 course = course_by_env[index]
@@ -325,11 +398,17 @@ class EvaluationAccumulator:
             self.completed.append(record)
             for value in self.episode_diagnostics.values():
                 value[index] = 0
+            for value in self.contact_diagnostic_duration.values():
+                value[index] = 0
             self.duration[index] = self.progress[index] = self.travel[index] = self.energy[index] = 0
 
-    def report(self, *, target_speed, minimum_speed_fraction, dt):
+    def report(self, *, target_speed, minimum_speed_fraction, dt, require_strict_contact=False,
+               max_body_contact_fraction=0.0, max_non_distal_support_fraction=0.0,
+               max_non_distal_collision_fraction=0.0):
         if self.steps < 1:
             raise ValueError("Evaluation requires at least one control step")
+        contact_limits = _contact_limits(max_body_contact_fraction, max_non_distal_support_fraction,
+                                         max_non_distal_collision_fraction)
         counts = {name: 0 for name in ("episodes", "goal", "fallen", "out_of_bounds", "time_out")}
         counts["episodes"] = len(self.completed)
         for episode in self.completed:
@@ -357,6 +436,18 @@ class EvaluationAccumulator:
             reasons.append("falls or out-of-bounds episodes occurred")
         if sustained < minimum_speed:
             reasons.append("completed-episode sustained progress speed is below the minimum")
+        pending_contact_records = [
+            {**{name: float(value[index]) / float(self.duration[index])
+                for name, value in self.episode_diagnostics.items()},
+             "contact_diagnostic_coverage": {
+                 name: float(value[index]) / float(self.duration[index])
+                 for name, value in self.contact_diagnostic_duration.items()
+             }}
+            for index in (self.duration > 0).nonzero(as_tuple=False).flatten().tolist()
+        ]
+        reasons.extend(_contact_failure_reasons(self.completed + pending_contact_records, contact_limits,
+                                                require_strict_contact=require_strict_contact))
+        passed = passed and not reasons
         return {
             "episodes": counts, "success_rate": success_rate,
             "successful_environment_count": len(successful_environments),
@@ -377,15 +468,23 @@ class EvaluationAccumulator:
             "torque_saturation_fraction": self.totals["torque_saturation"] / samples,
             "tracking_error_rad": self.totals["tracking_error_rad"] / samples,
             "mean_support_feet": self.totals["feet_contact"] / samples,
-            **{name: total / self.optional_samples[name] for name, total in self.optional_totals.items()},
+            **{("strict_contact_failure_fraction" if name == "strict_contact_failure" else name):
+               total / self.optional_samples[name] for name, total in self.optional_totals.items()},
+            **({"min_non_distal_clearance_m": self.min_non_distal_clearance_m}
+               if self.min_non_distal_clearance_m is not None else {}),
+            "require_strict_contact": require_strict_contact,
+            **{f"max_{name}": limit for name, limit in contact_limits.items()},
             "locomotion_pass": passed, "failure_reasons": reasons,
         }
 
 
 def heldout_course_report(completed, *, target_speed, minimum_speed_fraction, minimum_unique_courses=2,
-                          max_non_distal_support_fraction=0.05):
+                          max_non_distal_support_fraction=0.0, max_body_contact_fraction=0.0,
+                          max_non_distal_collision_fraction=0.0, require_strict_contact=False):
     """Require independent held-out evidence for every family, including flat replay."""
     records = list(completed)
+    contact_limits = _contact_limits(max_body_contact_fraction, max_non_distal_support_fraction,
+                                     max_non_distal_collision_fraction)
     expected = set(COURSE_FAMILIES)
     if any(record.get("family") not in expected or record.get("split") != "holdout" for record in records):
         raise ValueError("Held-out evaluation requires recognized families from the holdout split")
@@ -403,24 +502,33 @@ def heldout_course_report(completed, *, target_speed, minimum_speed_fraction, mi
         unique = len({row["course_id"] for row in rows})
         non_distal = (sum(row.get("non_distal_support_fraction", 0) * row["duration_s"] for row in rows)
                       / duration if duration else 0)
+        body_contact = (sum(row.get("body_contact_fraction", 0) * row["duration_s"] for row in rows)
+                        / duration if duration else 0)
+        non_distal_collision = (sum(row.get("non_distal_collision_fraction", 0) * row["duration_s"] for row in rows)
+                                / duration if duration else 0)
+        contact_reasons = _contact_failure_reasons(rows, contact_limits,
+                                                   require_strict_contact=require_strict_contact)
         success_rate = goals / max(1, len(rows))
         speed = progress / duration if duration else 0
         return {"episodes": len(rows), "goal": goals, "fallen": falls, "out_of_bounds": out_of_bounds,
                 "unique_courses": unique, "success_rate": success_rate, "sustained_progress_speed_mps": speed,
                 "non_distal_support_fraction": non_distal,
+                "body_contact_fraction": body_contact, "non_distal_collision_fraction": non_distal_collision,
+                "contact_failure_reasons": contact_reasons,
                 "pass": bool(unique >= minimum_unique_courses and success_rate >= 0.8 and not falls
                              and not out_of_bounds and speed >= minimum_speed
-                             and non_distal <= max_non_distal_support_fraction)}
+                             and not contact_reasons)}
 
     for family in COURSE_FAMILIES:
         rows = [row for row in records if row["family"] == family]
         by_family[family] = summarize(rows)
         if not by_family[family]["pass"]:
-            reasons.append(f"{family}: insufficient course coverage, success, speed or distal support")
+            reasons.append(f"{family}: insufficient course coverage, success, speed or clean contact evidence")
         for difficulty in sorted({row["difficulty"] for row in rows}):
             key = f"{family}@{float(difficulty):.6g}"
             groups[key] = summarize([row for row in rows if row["difficulty"] == difficulty])
     return {"course_contract": COURSE_CONTRACT, "course_split": "holdout", "course_families": by_family,
             "course_family_difficulty_groups": groups, "minimum_unique_courses_per_family": minimum_unique_courses,
-            "max_non_distal_support_fraction": max_non_distal_support_fraction,
+            "require_strict_contact": require_strict_contact,
+            **{f"max_{name}": limit for name, limit in contact_limits.items()},
             "heldout_course_pass": not reasons, "heldout_failure_reasons": reasons}

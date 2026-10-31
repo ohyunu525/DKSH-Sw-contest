@@ -46,6 +46,9 @@ class CourseArgumentsTests(unittest.TestCase):
         self.assertFalse(cfg.curriculum_enabled)
         self.assertEqual((cfg.course_split, cfg.course_seed), ("holdout", 73))
 
+    def test_strict_distal_profile_is_allowed_for_curriculum(self):
+        self.assertEqual(self.arguments(profile="revised_v8").behavior_profile, "revised_v8")
+
     def test_invalid_randomization_and_windows_are_rejected(self):
         options = (("--course_seed=-1",), ("--flat_fraction=nan",), ("--flat_fraction=1",),
                    ("--curriculum_min_episodes=21",), ("--curriculum_window=0",),
@@ -137,6 +140,45 @@ class CourseEvaluationTests(unittest.TestCase):
         rows[7]["signed_progress_m"] = 0
         self.assertFalse(self.report(rows)["heldout_course_pass"])
 
+    def test_femur_contacts_cannot_pass_heldout_courses_after_clean_goal_stance(self):
+        rows = self.completed()
+        for row in rows:
+            row["body_contact_fraction"] = .9
+        report = self.report(rows)
+        self.assertFalse(report["heldout_course_pass"])
+        self.assertTrue(all(not family["pass"] for family in report["course_families"].values()))
+
+    def test_one_dirty_course_is_not_diluted_by_many_clean_courses(self):
+        for metric in ("body_contact_fraction", "non_distal_support_fraction", "non_distal_collision_fraction"):
+            with self.subTest(metric=metric):
+                rows = self.completed()
+                rows[0][metric] = .1
+                for index in range(20):
+                    clean = copy.deepcopy(rows[4])
+                    clean["course_id"] = f"flat-extra-{index}"
+                    rows.append(clean)
+                report = UTILS.heldout_course_report(rows, target_speed=.2, minimum_speed_fraction=.5,
+                                                    **{f"max_{metric}": .05})
+                self.assertFalse(report["heldout_course_pass"])
+                self.assertFalse(report["course_families"]["flat"]["pass"])
+
+    def test_strict_heldout_evidence_fails_closed_when_contact_metrics_are_missing(self):
+        rows = self.completed()
+        report = UTILS.heldout_course_report(rows, target_speed=.2, minimum_speed_fraction=.5,
+                                            require_strict_contact=True)
+        self.assertFalse(report["heldout_course_pass"])
+        accumulator = UTILS.EvaluationAccumulator(4)
+        for episode in range(2):
+            sample = metrics(4)
+            sample["non_distal_collision_fraction"] = torch.zeros(4)
+            accumulator.update(sample, torch.ones(4, dtype=torch.bool), 1,
+                               course_records=self.records(episode))
+        complete = accumulator.completed
+        self.assertTrue(UTILS.heldout_course_report(complete, target_speed=.2, minimum_speed_fraction=.5,
+                                                  require_strict_contact=True)["heldout_course_pass"])
+        del complete[0]["body_contact_fraction"]
+        self.assertFalse(UTILS.heldout_course_report(complete, target_speed=.2, minimum_speed_fraction=.5,
+                                                   require_strict_contact=True)["heldout_course_pass"])
     def test_training_split_and_incomplete_or_duplicate_terminal_metadata_are_rejected(self):
         rows = self.completed()
         rows[0]["split"] = "train"

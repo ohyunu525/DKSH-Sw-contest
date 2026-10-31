@@ -14,6 +14,7 @@ REWARD_CONTRACT = "signed_progress_huber_speed_v3"
 KNEE_CLEARANCE_REWARD_CONTRACT = "signed_progress_huber_speed_knee_clearance_v1"
 FULL_FOOT_SLIP_REWARD_CONTRACT = "signed_progress_huber_speed_knee_clearance_full_foot_slip_v1"
 DISTAL_SUPPORT_REWARD_CONTRACT = "signed_progress_huber_speed_distal_support_v1"
+STRICT_SUPPORT_REWARD_CONTRACT = "signed_progress_huber_speed_strict_support_v1"
 CONTACT_CONTRACT = "support_surface_foot_geometry_v3"
 TOE_BUTTON_CONTACT_CONTRACT = "cad6_toe_button_hysteresis_v1"
 DISTAL_SUPPORT_CONTACT_CONTRACT = "cad6_distal_support_toe_button_v1"
@@ -32,6 +33,8 @@ BEHAVIOR_PROFILES = {
                        "contact_contract": TOE_BUTTON_CONTACT_CONTRACT},
     "revised_v7": {"reward_contract": DISTAL_SUPPORT_REWARD_CONTRACT,
                    "contact_contract": DISTAL_SUPPORT_CONTACT_CONTRACT},
+    "revised_v8": {"reward_contract": STRICT_SUPPORT_REWARD_CONTRACT,
+                   "contact_contract": "cad6_strict_distal_all_links_v1"},
 }
 CONTROL_CONTRACT = "absolute_targets_rate_limited_observed_velocity_v2"
 SCHEMA_CONTRACTS = {
@@ -111,8 +114,8 @@ def validate_checkpoint(path, task, environment, *, expected_reward_contract=Non
             raise ValueError(f"Unknown requested {name}")
         if expected_contract is not None and metadata[name] != expected_contract and not allow_behavior_transfer:
             saved_profile = behavior_profile_from_metadata(metadata)
-            raise ValueError(f"Checkpoint behavior differs from this training profile; select --behavior_profile={saved_profile} "
-                             "to preserve its behavior or explicitly pass --allow_behavior_transfer")
+            raise ValueError(f"Checkpoint behavior differs from the selected profile; select --behavior_profile={saved_profile} "
+                             "for an explicit historical comparison, retrain, or use --allow_behavior_transfer during training")
     cad_hash = expected_cad_asset_sha256(task)
     if cad_hash is not None and metadata.get("cad_asset_sha256") != cad_hash:
         raise ValueError("Checkpoint CAD asset differs from the current Onshape model; train a new policy")

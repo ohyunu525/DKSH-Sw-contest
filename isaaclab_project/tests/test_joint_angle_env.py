@@ -6,9 +6,11 @@ resets. They do not claim to validate contact physics or trained locomotion.
 
 import ast
 import importlib.util
+import math
 from pathlib import Path
 from types import SimpleNamespace as NS
 import unittest
+from unittest.mock import patch
 
 import torch
 
@@ -121,12 +123,13 @@ def quat_rotate(q, v):
 
 tree = ast.parse((FOLDER / "joint_angle_env.py").read_text(encoding="utf-8"))
 definition = next(node for node in tree.body if isinstance(node, ast.ClassDef))
-namespace = {"torch": torch, "SpiderNavigationEnv": Parent, "quat_rotate": quat_rotate,
+namespace = {"torch": torch, "math": math, "SpiderNavigationEnv": Parent, "quat_rotate": quat_rotate,
              "sole_contact_state": CONTACT.sole_contact_state,
              "foot_contact_state": CONTACT.foot_contact_state,
              "closest_foot_support": CONTACT.closest_foot_support,
              "toe_button_contact_state": CONTACT.toe_button_contact_state,
              "distal_foot_contact_state": CONTACT.distal_foot_contact_state,
+             "strict_leg_contact_state": CONTACT.strict_leg_contact_state,
              **{name: getattr(CONTROL, name) for name in (
                  "action_to_angles", "bounded_angle_targets", "joint_names", "motion_costs",
                  "normalize_angles", "observation_size", "point_velocity", "signed_progress", "speed_tracking_cost",
@@ -137,12 +140,12 @@ Environment = namespace["JointAngleNavigationEnv"]
 
 
 def make_env(actions=18, support_offsets=None, *, behavior_profile="revised_v3", toe_button_offsets=None,
-             distal_offsets=None, proximal_offsets=None, environment_preset="flat"):
+             distal_offsets=None, proximal_offsets=None, environment_preset="flat", collision_offsets=None):
     # Read numeric tuning values from the real cfg, keeping external asset setup
     # out of these tensor tests; no duplicate copy of the reward implementation.
     cfg_tree = ast.parse((FOLDER / "joint_angle_env_cfg.py").read_text(encoding="utf-8"))
     classes = [next(node for node in cfg_tree.body if isinstance(node, ast.ClassDef))]
-    if behavior_profile in ("revised_v5", "revised_v6", "revised_v7", "revised_v7_com"):
+    if behavior_profile in ("revised_v5", "revised_v6", "revised_v7", "revised_v7_com", "revised_v8"):
         classes.append(next(node for node in cfg_tree.body
                             if isinstance(node, ast.ClassDef) and node.name == "MG996RHipCad6JointAngleEnvCfg"))
     settings = {}
@@ -161,6 +164,7 @@ def make_env(actions=18, support_offsets=None, *, behavior_profile="revised_v3",
         foot_support_offsets=support_offsets,
         behavior_profile=behavior_profile, toe_button_offsets=toe_button_offsets,
         distal_foot_support_offsets=distal_offsets, proximal_foot_offsets=proximal_offsets,
+        non_distal_collision_offsets=collision_offsets,
     )
     env = Environment(NS(**settings))
     env._reset_idx(torch.tensor([0, 1]))
@@ -550,6 +554,261 @@ class JointAngleEnvironmentTests(unittest.TestCase):
                            record_outcomes=lambda *args: self.fail("An unfinished episode changed the curriculum"))
         env._reset_idx(torch.tensor([0, 1]))
         self.assertEqual(env.completed_course_records, [])
+
+
+class StrictContactEnvironmentTests(unittest.TestCase):
+    def strict_env(self, *, servo_contact=False):
+        distal = tuple(((0.12, 0.0, -0.06),) for _ in range(6))
+        proximal = tuple(((0.0, 0.0, -0.01),) for _ in range(6))
+        hull = tuple(distal[leg] + proximal[leg] for leg in range(6))
+        collision = {"base": ((0.0, 0.0, 0.0),)}
+        for leg in range(6):
+            for part in ("hip", "femur", "tibia"):
+                offset_z = (-0.06 if servo_contact else -0.01) if part == "tibia" else 0.0
+                collision[f"leg_{leg}_{part}"] = ((0.0, 0.0, offset_z),)
+        env = make_env(
+            support_offsets=hull, behavior_profile="revised_v8",
+            toe_button_offsets=tuple(points[0] for points in distal),
+            distal_offsets=distal, proximal_offsets=proximal, collision_offsets=collision,
+        )
+        env._robot.data.body_link_pos_w[..., 2] = 0.10
+        env._robot.data.body_link_pos_w[:, 0, 2] = 0.132
+        env._robot.data.body_link_pos_w[:, env._feet, 2] = 0.06
+        env._contacts.data.net_forces_w_history[:, :, env._sensor_feet, 2] = 2
+        return env
+
+    def set_link_contact(self, env, name, *, force=5.0, height=0.0, axis=2, environment=None):
+        body = env._robot.body_names.index(name)
+        sensor = env._contacts.body_names.index(name)
+        selection = slice(None) if environment is None else environment
+        env._robot.data.body_link_pos_w[selection, body, 2] = height
+        env._contacts.data.net_forces_w_history[selection, 0, sensor, axis] = force
+
+    def airborne_tibias(self, env):
+        env._contacts.data.net_forces_w_history.zero_()
+        env._robot.data.body_link_pos_w[:, env._feet, 2] = 0.12
+
+    def test_femur_only_support_fails_and_cannot_earn_forward_progress(self):
+        env = self.strict_env()
+        self.airborne_tibias(env)
+        for leg in range(6):
+            self.set_link_contact(env, f"leg_{leg}_femur")
+        support, body, invalid, loaded, gaps = env._strict_contact_state()
+        self.assertFalse(bool(support.any()))
+        self.assertTrue(bool(body.all()))
+        self.assertTrue(bool(invalid.all()))
+        self.assertTrue(bool(loaded.all()))
+        torch.testing.assert_close(gaps.amin(-1), torch.zeros(2))
+        env._robot.data.root_pos_w[:, 0] += 0.004
+        env._robot.data.root_lin_vel_w[:, 0] = env.cfg.target_speed
+        terminated, _ = env._get_dones()
+        self.assertTrue(bool(terminated.all()))
+        reward = env._get_rewards()
+        self.assertTrue(bool((reward < 0).all()))
+        torch.testing.assert_close(env._episode_sums["progress"], torch.zeros(2))
+        torch.testing.assert_close(env._episode_sums["goal"], torch.zeros(2))
+        torch.testing.assert_close(env.step_metrics["non_distal_collision_fraction"], torch.ones(2))
+        torch.testing.assert_close(env.step_metrics["strict_contact_failure"], torch.ones(2))
+        torch.testing.assert_close(env.step_metrics["min_non_distal_clearance_m"], torch.zeros(2))
+
+    def test_hip_only_and_base_only_contacts_fail_with_airborne_tibias(self):
+        for name in ("leg_3_hip", "base"):
+            with self.subTest(name=name):
+                env = self.strict_env()
+                self.airborne_tibias(env)
+                self.set_link_contact(env, name)
+                _, body, invalid, loaded, _ = env._strict_contact_state()
+                self.assertTrue(bool(body.all()))
+                expected_leg_count = 0 if name == "base" else 1
+                torch.testing.assert_close(invalid.sum(-1), torch.full((2,), expected_leg_count))
+                torch.testing.assert_close(loaded.sum(-1), torch.full((2,), expected_leg_count))
+                terminated, _ = env._get_dones()
+                self.assertTrue(bool(terminated.all()))
+
+    def test_one_bad_leg_is_not_hidden_by_five_good_distal_contacts(self):
+        env = self.strict_env()
+        self.set_link_contact(env, "leg_2_femur")
+        support, body, invalid, loaded, _ = env._strict_contact_state()
+        torch.testing.assert_close(support.sum(-1), torch.full((2,), 5))
+        self.assertTrue(bool(body.all()))
+        self.assertTrue(bool(invalid[:, 2].all()))
+        torch.testing.assert_close(invalid.sum(-1), torch.ones(2, dtype=torch.long))
+        self.assertTrue(bool(loaded.all()))
+        buttons, button_body = env._contact_state()
+        self.assertFalse(bool(buttons[:, 2].any()))
+        torch.testing.assert_close(buttons.sum(-1), torch.full((2,), 5))
+        self.assertTrue(bool(button_body.all()))
+        env._target_positions_w[:, 0] = 0.02
+        for _ in range(12):
+            terminated, _ = env._get_dones()
+        self.assertTrue(bool(terminated.all()))
+        self.assertFalse(bool(env._reached_goal.any()))
+
+    def test_tibia_servo_hull_contact_is_rejected_with_a_high_hinge_and_valid_tip(self):
+        env = self.strict_env(servo_contact=True)
+        hinge_height = env._robot.data.body_link_pos_w[:, env._knees, 2]
+        self.assertTrue(bool((hinge_height > env.cfg.knee_ground_clearance_m).all()))
+        distal, _, _ = env._distal_contact_state()
+        self.assertTrue(bool(distal.all()))
+        support, body, invalid, loaded, _ = env._strict_contact_state()
+        self.assertFalse(bool(support.any()))
+        self.assertTrue(bool(body.all()))
+        self.assertTrue(bool(invalid.all()))
+        self.assertTrue(bool(loaded.all()))
+        terminated, _ = env._get_dones()
+        self.assertTrue(bool(terminated.all()))
+
+    def test_deep_nonfoot_penetration_fails_even_without_reported_force(self):
+        env = self.strict_env()
+        self.airborne_tibias(env)
+        self.set_link_contact(env, "base", force=0.0, height=-0.003)
+        _, body, _, loaded, _ = env._strict_contact_state()
+        self.assertTrue(bool(body.all()))
+        self.assertFalse(bool(loaded.any()))
+        terminated, _ = env._get_dones()
+        self.assertTrue(bool(terminated.all()))
+
+    def test_deep_proximal_foot_penetration_fails_even_without_reported_force(self):
+        env = self.strict_env()
+        env._contacts.data.net_forces_w_history.zero_()
+        env._proximal_foot_offsets = env._proximal_foot_offsets.clone()
+        env._proximal_foot_offsets[..., 2] = -0.07
+        _, body, invalid, loaded, gaps = env._strict_contact_state()
+        self.assertTrue(bool(body.all()))
+        self.assertTrue(bool(invalid.all()))
+        self.assertTrue(bool(loaded.all()))
+        torch.testing.assert_close(gaps.amin(-1), torch.full((2,), -0.01))
+        terminated, _ = env._get_dones()
+        self.assertTrue(bool(terminated.all()))
+        env._get_rewards()
+        torch.testing.assert_close(env.step_metrics["non_distal_collision_fraction"], torch.ones(2))
+
+    def test_nonfinite_non_distal_geometry_cannot_be_classified_as_clear(self):
+        for invalid_height in (float("nan"), float("inf"), -float("inf")):
+            with self.subTest(invalid_height=invalid_height):
+                env = self.strict_env()
+                femur = env._robot.body_names.index("leg_0_femur")
+                env._robot.data.body_link_pos_w[:, femur, 2] = invalid_height
+                supported, body, invalid, _, _ = env._strict_contact_state()
+                self.assertTrue(bool(body.all()))
+                self.assertTrue(bool(invalid[:, 0].all()))
+                self.assertFalse(bool(supported[:, 0].any()))
+                terminated, _ = env._get_dones()
+                self.assertTrue(bool(terminated.all()))
+                reward = env._get_rewards()
+                self.assertTrue(bool(torch.isfinite(reward).all()))
+                self.assertTrue(bool((reward < 0).all()))
+                self.assertTrue(bool(torch.isfinite(env.step_metrics["min_non_distal_clearance_m"]).all()))
+
+    def test_valid_distal_support_keeps_slip_cost_when_virtual_button_is_raised(self):
+        env = self.strict_env()
+        env._toe_button_offsets = env._toe_button_offsets.clone()
+        env._toe_button_offsets[..., 2] += 0.02
+        env._robot.data.body_link_lin_vel_w[:, env._feet, 0] = 0.2
+        supported, body, _, _, _ = env._strict_contact_state()
+        buttons, _ = env._contact_state()
+        self.assertTrue(bool(supported.all()))
+        self.assertFalse(bool(body.any()))
+        self.assertFalse(bool(buttons.any()))
+        env._get_rewards()
+        torch.testing.assert_close(env.step_metrics["foot_slip_m2_s2"], torch.full((2,), 0.04))
+        expected = env.cfg.foot_slip_cost_scale * 0.04 * env.step_dt
+        torch.testing.assert_close(env._episode_sums["foot_slip"], torch.full((2,), expected))
+
+    def test_unloaded_near_floor_swing_gets_clearance_cost_without_contact_failure(self):
+        env = self.strict_env()
+        self.airborne_tibias(env)
+        self.set_link_contact(env, "leg_0_femur", force=0.0, height=0.004)
+        _, body, invalid, loaded, _ = env._strict_contact_state()
+        self.assertFalse(bool(body.any()))
+        self.assertFalse(bool(invalid.any()))
+        self.assertFalse(bool(loaded.any()))
+        terminated, _ = env._get_dones()
+        self.assertFalse(bool(terminated.any()))
+        env._get_rewards()
+        self.assertTrue(bool((env._episode_sums["non_distal_clearance"] < 0).all()))
+        torch.testing.assert_close(env.step_metrics["non_distal_collision_fraction"], torch.zeros(2))
+        torch.testing.assert_close(env.step_metrics["strict_contact_failure"], torch.zeros(2))
+
+    def test_clean_distal_support_can_make_progress_and_complete_goal(self):
+        env = self.strict_env()
+        support, body, invalid, loaded, _ = env._strict_contact_state()
+        self.assertTrue(bool(support.all()))
+        self.assertTrue(bool(loaded.all()))
+        self.assertFalse(bool(body.any()))
+        self.assertFalse(bool(invalid.any()))
+        env._robot.data.root_pos_w[:, 0] += 0.004
+        env._get_rewards()
+        self.assertTrue(bool((env._episode_sums["progress"] > 0).all()))
+        env._target_positions_w[:, 0] = 0.02
+        for _ in range(12):
+            env._get_dones()
+        self.assertTrue(bool(env._reached_goal.all()))
+        self.assertFalse(bool(env._strict_contact_failure.any()))
+
+    def test_no_contact_flight_is_allowed(self):
+        env = self.strict_env()
+        self.airborne_tibias(env)
+        support, body, invalid, loaded, gaps = env._strict_contact_state()
+        self.assertFalse(bool(support.any()))
+        self.assertFalse(bool(body.any()))
+        self.assertFalse(bool(invalid.any()))
+        self.assertFalse(bool(loaded.any()))
+        self.assertTrue(bool((gaps > env.cfg.non_distal_ground_clearance_m).all()))
+        terminated, _ = env._get_dones()
+        self.assertFalse(bool(terminated.any()))
+
+    def test_contact_failure_remains_until_reset_and_partial_reset_is_local(self):
+        env = self.strict_env()
+        self.set_link_contact(env, "leg_0_femur")
+        env._get_dones()
+        env._robot.data.body_link_pos_w[:, env._robot.body_names.index("leg_0_femur"), 2] = 0.10
+        env._contacts.data.net_forces_w_history.zero_()
+        env._contacts.data.net_forces_w_history[:, :, env._sensor_feet, 2] = 2
+        _, body, _, _, _ = env._strict_contact_state()
+        self.assertFalse(bool(body.any()))
+        terminated, _ = env._get_dones()
+        self.assertTrue(bool(terminated.all()))
+        self.assertTrue(bool(env._strict_contact_failure.all()))
+        env._reset_idx(torch.tensor([0]))
+        torch.testing.assert_close(env._strict_contact_failure, torch.tensor([False, True]))
+        terminated, _ = env._get_dones()
+        torch.testing.assert_close(terminated, torch.tensor([False, True]))
+
+    def test_reward_path_latches_contact_failure_without_dones_called_first(self):
+        env = self.strict_env()
+        self.set_link_contact(env, "leg_4_femur")
+        env._robot.data.root_pos_w[:, 0] += 0.004
+        env._reached_goal[:] = True
+        reward = env._get_rewards()
+        self.assertTrue(bool((reward < 0).all()))
+        self.assertTrue(bool(env._strict_contact_failure.all()))
+        torch.testing.assert_close(env._episode_sums["progress"], torch.zeros(2))
+        torch.testing.assert_close(env._episode_sums["goal"], torch.zeros(2))
+
+    def test_strict_contact_mapping_uses_sensor_names_with_reversed_sensor_order(self):
+        original_init = Parent.__init__
+
+        def reordered_sensor_init(parent_self, *args, **kwargs):
+            original_init(parent_self, *args, **kwargs)
+            parent_self._contacts.body_names.reverse()
+            parent_self._contacts.data.net_forces_w_history = (
+                parent_self._contacts.data.net_forces_w_history.flip(2)
+            )
+
+        with patch.object(Parent, "__init__", reordered_sensor_init):
+            env = self.strict_env()
+        self.assertNotEqual(env._contacts.body_names, env._robot.body_names)
+        self.set_link_contact(env, "leg_4_femur", environment=0)
+        support, body, invalid, loaded, _ = env._strict_contact_state()
+        torch.testing.assert_close(body, torch.tensor([True, False]))
+        torch.testing.assert_close(invalid.sum(-1), torch.tensor([1, 0]))
+        self.assertTrue(bool(invalid[0, 4]))
+        self.assertFalse(bool(support[0, 4]))
+        self.assertTrue(bool(support[1].all()))
+        self.assertTrue(bool(loaded.all()))
+        terminated, _ = env._get_dones()
+        torch.testing.assert_close(terminated, torch.tensor([True, False]))
 
 
 if __name__ == "__main__":

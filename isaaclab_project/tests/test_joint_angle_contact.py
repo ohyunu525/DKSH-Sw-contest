@@ -440,5 +440,173 @@ class DistalFootContactStateTests(unittest.TestCase):
                 CONTACT.distal_foot_contact_state(self.forces, **{**self.options, key: value})
 
 
+class StrictLegContactStateTests(unittest.TestCase):
+    def setUp(self):
+        # Sensor order deliberately differs from public leg order:
+        # base, leg1 femur, leg0 tibia, leg0 hip, leg1 tibia, leg0 femur, leg1 hip.
+        self.forces = torch.zeros((2, 4, 7, 3), dtype=torch.float64)
+        self.supported = torch.zeros((2, 2), dtype=torch.bool)
+        self.options = dict(
+            sensor_feet=[2, 4], sensor_leg_nonfeet=[[3, 5], [6, 1]],
+            sensor_body=[0, 1, 3, 5, 6], distal_supported=self.supported,
+            force_threshold=1.0,
+        )
+
+    def state(self):
+        return CONTACT.strict_leg_contact_state(self.forces, **self.options)
+
+    def test_femur_only_grounding_counts_without_any_tibia_force(self):
+        self.forces[0, 0, 5, 2] = 5
+        self.forces[1, -1, 1, 2] = 5
+        loaded, invalid, body = self.state()
+        expected = torch.tensor([[True, False], [False, True]])
+        torch.testing.assert_close(loaded, expected)
+        torch.testing.assert_close(invalid, expected)
+        self.assertTrue(bool(body.all()))
+
+    def test_hip_only_grounding_counts_in_public_leg_order(self):
+        self.forces[0, 2, 6, 2] = 5
+        self.forces[1, 1, 3, 2] = 5
+        loaded, invalid, body = self.state()
+        expected = torch.tensor([[False, True], [True, False]])
+        torch.testing.assert_close(loaded, expected)
+        torch.testing.assert_close(invalid, expected)
+        self.assertTrue(bool(body.all()))
+
+    def test_supported_tip_does_not_mask_same_legs_femur_contact(self):
+        self.supported[:] = True
+        self.forces[:, -1, [2, 4], 2] = 5
+        self.forces[0, 0, 5, 0] = 2
+        self.forces[1, 1, 1, 2] = 2
+        loaded, invalid, body = self.state()
+        self.assertTrue(bool(loaded.all()))
+        torch.testing.assert_close(invalid, torch.tensor([[True, False], [False, True]]))
+        self.assertTrue(bool(body.all()))
+
+    def test_valid_distal_support_is_loaded_without_invalid_contact(self):
+        self.supported[0, 1] = True
+        self.supported[1, 0] = True
+        self.forces[0, 0, 4, 2] = 3
+        self.forces[1, -1, 2, 2] = 3
+        loaded, invalid, body = self.state()
+        torch.testing.assert_close(loaded, self.supported)
+        self.assertFalse(bool(invalid.any()))
+        self.assertFalse(bool(body.any()))
+
+    def test_unloaded_swing_does_not_become_invalid_from_missing_support(self):
+        loaded, invalid, body = self.state()
+        self.assertFalse(bool(loaded.any()))
+        self.assertFalse(bool(invalid.any()))
+        self.assertFalse(bool(body.any()))
+
+    def test_base_only_collision_reports_body_without_inventing_a_loaded_leg(self):
+        self.forces[0, 0, 0, 2] = 10
+        loaded, invalid, body = self.state()
+        self.assertFalse(bool(loaded.any()))
+        self.assertFalse(bool(invalid.any()))
+        torch.testing.assert_close(body, torch.tensor([True, False]))
+
+    def test_wall_and_downward_tibia_impacts_are_invalid_loads(self):
+        self.forces[0, 0, 2, 0] = 5
+        self.forces[1, -1, 4, 2] = -5
+        loaded, invalid, body = self.state()
+        expected = torch.tensor([[True, False], [False, True]])
+        torch.testing.assert_close(loaded, expected)
+        torch.testing.assert_close(invalid, expected)
+        self.assertFalse(bool(body.any()))  # Tibia impacts are in invalid, not nonfoot.
+
+    def test_mapped_femur_reports_body_even_if_body_list_only_contains_base(self):
+        self.options["sensor_body"] = [0]
+        self.forces[0, 1, 5, 2] = 5
+        _, invalid, body = self.state()
+        self.assertTrue(bool(invalid[0, 0]))
+        torch.testing.assert_close(body, torch.tensor([True, False]))
+
+    def test_empty_nonfoot_groups_and_body_list_are_supported(self):
+        self.options.update(sensor_leg_nonfeet=[[], []], sensor_body=[])
+        self.forces[0, 0, 2, 2] = 5
+        loaded, invalid, body = self.state()
+        torch.testing.assert_close(loaded, torch.tensor([[True, False], [False, False]]))
+        torch.testing.assert_close(invalid, loaded)
+        self.assertFalse(bool(body.any()))
+
+    def test_threshold_uses_magnitude_strictly_and_retains_history(self):
+        self.forces[0, 0, 5, 2] = 1
+        self.forces[1, 0, 1, :2] = torch.tensor([0.8, 0.8])
+        loaded, invalid, body = self.state()
+        expected = torch.tensor([[False, False], [False, True]])
+        torch.testing.assert_close(loaded, expected)
+        torch.testing.assert_close(invalid, expected)
+        torch.testing.assert_close(body, torch.tensor([False, True]))
+
+    def test_nonfinite_femur_and_hip_forces_fail_closed_only_in_their_own_environment(self):
+        for index, leg, value, axis in ((5, 0, math.nan, 0), (6, 1, math.inf, 1),
+                                        (1, 1, -math.inf, 2)):
+            with self.subTest(index=index, value=value):
+                self.forces.zero_()
+                self.forces[0, 1, index, axis] = value
+                loaded, invalid, body = self.state()
+                expected = torch.zeros((2, 2), dtype=torch.bool)
+                expected[0, leg] = True
+                torch.testing.assert_close(loaded, expected)
+                torch.testing.assert_close(invalid, expected)
+                torch.testing.assert_close(body, torch.tensor([True, False]))
+
+    def test_nonfinite_tibia_force_invalidates_even_a_supported_distal_tip(self):
+        self.supported[:] = True
+        for value in (math.nan, math.inf, -math.inf):
+            with self.subTest(value=value):
+                self.forces.zero_()
+                self.forces[:, -1, [2, 4], 2] = 5
+                self.forces[0, 0, 4, 0] = value
+                loaded, invalid, body = self.state()
+                self.assertTrue(bool(loaded.all()))
+                torch.testing.assert_close(invalid, torch.tensor([[False, True], [False, False]]))
+                self.assertFalse(bool(body.any()))  # Invalid tibia is reported in the per-leg mask.
+
+    def test_nonfinite_base_force_reports_body_without_loading_unrelated_legs(self):
+        for value in (math.nan, math.inf, -math.inf):
+            with self.subTest(value=value):
+                self.forces.zero_()
+                self.forces[1, 0, 0, 2] = value
+                loaded, invalid, body = self.state()
+                self.assertFalse(bool(loaded.any()))
+                self.assertFalse(bool(invalid.any()))
+                torch.testing.assert_close(body, torch.tensor([False, True]))
+
+    def test_invalid_mapping_is_rejected(self):
+        cases = (
+            ("sensor_feet", []), ("sensor_feet", [2, 2]),
+            ("sensor_feet", [-1, 4]), ("sensor_feet", [2, 7]),
+            ("sensor_feet", [True, 4]),
+            ("sensor_leg_nonfeet", [[3, 5]]),
+            ("sensor_leg_nonfeet", [[3, 5], [5, 1]]),
+            ("sensor_leg_nonfeet", [[3, 3], [6, 1]]),
+            ("sensor_leg_nonfeet", [[2, 5], [6, 1]]),
+            ("sensor_leg_nonfeet", [[3, 7], [6, 1]]),
+            ("sensor_leg_nonfeet", [[3, 0.5], [6, 1]]),
+            ("sensor_leg_nonfeet", [3, [6, 1]]),
+            ("sensor_leg_nonfeet", None),
+            ("sensor_body", [2]), ("sensor_body", [0, 0]),
+            ("sensor_body", [7]), ("sensor_body", [False]),
+        )
+        for key, value in cases:
+            with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                CONTACT.strict_leg_contact_state(self.forces, **{**self.options, key: value})
+
+    def test_force_and_support_metadata_are_validated(self):
+        for forces in (torch.zeros((2, 7, 3)), torch.zeros((2, 0, 7, 3)),
+                       torch.zeros((2, 4, 7, 2)), self.forces.long()):
+            with self.subTest(shape=forces.shape), self.assertRaises(ValueError):
+                CONTACT.strict_leg_contact_state(forces, **self.options)
+        for support in (torch.zeros((2, 3), dtype=torch.bool), self.supported.float(),
+                        self.supported.to("meta")):
+            with self.subTest(shape=support.shape, dtype=support.dtype), self.assertRaises(ValueError):
+                CONTACT.strict_leg_contact_state(self.forces, **{**self.options, "distal_supported": support})
+        for threshold in (0, -1, math.inf, math.nan):
+            with self.subTest(threshold=threshold), self.assertRaises(ValueError):
+                CONTACT.strict_leg_contact_state(self.forces, **{**self.options, "force_threshold": threshold})
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -4,12 +4,16 @@ import contextlib
 import ast
 import importlib.util
 import io
+import json
 from pathlib import Path
 import runpy
 import sys
 import types
+from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import Mock, patch
+
+import torch
 
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
@@ -83,19 +87,86 @@ class JointAngleEntrypointTests(unittest.TestCase):
             exec(compile(ast.Module(body=prefix, type_ignores=[]), str(source), "exec"), namespace)
         return namespace
 
-    def test_runner_defaults_cad6_training_to_distal_support_and_infers_evaluation_profile(self):
-        train = self.runner_arguments(["--mode=train"])
-        self.assertEqual(train["args"].behavior_profile, "revised_v7")
-        self.assertEqual(train["checkpoint_compatibility"]["expected_reward_contract"],
-                         "signed_progress_huber_speed_distal_support_v1")
-        self.assertEqual(train["checkpoint_compatibility"]["expected_contact_contract"], "cad6_distal_support_toe_button_v1")
-        evaluation = self.runner_arguments(["--mode=evaluate"])
-        self.assertIsNone(evaluation["args"].behavior_profile)
-        self.assertEqual(evaluation["checkpoint_compatibility"], {})
-        self.assertEqual(evaluation["args"].seed, 73)
+    def test_runner_defaults_cad6_to_strict_support_in_every_mode(self):
+        for mode in ("train", "evaluate", "play"):
+            with self.subTest(mode=mode):
+                namespace = self.runner_arguments([f"--mode={mode}"])
+                self.assertEqual(namespace["args"].behavior_profile, "revised_v8")
+                self.assertEqual(namespace["checkpoint_compatibility"]["expected_reward_contract"],
+                                 "signed_progress_huber_speed_strict_support_v1")
+                self.assertEqual(namespace["checkpoint_compatibility"]["expected_contact_contract"],
+                                 "cad6_strict_distal_all_links_v1")
+                self.assertFalse(namespace["checkpoint_compatibility"]["allow_behavior_transfer"])
+                if mode == "evaluate":
+                    self.assertEqual(namespace["args"].seed, 73)
         legacy = self.runner_arguments(["--mode=train", "--behavior_profile=legacy_v2", "--reset_exploration_std"])
         self.assertEqual(legacy["checkpoint_compatibility"]["expected_reward_contract"], "signed_progress_sustained_speed_v2")
         self.assertTrue(legacy["args"].reset_exploration_std)
+
+    def create_checkpoint(self, root, profile, *, task="Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2", saved_profile=None):
+        spec = importlib.util.spec_from_file_location("entrypoint_checkpoint_fixture", SCRIPTS / "joint_angle_checkpoint.py")
+        checkpoint = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(checkpoint)
+        observations, actions = checkpoint.expected_dimensions(task, "flat")
+        path = Path(root) / "model_100.pt"
+        torch.save({"model_state_dict": {"actor.0.weight": torch.zeros(4, observations),
+                                        "actor.6.weight": torch.zeros(actions, 4),
+                                        "std": torch.full((actions,), 0.02)}}, path)
+        metadata = {"task": task, "observations": observations, "actions": actions,
+                    "action_semantics": checkpoint.ACTION_SEMANTICS,
+                    "actuator_contract": checkpoint.expected_actuator_contract(task),
+                    "cad_asset_sha256": checkpoint.expected_cad_asset_sha256(task),
+                    **checkpoint.SCHEMA_CONTRACTS, **checkpoint.BEHAVIOR_PROFILES[profile],
+                    "behavior_profile": saved_profile or profile,
+                    "target_rate_limit_rad_s": 1.5, "target_smoothing": 0.35,
+                    "control_frequency_hz": 50, "exploration_std_cap": 0.03}
+        (path.parent / "run_metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
+        return path
+
+    def test_old_cad6_checkpoints_do_not_silently_restore_historical_behavior(self):
+        with TemporaryDirectory() as root:
+            for profile, saved_profile in (("revised_v7", None), ("revised_v7_com", "revised_v7")):
+                path = self.create_checkpoint(root, profile, saved_profile=saved_profile)
+                for mode in ("evaluate", "play"):
+                    with self.subTest(profile=profile, mode=mode):
+                        with self.assertRaisesRegex(ValueError, f"--behavior_profile={profile}.*historical comparison"):
+                            self.runner_arguments([f"--mode={mode}", f"--checkpoint={path}"])
+                        selected = self.runner_arguments([f"--mode={mode}", f"--checkpoint={path}",
+                                                          f"--behavior_profile={profile}"])
+                        self.assertEqual(selected["args"].behavior_profile, profile)
+                        self.assertEqual((selected["saved_metadata"]["observations"],
+                                          selected["saved_metadata"]["actions"]), (140, 18))
+
+    def test_old_cad6_training_requires_explicit_behavior_transfer(self):
+        with TemporaryDirectory() as root:
+            path = self.create_checkpoint(root, "revised_v7")
+            arguments = ["--mode=train", f"--checkpoint={path}"]
+            with self.assertRaisesRegex(ValueError, "allow_behavior_transfer"):
+                self.runner_arguments(arguments)
+            transferred = self.runner_arguments([*arguments, "--allow_behavior_transfer"])
+            self.assertEqual(transferred["args"].behavior_profile, "revised_v8")
+            self.assertTrue(transferred["checkpoint_compatibility"]["allow_behavior_transfer"])
+            self.assertEqual(transferred["saved_metadata"]["behavior_profile"], "revised_v7")
+
+    def test_strict_cad6_checkpoint_replays_with_default_guards(self):
+        with TemporaryDirectory() as root:
+            path = self.create_checkpoint(root, "revised_v8")
+            for mode in ("evaluate", "play"):
+                with self.subTest(mode=mode):
+                    selected = self.runner_arguments([f"--mode={mode}", f"--checkpoint={path}"])
+                    self.assertEqual(selected["args"].behavior_profile, "revised_v8")
+                    self.assertEqual(selected["saved_metadata"]["behavior_profile"], "revised_v8")
+
+    def test_other_robots_preserve_saved_evaluation_profile_inference(self):
+        task = "Isaac-DKSH-Spider-JointAngles-v2"
+        with TemporaryDirectory() as root:
+            path = self.create_checkpoint(root, "legacy_v2", task=task)
+            for mode in ("evaluate", "play"):
+                with self.subTest(mode=mode):
+                    selected = self.runner_arguments([f"--mode={mode}", f"--task={task}", f"--checkpoint={path}"])
+                    self.assertIsNone(selected["args"].behavior_profile)
+                    self.assertEqual(selected["checkpoint_compatibility"], {})
+                    self.assertEqual(selected["saved_metadata"]["behavior_profile"], "legacy_v2")
 
     def test_previous_toe_button_profiles_remain_explicitly_selectable(self):
         for profile in ("revised_v4", "revised_v5", "revised_v6"):
@@ -106,10 +177,11 @@ class JointAngleEntrypointTests(unittest.TestCase):
                                  "cad6_toe_button_hysteresis_v1")
 
     def test_distal_support_rejects_tasks_without_onshape_cad6_geometry_before_simulator(self):
-        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as result:
-            self.runner_arguments(["--mode=train", "--task=Isaac-DKSH-Spider-CAD6-JointAngles-v2",
-                                   "--behavior_profile=revised_v7"])
-        self.assertEqual(result.exception.code, 2)
+        for profile in ("revised_v7", "revised_v8"):
+            with self.subTest(profile=profile), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as result:
+                self.runner_arguments(["--mode=train", "--task=Isaac-DKSH-Spider-CAD6-JointAngles-v2",
+                                       f"--behavior_profile={profile}"])
+            self.assertEqual(result.exception.code, 2)
 
     def test_runner_rejects_nontraining_noise_options_and_invalid_bounds_before_simulator(self):
         for arguments in (["--mode=evaluate", "--initial_noise_std=.08"], ["--mode=play", "--reset_exploration_std"],
@@ -119,12 +191,16 @@ class JointAngleEntrypointTests(unittest.TestCase):
                 self.runner_arguments(arguments)
             self.assertEqual(result.exception.code, 2)
 
-    def test_curriculum_defaults_distal_support_and_disjoint_frozen_evaluation(self):
+    def test_curriculum_defaults_strict_support_and_disjoint_frozen_evaluation(self):
         train = self.runner_arguments(["--mode=train", "--environment=curriculum", "--difficulty=0"])["args"]
         self.assertEqual((train.behavior_profile, train.course_seed, train.course_split, train.flat_fraction),
-                         ("revised_v7", 42, "train", 0.25))
+                         ("revised_v8", 42, "train", 0.25))
         evaluation = self.runner_arguments(["--mode=evaluate", "--environment=curriculum"])["args"]
         self.assertEqual((evaluation.course_seed, evaluation.course_split), (73, "holdout"))
+        self.assertEqual(evaluation.behavior_profile, "revised_v8")
+        historical = self.runner_arguments(["--mode=train", "--environment=curriculum",
+                                            "--behavior_profile=revised_v7"])["args"]
+        self.assertEqual(historical.behavior_profile, "revised_v7")
 
     def test_curriculum_invalid_profiles_splits_and_settings_fail_before_simulator(self):
         for arguments in (["--mode=train", "--environment=curriculum", "--behavior_profile=revised_v6"],

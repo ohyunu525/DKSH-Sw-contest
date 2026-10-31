@@ -13,7 +13,7 @@ param(
     [double]$MinNoiseStd,
     [double]$MaxNoiseStd,
     [switch]$ResetExplorationStd,
-    [ValidateSet('legacy_v2', 'revised_v3', 'revised_v4', 'revised_v5', 'revised_v6', 'revised_v7', 'revised_v7_com')][string]$BehaviorProfile,
+    [ValidateSet('legacy_v2', 'revised_v3', 'revised_v4', 'revised_v5', 'revised_v6', 'revised_v7', 'revised_v7_com', 'revised_v8')][string]$BehaviorProfile,
     [switch]$AllowBehaviorTransfer,
     [ValidateRange(0, 2147483647)][int]$CourseSeed,
     [ValidateSet('train', 'holdout')][string]$CourseSplit,

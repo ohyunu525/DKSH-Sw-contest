@@ -59,7 +59,7 @@ class JointAngleLauncherTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--mode=evaluate", result.stdout)
         self.assertNotIn("--seed=", result.stdout)  # Python's evaluation default is 73.
-        self.assertNotIn("--behavior_profile=", result.stdout)  # Infer a saved legacy/revised profile.
+        self.assertNotIn("--behavior_profile=", result.stdout)  # Python owns the strict v8 CAD6 default.
 
     def test_noise_bounds_reset_and_behavior_transfer_are_forwarded_only_when_explicit(self):
         for script in ("run_isaaclab.ps1", "run_cad6.ps1"):
@@ -93,13 +93,32 @@ class JointAngleLauncherTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--behavior_profile=revised_v3", result.stdout)
 
-    def test_distal_support_and_previous_toe_profiles_are_forwarded(self):
+    def test_strict_support_and_previous_toe_profiles_are_forwarded(self):
         for script in ("run_cad6.ps1", "run_isaaclab.ps1"):
-            for profile in ("revised_v4", "revised_v5", "revised_v6", "revised_v7"):
+            for profile in ("revised_v4", "revised_v5", "revised_v6", "revised_v7", "revised_v7_com", "revised_v8"):
                 with self.subTest(script=script, profile=profile):
                     result = self.launch(script, "-Mode", "evaluate", "-BehaviorProfile", profile)
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertIn(f"--behavior_profile={profile}", result.stdout)
+
+    def test_curriculum_accepts_explicit_strict_and_historical_distal_profiles(self):
+        for script in ("run_cad6.ps1", "run_isaaclab.ps1"):
+            for profile in ("revised_v7", "revised_v8"):
+                arguments = ["-Mode", "evaluate", "-Environment", "curriculum", "-BehaviorProfile", profile]
+                if script == "run_isaaclab.ps1":
+                    arguments += ["-RobotModel", "cad6", "-ServoModel", "mg996r_hip"]
+                with self.subTest(script=script, profile=profile):
+                    result = self.launch(script, *arguments)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn("--environment=curriculum", result.stdout)
+                    self.assertIn(f"--behavior_profile={profile}", result.stdout)
+
+    def test_v8_training_transfer_from_old_model_preserves_both_explicit_options(self):
+        result = self.launch("run_cad6.ps1", "-Mode", "train", "-Checkpoint", "C:/old model/model.pt",
+                             "-BehaviorProfile", "revised_v8", "-AllowBehaviorTransfer")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for expected in ("--behavior_profile=revised_v8", "--allow_behavior_transfer", "C:/old model/model.pt"):
+            self.assertIn(expected, result.stdout)
 
     def test_gui_choice_and_legacy_v0_path_are_preserved(self):
         gui = self.launch("run_cad6.ps1", "-Mode", "train", "-Gui", "-NumEnvs", "4")

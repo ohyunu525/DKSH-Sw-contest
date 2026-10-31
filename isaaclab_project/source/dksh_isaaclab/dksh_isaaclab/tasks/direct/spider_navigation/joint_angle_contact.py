@@ -175,6 +175,89 @@ def distal_foot_contact_state(
     return supported, body | non_distal_loaded.any(dim=-1), non_distal_loaded
 
 
+def strict_leg_contact_state(
+    force_history: torch.Tensor, *, sensor_feet: list[int],
+    sensor_leg_nonfeet: list[list[int]], sensor_body: list[int],
+    distal_supported: torch.Tensor, force_threshold: float,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Classify loads across entire legs, including femur-only support.
+
+    Returns loaded legs ``(N,L)``, invalid loaded legs ``(N,L)`` and nonfoot
+    body contacts ``(N,)``. A leg is loaded by any of its tibia, femur or hip
+    links. Any hip/femur load invalidates that leg, even if its distal tip is
+    supported; tibia load is invalid when ``distal_supported`` is false.
+    The caller supplies distal support after its force and geometry checks.
+
+    Sensor indices may have any order. ``sensor_leg_nonfeet`` provides each
+    leg's hip/femur indices in the same public leg order as ``sensor_feet``.
+    ``sensor_body`` additionally covers base and other nonfoot links; overlap
+    with the mapped hip/femur indices is allowed. The final result aggregates
+    the union, so a mapped femur cannot disappear from body-contact reporting.
+    Force magnitudes use every history sample and all directions. An unloaded
+    swing leg is never classified as an invalid load solely from geometry.
+    Nonfinite force samples fail closed as invalid loads on their own body;
+    a malformed tibia sample invalidates even otherwise valid distal support.
+    """
+    if not math.isfinite(force_threshold) or force_threshold <= 0:
+        raise ValueError("force_threshold must be finite and positive")
+    if force_history.ndim != 4 or force_history.shape[-1] != 3 or force_history.shape[1] < 1:
+        raise ValueError("force_history must have shape (N,H,B,3) with nonempty history")
+    if not force_history.is_floating_point():
+        raise ValueError("force_history must be a floating-point tensor")
+    count, _, bodies, _ = force_history.shape
+
+    def indices(value, name):
+        try:
+            result = tuple(value)
+        except TypeError as exc:
+            raise ValueError(f"{name} must contain integer body indices") from exc
+        if any(not isinstance(index, Integral) or isinstance(index, bool) for index in result):
+            raise ValueError(f"{name} must contain integer body indices")
+        if any(index < 0 or index >= bodies for index in result):
+            raise ValueError(f"{name} contains an index outside the sensor body range")
+        if len(set(result)) != len(result):
+            raise ValueError(f"{name} must contain unique indices")
+        return result
+
+    feet_indices = indices(sensor_feet, "sensor_feet")
+    body_indices = indices(sensor_body, "sensor_body")
+    if not feet_indices:
+        raise ValueError("sensor_feet must contain at least one foot index")
+    try:
+        leg_groups = tuple(sensor_leg_nonfeet)
+    except TypeError as exc:
+        raise ValueError("sensor_leg_nonfeet must provide one group per foot") from exc
+    if len(leg_groups) != len(feet_indices):
+        raise ValueError("sensor_leg_nonfeet must provide one group per foot")
+    leg_groups = tuple(indices(group, "sensor_leg_nonfeet") for group in leg_groups)
+    leg_indices = tuple(index for group in leg_groups for index in group)
+    if len(set(leg_indices)) != len(leg_indices):
+        raise ValueError("sensor_leg_nonfeet groups must be disjoint across legs")
+    nonfoot_indices = sorted(set(body_indices).union(leg_indices))
+    if set(feet_indices).intersection(nonfoot_indices):
+        raise ValueError("foot and nonfoot sensor indices must be disjoint")
+    if distal_supported.shape != (count, len(feet_indices)) or distal_supported.dtype != torch.bool:
+        raise ValueError("distal_supported must be boolean with shape (N,L) matching sensor_feet")
+    if distal_supported.device != force_history.device:
+        raise ValueError("distal support and force history must share a device")
+
+    invalid_force = ~torch.isfinite(force_history).all(dim=-1).all(dim=1)
+    body_loaded = (
+        torch.linalg.vector_norm(force_history, dim=-1).amax(dim=1) > force_threshold
+    ) | invalid_force
+    tibia_loaded = body_loaded[:, list(feet_indices)]
+    nonfoot_leg_loaded = torch.stack([
+        body_loaded[:, list(group)].any(dim=-1) for group in leg_groups
+    ], dim=-1)
+    loaded_legs = tibia_loaded | nonfoot_leg_loaded
+    invalid_legs = (
+        nonfoot_leg_loaded | (tibia_loaded & ~distal_supported)
+        | invalid_force[:, list(feet_indices)]
+    )
+    nonfoot_body_contact = body_loaded[:, nonfoot_indices].any(dim=-1)
+    return loaded_legs, invalid_legs, nonfoot_body_contact
+
+
 def toe_button_contact_state(
     force_history: torch.Tensor, *, sensor_feet: list[int], sensor_body: list[int],
     foot_positions_w: torch.Tensor, foot_surface_heights: torch.Tensor,

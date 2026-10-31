@@ -39,7 +39,7 @@ parser.add_argument("--max_noise_std", type=float, default=None)
 parser.add_argument("--reset_exploration_std", action="store_true",
                     help="On resume, reset only policy std and its optimizer state before collecting rollouts")
 parser.add_argument("--behavior_profile", choices=tuple(BEHAVIOR_PROFILES), default=None,
-                    help="CAD6 training defaults revised_v7; other tasks default revised_v3; evaluation infers the saved profile")
+                    help="MG996R CAD6 defaults revised_v8 in every mode; historical profiles require an explicit choice")
 parser.add_argument("--allow_behavior_transfer", action="store_true",
                     help="Explicitly allow training a known v2 reward/contact profile with another profile")
 add_environment_args(parser)
@@ -54,11 +54,14 @@ try:
                                      (args.initial_noise_std, args.min_noise_std, args.max_noise_std))
                                 or args.reset_exploration_std or args.allow_behavior_transfer):
         raise ValueError("Noise std overrides, exploration reset and behavior transfer are training-only options")
-    if args.mode == "train":
-        default_profile = "revised_v7" if "MG996R-Hip-CAD6" in args.task else "revised_v3"
+    # Replaying an old checkpoint must not silently disable the strict default.
+    # Other robots retain their saved evaluation profile for compatibility.
+    if args.mode == "train" or "MG996R-Hip-CAD6" in args.task:
+        default_profile = "revised_v8" if "MG996R-Hip-CAD6" in args.task else "revised_v3"
         args.behavior_profile = args.behavior_profile or default_profile
-        if args.behavior_profile in ("revised_v4", "revised_v5", "revised_v6", "revised_v7", "revised_v7_com") and "MG996R-Hip-CAD6" not in args.task:
-            raise ValueError(f"{args.behavior_profile} toe-button contacts require the MG996R CAD6 toe geometry")
+    if args.behavior_profile in ("revised_v4", "revised_v5", "revised_v6", "revised_v7", "revised_v7_com", "revised_v8") and "MG996R-Hip-CAD6" not in args.task:
+        raise ValueError(f"{args.behavior_profile} contacts require the MG996R CAD6 toe geometry")
+    if args.mode == "train":
         validate_exploration_bounds(args.initial_noise_std if args.initial_noise_std is not None else 0.08,
                                     args.min_noise_std if args.min_noise_std is not None else 0.03,
                                     args.max_noise_std if args.max_noise_std is not None else 0.30)
@@ -72,11 +75,11 @@ except ValueError as error:
 checkpoint_compatibility = ({"expected_reward_contract": BEHAVIOR_PROFILES[args.behavior_profile]["reward_contract"],
                              "expected_contact_contract": BEHAVIOR_PROFILES[args.behavior_profile]["contact_contract"],
                              "allow_behavior_transfer": args.allow_behavior_transfer}
-                            if args.mode == "train" else {})
+                             if args.behavior_profile is not None else {})
 if args.checkpoint:
     saved_metadata = validate_checkpoint(args.checkpoint, args.task, args.environment, **checkpoint_compatibility)
-    if args.environment == "curriculum" and args.mode != "train" and behavior_profile_from_metadata(saved_metadata) != "revised_v7":
-        parser.error("curriculum evaluation requires a revised_v7 distal-support checkpoint")
+    if args.environment == "curriculum" and args.mode != "train" and behavior_profile_from_metadata(saved_metadata) not in ("revised_v7", "revised_v8"):
+        parser.error("curriculum evaluation requires a revised_v7 or revised_v8 distal-support checkpoint")
 cad_report = None
 if args.mode == "train" and expected_cad_asset_sha256(args.task) is not None:
     cad_report = assert_cad_ready(allow_provisional=args.allow_provisional_cad)
@@ -112,6 +115,8 @@ def toe_button_sensor_metadata(cfg):
         "physical_switch_geometry_in_cad": False,
         "physical_switch_stroke_modelled": False,
         "signal_source": "upward tibia ContactSensor force plus CAD distal-toe witness proximity",
+        "observation_gate": ("button_and_valid_distal_support_without_non_distal_leg_contact"
+                             if getattr(cfg, "behavior_profile", None) == "revised_v8" else "button_only"),
     }
 
 
@@ -166,6 +171,9 @@ def train(env, runner, cfg, agent, log, checkpoint, source_metadata=None):
         "knee_ground_clearance_m": getattr(cfg, "knee_ground_clearance_m", None),
         "knee_ground_clearance_cost_scale": getattr(cfg, "knee_ground_clearance_cost_scale", None),
         "non_distal_support_cost_scale": getattr(cfg, "non_distal_support_cost_scale", None),
+        "non_distal_ground_clearance_m": getattr(cfg, "non_distal_ground_clearance_m", None),
+        "non_distal_penetration_tolerance_m": getattr(cfg, "non_distal_penetration_tolerance_m", None),
+        "non_distal_clearance_cost_scale": getattr(cfg, "non_distal_clearance_cost_scale", None),
         "servo_velocity_limits_rad_s": list(base._servo_velocity_limits[0].cpu().tolist())
             if base._servo_velocity_limits.shape[-1] > 1
             else float(base._servo_velocity_limits[0, 0].cpu()),
@@ -314,12 +322,14 @@ def evaluate_or_play(env, runner, cfg, checkpoint, source_metadata):
             "fixed_scenario_distance_m": scenario_distance,
             "goal_radius_m": cfg.goal_radius, "episode_length_s": cfg.episode_length_s,
             **accumulator.report(target_speed=cfg.target_speed,
-                                 minimum_speed_fraction=cfg.evaluation_min_speed_fraction, dt=base.step_dt),
+                                 minimum_speed_fraction=cfg.evaluation_min_speed_fraction, dt=base.step_dt,
+                                 require_strict_contact=cfg.behavior_profile == "revised_v8"),
         }
         if args.environment == "curriculum":
             report["course_evaluation"] = course_configuration(cfg, args.environment)
             report.update(heldout_course_report(accumulator.completed, target_speed=cfg.target_speed,
-                                               minimum_speed_fraction=cfg.evaluation_min_speed_fraction))
+                                               minimum_speed_fraction=cfg.evaluation_min_speed_fraction,
+                                               require_strict_contact=cfg.behavior_profile == "revised_v8"))
         if args.output:
             write_json(args.output, report)
         print(json.dumps(report, indent=2, allow_nan=False), flush=True)
@@ -356,8 +366,8 @@ def main():
                                                     if source_metadata else "revised_v3")
     for name, value in BEHAVIOR_PROFILES[cfg.behavior_profile].items():
         setattr(cfg, name, value)
-    if args.environment == "curriculum" and cfg.behavior_profile != "revised_v7":
-        raise ValueError("curriculum requires revised_v7 distal-support behavior")
+    if args.environment == "curriculum" and cfg.behavior_profile not in ("revised_v7", "revised_v8"):
+        raise ValueError("curriculum requires revised_v7 or revised_v8 distal-support behavior")
     agent.policy.init_noise_std = cfg.exploration_initial_std
     log = root / datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f") if args.mode == "train" else None
     if log:

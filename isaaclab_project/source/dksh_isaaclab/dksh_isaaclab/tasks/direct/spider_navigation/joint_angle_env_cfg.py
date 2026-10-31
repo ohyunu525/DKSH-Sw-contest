@@ -12,6 +12,7 @@ from .joint_angle_foot_geometry import (
     ONSHAPE_FOOT_SUPPORT_OFFSETS, ONSHAPE_TOE_BUTTON_OFFSETS,
     ONSHAPE_DISTAL_FOOT_SUPPORT_OFFSETS, ONSHAPE_PROXIMAL_FOOT_OFFSETS,
 )
+from .joint_angle_non_distal_geometry import ONSHAPE_NON_DISTAL_COLLISION_OFFSETS
 from .servo_specs import (
     ACTUATOR_CONTRACT,
     MG996R_MASS_KG,
@@ -29,6 +30,7 @@ CAD_SOLE_OFFSET = (0.016120809, 0.0, -0.0803304305)
 KNEE_CLEARANCE_REWARD_CONTRACT = "signed_progress_huber_speed_knee_clearance_v1"
 FULL_FOOT_SLIP_REWARD_CONTRACT = "signed_progress_huber_speed_knee_clearance_full_foot_slip_v1"
 DISTAL_SUPPORT_REWARD_CONTRACT = "signed_progress_huber_speed_distal_support_v1"
+STRICT_SUPPORT_REWARD_CONTRACT = "signed_progress_huber_speed_strict_support_v1"
 # Fixed-foot origins in main's normalized Onshape URDF, in policy leg order.
 ONSHAPE_SOLE_OFFSETS = (
     (0.137, 0.010, -0.01922),
@@ -100,6 +102,10 @@ class JointAngleNavigationEnvCfg(SpiderNavigationEnvCfg):
     foot_support_offsets = None  # Primitive/historical assets use their configured sole point.
     distal_foot_support_offsets = None
     proximal_foot_offsets = None
+    non_distal_collision_offsets = None
+    non_distal_ground_clearance_m = 0.008
+    non_distal_penetration_tolerance_m = 0.002
+    non_distal_clearance_cost_scale = -5.0
     distal_contact_height_tolerance = 0.004
     proximal_contact_height_tolerance = 0.008
     foot_contact_height_tolerance = 0.004
@@ -159,8 +165,11 @@ class Cad6JointAngleEnvCfg(Cad8JointAngleEnvCfg):
 def _mg996r_hip_cad6_robot():
     robot = cad_spiderbot_cfg(6)
     robot.actuators = mixed_servo_actuators()
-    # q=0 hull bottom is z=-0.126578m: leave >10mm clearance at reset.
-    robot.init_state.pos = (0.0, 0.0, 0.1375)
+    # Tilt the actual fixed feet onto their distal patches. The old q=0 flat
+    # shafts fail strict support as soon as they carry load. CAD extrema at
+    # q_femur=q_tibia=-0.3 put the lowest tip 0.192449m below the root.
+    robot.init_state.joint_pos = {".*_hip_joint": 0.0, ".*_femur_joint": -0.30, ".*_tibia_joint": -0.30}
+    robot.init_state.pos = (0.0, 0.0, 0.2025)
     return robot.replace(prim_path="/World/envs/env_.*/Robot")
 
 
@@ -168,14 +177,15 @@ def _mg996r_hip_cad6_robot():
 class MG996RHipCad6JointAngleEnvCfg(Cad6JointAngleEnvCfg):
     """Six MG996R hip servos and twelve provisional RC920DMG leg servos."""
     robot = _mg996r_hip_cad6_robot()
-    behavior_profile = "revised_v7"
-    reward_contract = DISTAL_SUPPORT_REWARD_CONTRACT
-    contact_contract = "cad6_distal_support_toe_button_v1"
+    behavior_profile = "revised_v8"
+    reward_contract = STRICT_SUPPORT_REWARD_CONTRACT
+    contact_contract = "cad6_strict_distal_all_links_v1"
     joint_angle_ranges = Cad6JointAngleEnvCfg().joint_angle_ranges
     sole_offset = ONSHAPE_SOLE_OFFSETS
     foot_support_offsets = ONSHAPE_FOOT_SUPPORT_OFFSETS
     distal_foot_support_offsets = ONSHAPE_DISTAL_FOOT_SUPPORT_OFFSETS
     proximal_foot_offsets = ONSHAPE_PROXIMAL_FOOT_OFFSETS
+    non_distal_collision_offsets = ONSHAPE_NON_DISTAL_COLLISION_OFFSETS
     toe_button_offsets = ONSHAPE_TOE_BUTTON_OFFSETS
     use_asset_joint_limits = True
     enable_self_collisions = True
