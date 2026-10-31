@@ -150,6 +150,26 @@ v8 보상 계약은 `signed_progress_huber_speed_strict_support_v1`, 접촉 계�
 초기 자세·지형 여유는 CAD 운동학으로, 실패·보상·평가는 CPU 회귀 테스트로 검증했다.
 물리 접촉점 재구성은 아니므로 PhysX 학습 수렴과 실제 보행은 GPU에서 별도 검증해야 한다.
 
+학습 실행은 reset 전에 실패 상태를 `<새 run>/contact_failures.jsonl`에 기록한다.
+기본값은 실행 전체 최대 64건, 제어 스텝당 최대 4건으로 제한하며, 실패가 없으면 파일은 생성하지 않는다.
+일반 기록은 링크 합력과 상태를 보존한다. 실제 접촉 상대를 구분하려면 `-ContactDiagnostics`를 사용한다.
+이 옵션은 링크별 필터 센서를 추가하므로 소수 환경에서 원인을 확인할 때 사용한다.
+
+```powershell
+.\run_cad6.ps1 -Mode check -Environment flat -NumEnvs 4 -Steps 200 -ContactDiagnostics -ContactDiagnosticsOutput 'logs/contact_failures.jsonl'
+```
+
+`-ContactDiagnosticsOutput`만 지정하면 합력·상태 기록만 켜지고 상대별 센서는 추가하지 않는다.
+check/evaluate/play에서 경로를 생략하고 `-ContactDiagnostics`를 사용하면
+`logs/contact_diagnostics/<새 실행 ID>/contact_failures.jsonl`에 기록한다.
+`-ContactDiagnosticsMaxRecords`, `-ContactDiagnosticsPerStep`로 기록 수를 조절할 수 있다.
+명시한 JSONL 파일을 재사용하면 기존 기록도 실행 전체 상한에 포함된다. 이미 상한에 도달한 파일은
+새 기록을 받지 않으므로, 새 진단에는 새 경로나 비어 있는 파일을 사용한다.
+필터 접촉력은 물리 substep별로 보존하며, 합력 크기가 같다는 이유만으로 접촉 상대를 추정하지 않는다.
+필터 쌍 목록이 비어 있어도 무접촉을 증명하지 않는다. PhysX에서 대상 경로가 실제 충돌체와
+매칭되는지 검증해야 하며, 원래 링크 합력 이력도 함께 확인한다.
+이 진단 옵션은 기존 실패 판정·보상·관절 명령을 변경하지 않는다.
+
 ```powershell
 # A 등급 NVIDIA 장비에서 새 말단 지지 정책을 4환경부터 학습
 .\run_cad6.ps1 -Mode train -Environment flat -NumEnvs 4 -MaxIterations 4000 -BehaviorProfile revised_v8 -AllowProvisionalCad

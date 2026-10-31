@@ -1,8 +1,12 @@
 """Run a finite end-to-end test of the custom spiderbot environment."""
 
 import argparse
+from pathlib import Path
 
 from environment_cli import add_environment_args, apply_environment_cfg
+from contact_diagnostics_cli import (
+    add_contact_diagnostics_args, apply_contact_diagnostics_cfg, validate_contact_diagnostics_args,
+)
 
 from isaaclab.app import AppLauncher
 
@@ -12,12 +16,17 @@ parser.add_argument("--steps", type=int, default=32)
 parser.add_argument("--num_envs", type=int, default=2)
 parser.add_argument('--task', default='Isaac-DKSH-Spider-Navigation-Direct-v0')
 add_environment_args(parser)
+add_contact_diagnostics_args(parser)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 if args_cli.steps < 1 or args_cli.num_envs < 1:
     parser.error("--steps and --num_envs must be positive")
 if args_cli.task.endswith("-JointAngles-v1"):
     parser.error("JointAngles-v1 is retired; retrain and use the v2 absolute-angle task")
+try:
+    validate_contact_diagnostics_args(args_cli)
+except ValueError as error:
+    parser.error(str(error))
 
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
@@ -35,6 +44,11 @@ def main() -> None:
     task_name = args_cli.task
     cfg = parse_env_cfg(task_name, device=args_cli.device, num_envs=args_cli.num_envs)
     apply_environment_cfg(cfg, args_cli.environment, args_cli.difficulty, args_cli.seed)
+    diagnostic_path = apply_contact_diagnostics_cfg(
+        cfg, args_cli, project_root=Path(__file__).resolve().parents[2], mode="check",
+    )
+    if diagnostic_path is not None:
+        print(f"DKSH_CONTACT_DIAGNOSTICS path={diagnostic_path} pairs={cfg.contact_diagnostics_pairs}", flush=True)
     env = gym.make(task_name, cfg=cfg)
     try:
         observation, _ = env.reset()

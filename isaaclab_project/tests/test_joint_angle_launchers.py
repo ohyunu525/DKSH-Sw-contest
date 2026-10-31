@@ -61,6 +61,35 @@ class JointAngleLauncherTests(unittest.TestCase):
         self.assertNotIn("--seed=", result.stdout)  # Python's evaluation default is 73.
         self.assertNotIn("--behavior_profile=", result.stdout)  # Python owns the strict v8 CAD6 default.
 
+    def test_contact_diagnostics_are_forwarded_for_check_and_training(self):
+        for mode in ("check", "train"):
+            with self.subTest(mode=mode):
+                result = self.launch("run_cad6.ps1", "-Mode", mode, "-ContactDiagnostics",
+                                     "-ContactDiagnosticsOutput", "C:/logs with spaces/failures.jsonl",
+                                     "-ContactDiagnosticsMaxRecords", "12", "-ContactDiagnosticsPerStep", "3")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                for expected in ("--contact_diagnostics", "--contact_diagnostics_output=C:/logs with spaces/failures.jsonl",
+                                 "--contact_diagnostics_max_records=12", "--contact_diagnostics_per_step=3"):
+                    self.assertIn(expected, result.stdout)
+                self.assertIn("smoke_env.py" if mode == "check" else "joint_angle_runner.py", result.stdout)
+
+    def test_contact_diagnostics_do_not_enable_pair_sensors_without_explicit_flag(self):
+        result = self.launch("run_cad6.ps1", "-Mode", "check", "-ContactDiagnosticsOutput", "C:/failures.jsonl")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--contact_diagnostics_output=C:/failures.jsonl", result.stdout)
+        self.assertNotIn("--contact_diagnostics ", result.stdout)
+
+    def test_invalid_contact_diagnostic_limits_or_legacy_mode_fail_before_launch(self):
+        for arguments in (("-Mode", "check", "-ContactDiagnosticsMaxRecords", "0"),
+                          ("-Mode", "train", "-ContactDiagnosticsPerStep", "0")):
+            with self.subTest(arguments=arguments):
+                result = self.launch("run_cad6.ps1", *arguments)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn("STUB_ARGS", result.stdout)
+        result = self.launch("run_isaaclab.ps1", "-Mode", "train", "-ControlMode", "legacy", "-ContactDiagnostics")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("STUB_ARGS", result.stdout)
+
     def test_noise_bounds_reset_and_behavior_transfer_are_forwarded_only_when_explicit(self):
         for script in ("run_isaaclab.ps1", "run_cad6.ps1"):
             with self.subTest(script=script):

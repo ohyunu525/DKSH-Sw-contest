@@ -15,6 +15,10 @@ param(
     [switch]$ResetExplorationStd,
     [ValidateSet('legacy_v2', 'revised_v3', 'revised_v4', 'revised_v5', 'revised_v6', 'revised_v7', 'revised_v7_com', 'revised_v8')][string]$BehaviorProfile,
     [switch]$AllowBehaviorTransfer,
+    [switch]$ContactDiagnostics,
+    [string]$ContactDiagnosticsOutput = '',
+    [ValidateRange(1, 2147483647)][int]$ContactDiagnosticsMaxRecords = 64,
+    [ValidateRange(1, 2147483647)][int]$ContactDiagnosticsPerStep = 4,
     [ValidateRange(0, 2147483647)][int]$CourseSeed,
     [ValidateSet('train', 'holdout')][string]$CourseSplit,
     [double]$FlatFraction,
@@ -30,6 +34,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $directTrainingKeys = @('InitialNoiseStd', 'MinNoiseStd', 'MaxNoiseStd', 'ResetExplorationStd', 'AllowBehaviorTransfer')
+$contactKeys = @('ContactDiagnostics', 'ContactDiagnosticsOutput', 'ContactDiagnosticsMaxRecords', 'ContactDiagnosticsPerStep')
 $courseKeys = @('CourseSeed', 'CourseSplit', 'FlatFraction', 'CurriculumWindow', 'CurriculumMinEpisodes',
                 'CurriculumPromoteThreshold', 'CurriculumDemoteThreshold', 'CurriculumStep', 'FreezeCurriculum')
 if (@($courseKeys | Where-Object { $PSBoundParameters.ContainsKey($_) }).Count -gt 0 -and
@@ -56,7 +61,7 @@ $options = @{
 }
 # Evaluation owns its independent default seed (73); training defaults to 42.
 if ($PSBoundParameters.ContainsKey('Seed')) { $options.Seed = $Seed }
-foreach ($key in $directTrainingKeys + @('BehaviorProfile') + $courseKeys) {
+foreach ($key in $directTrainingKeys + @('BehaviorProfile') + $courseKeys + $contactKeys) {
     if ($PSBoundParameters.ContainsKey($key)) { $options[$key] = $PSBoundParameters[$key] }
 }
 if ($Mode -eq 'check') { $options.Steps = if ($PSBoundParameters.ContainsKey('Steps')) { $Steps } else { 1000 } }

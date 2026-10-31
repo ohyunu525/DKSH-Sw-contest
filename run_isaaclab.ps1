@@ -28,6 +28,10 @@ param(
     [switch]$ResetExplorationStd,
     [ValidateSet('legacy_v2', 'revised_v3', 'revised_v4', 'revised_v5', 'revised_v6', 'revised_v7', 'revised_v7_com', 'revised_v8')][string]$BehaviorProfile,
     [switch]$AllowBehaviorTransfer,
+    [switch]$ContactDiagnostics,
+    [string]$ContactDiagnosticsOutput = '',
+    [ValidateRange(1, 2147483647)][int]$ContactDiagnosticsMaxRecords = 64,
+    [ValidateRange(1, 2147483647)][int]$ContactDiagnosticsPerStep = 4,
     [ValidateRange(0, 2147483647)][int]$CourseSeed,
     [ValidateSet('train', 'holdout')][string]$CourseSplit,
     [double]$FlatFraction,
@@ -44,6 +48,18 @@ param(
 $projectRoot = $PSScriptRoot
 $noiseKeys = @('InitialNoiseStd', 'MinNoiseStd', 'MaxNoiseStd', 'ResetExplorationStd', 'AllowBehaviorTransfer')
 $noiseOptionsSpecified = @($noiseKeys | Where-Object { $PSBoundParameters.ContainsKey($_) }).Count -gt 0
+$contactKeys = @('ContactDiagnostics', 'ContactDiagnosticsOutput', 'ContactDiagnosticsMaxRecords', 'ContactDiagnosticsPerStep')
+$contactOptionsSpecified = @($contactKeys | Where-Object { $PSBoundParameters.ContainsKey($_) }).Count -gt 0
+if ($contactOptionsSpecified -and ($ControlMode -ne 'direct' -or $Mode -notin @('smoke', 'train', 'evaluate', 'play'))) {
+    throw 'Contact diagnostics require direct smoke, train, evaluate or play mode.'
+}
+$contactArguments = @()
+if ($ContactDiagnostics) { $contactArguments += '--contact_diagnostics' }
+foreach ($pair in @(@('ContactDiagnosticsOutput', 'contact_diagnostics_output'),
+                    @('ContactDiagnosticsMaxRecords', 'contact_diagnostics_max_records'),
+                    @('ContactDiagnosticsPerStep', 'contact_diagnostics_per_step'))) {
+    if ($PSBoundParameters.ContainsKey($pair[0])) { $contactArguments += "--$($pair[1])=$($PSBoundParameters[$pair[0]])" }
+}
 $courseKeys = @('CourseSeed', 'CourseSplit', 'FlatFraction', 'CurriculumWindow', 'CurriculumMinEpisodes',
                 'CurriculumPromoteThreshold', 'CurriculumDemoteThreshold', 'CurriculumStep', 'FreezeCurriculum')
 $courseOptionsSpecified = @($courseKeys | Where-Object { $PSBoundParameters.ContainsKey($_) }).Count -gt 0
@@ -139,7 +155,7 @@ Push-Location $projectRoot
 try {
     if ($ControlMode -eq 'direct' -and $Mode -in @('train', 'evaluate', 'play')) {
         $scriptPath = Join-Path $projectRoot 'isaaclab_project\scripts\joint_angle_runner.py'
-        $arguments = @('-p', $scriptPath, "--mode=$Mode", "--task=$taskName", "--num_envs=$NumEnvs", "--max_iterations=$MaxIterations") + $environmentArguments
+        $arguments = @('-p', $scriptPath, "--mode=$Mode", "--task=$taskName", "--num_envs=$NumEnvs", "--max_iterations=$MaxIterations") + $environmentArguments + $contactArguments
         if ($Checkpoint) { $arguments += "--checkpoint=$Checkpoint" }
         if ($Output) { $arguments += "--output=$Output" }
         if ($AllowProvisionalCad) { $arguments += '--allow_provisional_cad' }
@@ -187,7 +203,7 @@ try {
     switch ($Mode) {
         "smoke" {
             $scriptPath = Join-Path $projectRoot "isaaclab_project\scripts\smoke_env.py"
-            $smokeArguments = @('-p', $scriptPath, "--task=$taskName", "--num_envs=$NumEnvs", "--steps=$Steps") + $environmentArguments
+            $smokeArguments = @('-p', $scriptPath, "--task=$taskName", "--num_envs=$NumEnvs", "--steps=$Steps") + $environmentArguments + $contactArguments
             if (-not $Gui) { $smokeArguments += '--headless' }
             $output = @(& $launcher @smokeArguments 2>&1)
             $nativeExitCode = $LASTEXITCODE

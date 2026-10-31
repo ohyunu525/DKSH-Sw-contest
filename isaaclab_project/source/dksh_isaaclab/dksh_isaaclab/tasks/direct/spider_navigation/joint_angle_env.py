@@ -18,12 +18,15 @@ from .joint_angle_contact import (
     sole_contact_state, foot_contact_state, closest_foot_support, toe_button_contact_state,
     distal_foot_contact_state, strict_leg_contact_state,
 )
+from .joint_angle_contact_diagnostics import ContactDiagnosticWriter, ContactPairHistory
 
 
 class JointAngleNavigationEnv(SpiderNavigationEnv):
     def __init__(self, cfg, render_mode=None, **kwargs):
         if cfg.environment_preset == "curriculum" and cfg.behavior_profile not in ("revised_v7", "revised_v8"):
             raise ValueError("Mixed-course curriculum requires revised_v7 or revised_v8 distal-support behavior")
+        if getattr(cfg, "contact_diagnostics_pairs", False) and not getattr(cfg, "contact_diagnostics_path", None):
+            raise ValueError("Contact-pair diagnostics require a JSONL output path")
         cfg.robot = cfg.robot.copy()
         if cfg.behavior_profile != "revised_v8" and getattr(cfg, "non_distal_collision_offsets", None) is not None:
             # Explicit historical comparisons keep their original reset, rather
@@ -145,6 +148,34 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             "goal", "failure", "debris_impact", "knee_clearance", "non_distal_support", "non_distal_clearance",
         )}
         self.step_metrics = {}
+        self._diagnostic_writer = None
+        diagnostic_path = getattr(cfg, "contact_diagnostics_path", None)
+        if diagnostic_path:
+            self._diagnostic_writer = ContactDiagnosticWriter(
+                diagnostic_path,
+                max_records=cfg.contact_diagnostics_max_records,
+                max_per_step=cfg.contact_diagnostics_per_step,
+                context={"seed": cfg.seed, "behavior_profile": cfg.behavior_profile,
+                         "environment_preset": cfg.environment_preset},
+            )
+        # _setup_scene runs inside the parent constructor, before body data is
+        # available. Initialize the diagnostic history once the scene is live.
+        self._contact_pair_sensors = getattr(self, "_contact_pair_sensors", [])
+        self._contact_pair_history = None
+        self._contact_diagnostic_error = None
+        self._contact_diagnostic_substep = 0
+        self._contact_diagnostic_last_capture = -1
+        self._contact_diagnostic_state = None
+        self._contact_diagnostic_episode = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
+        if self._contact_pair_sensors:
+            self._contact_pair_history = ContactPairHistory(
+                self.num_envs, self._contact_pair_sources, self._contact_pair_targets,
+                history_length=self.cfg.decimation, device=self.device,
+            )
+        if self._diagnostic_writer is not None:
+            self._diagnostic_initial_position = self._robot.data.root_pos_w.clone()
+            self._diagnostic_initial_quaternion = self._robot.data.root_quat_w.clone()
+            self._diagnostic_initial_joints = self._robot.data.joint_pos[:, self._joint_ids].clone()
 
     @property
     def joint_angle_targets_rad(self):
@@ -164,11 +195,47 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             history_length=self.cfg.decimation,
         ))
         self.scene.sensors["robot_contacts"] = self._contacts
+        self._contact_pair_sensors = []
+        if getattr(self.cfg, "contact_diagnostics_pairs", False):
+            self._contact_pair_sources = ["base"] + [
+                f"leg_{leg}_{part}" for leg in range(self.cfg.action_space // 3)
+                for part in ("hip", "femur", "tibia")
+            ]
+            self._contact_pair_targets = ["/World/ground"] + [
+                f"/World/envs/env_.*/Robot/{name}" for name in self._contact_pair_sources
+            ]
+            if self._scenario is not None:
+                if hasattr(self._scenario, "boxes"):
+                    self._contact_pair_targets += [body.cfg.prim_path for body in self._scenario.boxes]
+                else:
+                    self._contact_pair_targets += [
+                        f"/World/envs/env_.*/{box.name}" for box in self._scenario.layout.boxes
+                    ]
+                if self._scenario.platform is not None:
+                    self._contact_pair_targets.append("/World/envs/env_.*/VibratingFloor")
+                self._contact_pair_targets += [
+                    f"/World/envs/env_.*/Debris_{slot}" for slot in range(len(self._scenario.debris))
+                ]
+            # Isaac Lab filtered contacts require one source rigid body per
+            # sensor per environment. The existing all-link sensor is retained.
+            for name in self._contact_pair_sources:
+                sensor = ContactSensor(ContactSensorCfg(
+                    prim_path=f"/World/envs/env_.*/Robot/{name}", update_period=0.0,
+                    history_length=0, filter_prim_paths_expr=self._contact_pair_targets,
+                ))
+                self.scene.sensors[f"contact_diagnostic_{name}"] = sensor
+                self._contact_pair_sensors.append(sensor)
 
     def _pre_physics_step(self, actions):
         if self._scenario is not None:
             self._scenario.begin_step()
         self.extras["log"] = {}
+        self._contact_diagnostic_state = None
+        self._contact_diagnostic_substep = 0
+        self._contact_diagnostic_last_capture = -1
+        self._contact_diagnostic_error = None
+        if self._contact_pair_history is not None:
+            self._contact_pair_history.begin_step()
         self._previous_actions.copy_(self._actions)
         previous = self._processed_actions[:, self._joint_ids]
         self._actions.copy_(torch.where(torch.isfinite(actions), actions, normalize_angles(previous, self._angle_limits)).clamp(-1, 1))
@@ -181,6 +248,32 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         self._previous_target_velocity.copy_(self._target_velocity)
         self._target_velocity.copy_((targets - previous) / self.step_dt)
         self._processed_actions[:, self._joint_ids] = targets
+
+    def _apply_action(self):
+        # DirectRLEnv updates sensors after sim.step. At the next action hook,
+        # capture that completed substep; _get_dones captures the final one.
+        if self._contact_diagnostic_substep > 0:
+            self._capture_contact_diagnostics()
+        super()._apply_action()
+        self._contact_diagnostic_substep += 1
+
+    def _capture_contact_diagnostics(self):
+        index = self._contact_diagnostic_substep - 1
+        writer = self._diagnostic_writer
+        if (self._contact_pair_history is None or self._contact_diagnostic_error is not None
+                or index < 0 or index == self._contact_diagnostic_last_capture
+                or (writer is not None and writer.remaining_records == 0)):
+            return
+        try:
+            matrices = [sensor.data.force_matrix_w for sensor in self._contact_pair_sensors]
+            if any(matrix is None for matrix in matrices):
+                raise ValueError("Filtered contact force matrix is unavailable")
+            self._contact_pair_history.capture(matrices, physics_substep=index)
+            self._contact_diagnostic_last_capture = index
+        except (ValueError, RuntimeError) as error:
+            # Diagnostic failure must not change control or pretend that an
+            # unknown pair is a ground contact. Preserve the error in JSONL.
+            self._contact_diagnostic_error = str(error)
 
     def _contact_state(self):
         if self.cfg.behavior_profile in ("revised_v4", "revised_v5", "revised_v6", "revised_v7", "revised_v7_com", "revised_v8"):
@@ -356,6 +449,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         return {"policy": observation}
 
     def _get_dones(self):
+        self._capture_contact_diagnostics()
         if self._scenario is not None:
             self._scenario.collect_impacts()
         distance, _, _ = self._goal_data()
@@ -400,6 +494,8 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         feet, body_contact = self._contact_state()
         strict = self.cfg.behavior_profile == "revised_v8"
         strict_state = self._strict_contact_state() if strict else None
+        if self._diagnostic_writer is not None:
+            self._contact_diagnostic_state = strict_state
         if strict:
             self._strict_contact_failure |= body_contact
             # An illegal support cannot earn positive displacement reward or a
@@ -557,10 +653,94 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         self.extras["log"].update({f"Metrics/{name}": value.mean() for name, value in self.step_metrics.items()})
         return torch.stack(tuple(terms.values())).sum(0)
 
+    def _record_contact_failures(self, valid):
+        writer = getattr(self, "_diagnostic_writer", None)
+        if writer is None or not len(valid):
+            return
+        failed = self._fallen() | self._out_of_bounds
+        candidates = valid[self.reset_terminated[valid] & failed[valid]]
+        selected = writer.select(candidates.detach().cpu().tolist())
+        if not selected:
+            return
+        data = self._robot.data
+        strict_state = self._contact_diagnostic_state
+        if self.cfg.behavior_profile == "revised_v8" and strict_state is None:
+            strict_state = self._strict_contact_state()
+        base_fallen = super()._fallen()
+        records = []
+        for index in selected:
+            reasons = []
+            if bool(self._strict_contact_failure[index]):
+                reasons.append("strict_contact")
+            if bool(base_fallen[index]):
+                reasons.append("base_height_or_tilt")
+            if bool(self._out_of_bounds[index]):
+                reasons.append("out_of_bounds")
+            # Copy only the bounded selected environments to the host, before
+            # any scene reset clears contact histories or simulation state.
+            host = lambda value: value[index].detach().cpu().tolist()
+            pair_evidence = {"status": "disabled", "reason": "Enable contact_diagnostics for source-target forces"}
+            if self._contact_diagnostic_error is not None:
+                pair_evidence = {"status": "unavailable", "reason": self._contact_diagnostic_error}
+            elif self._contact_pair_history is not None:
+                pair_evidence = self._contact_pair_history.snapshot(index, force_threshold=0.0)
+            record = {
+                "environment_index": index, "episode_index": int(self._contact_diagnostic_episode[index]),
+                "episode_step": int(self.episode_length_buf[index]),
+                "episode_time_s": int(self.episode_length_buf[index]) * self.step_dt,
+                "common_step": int(getattr(self, "common_step_counter", 0)),
+                "state_sample": "end_of_policy_step_before_reset",
+                "seed": self.cfg.seed, "behavior_profile": self.cfg.behavior_profile,
+                "environment_preset": self.cfg.environment_preset,
+                "termination_reasons": reasons, "strict_contact_failure": bool(self._strict_contact_failure[index]),
+                "env_origin_w_m": host(self.scene.env_origins),
+                "root_state": {
+                    "position_w_m": host(data.root_pos_w), "quaternion_wxyz": host(data.root_quat_w),
+                    "linear_velocity_w_mps": host(data.root_lin_vel_w),
+                    "angular_velocity_b_rad_s": host(data.root_ang_vel_b),
+                    "projected_gravity_b": host(data.projected_gravity_b),
+                },
+                "joints": {
+                    "names": joint_names(len(self._feet)),
+                    "positions_rad": host(data.joint_pos[:, self._joint_ids]),
+                    "velocities_rad_s": host(data.joint_vel[:, self._joint_ids]),
+                    "targets_rad": host(self.joint_angle_targets_rad), "actions_normalized": host(self._actions),
+                },
+                "body_state": {
+                    "names": list(self._robot.body_names), "positions_w_m": host(data.body_link_pos_w),
+                    "quaternions_wxyz": host(data.body_link_quat_w),
+                    "linear_velocity_w_mps": host(data.body_link_lin_vel_w),
+                    "angular_velocity_w_rad_s": host(data.body_link_ang_vel_w),
+                },
+                "net_contact_force_history": {
+                    "body_names": list(self._contacts.body_names), "order": "newest_first",
+                    "physics_dt_s": self.step_dt / self.cfg.decimation,
+                    "force_w_n": host(self._contacts.data.net_forces_w_history),
+                    "quantity": "net_normal_force_not_friction_or_contact_point",
+                },
+                "contact_pairs": pair_evidence,
+            }
+            if hasattr(self, "_diagnostic_initial_position"):
+                record["episode_start"] = {
+                    "position_w_m": host(self._diagnostic_initial_position),
+                    "quaternion_wxyz": host(self._diagnostic_initial_quaternion),
+                    "joint_positions_rad": host(self._diagnostic_initial_joints),
+                }
+            if strict_state is not None:
+                support, _, invalid, loaded, gaps = strict_state
+                record["non_distal_clearance_m"] = dict(zip(
+                    [self._robot.body_names[body] for body in self._non_distal_bodies], host(gaps)
+                ))
+                record["support"] = {"distal_supported": host(support), "invalid_legs": host(invalid),
+                                     "loaded_legs": host(loaded)}
+            records.append(record)
+        writer.record_batch(records)
+
     def _reset_idx(self, env_ids):
         if env_ids is None:
             env_ids = self._robot._ALL_INDICES
         valid = env_ids[self.episode_length_buf[env_ids] > 0]
+        self._record_contact_failures(valid)
         if self.cfg.environment_preset == "curriculum" and len(valid):
             # Capture the completed course before the parent's reset samples
             # its replacement. Initial/manual resets never count as failures.
@@ -586,7 +766,17 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             counts["time_out"] = int((self.reset_time_outs[valid] & ~self.reset_terminated[valid]).sum())
         for name, count in counts.items():
             self.completed[name] += count
+        # The parent replaces extras['log']. Retain pre-reset step metrics so
+        # TensorBoard cannot systematically hide frames containing failures.
+        step_log = {name: value for name, value in self.extras.get("log", {}).items()
+                    if name.startswith("Metrics/")}
         super()._reset_idx(env_ids)
+        self.extras["log"].update(step_log)
+        if self._diagnostic_writer is not None:
+            self.extras["log"].update({
+                "Diagnostics/contact_records_written": self._diagnostic_writer.written_records,
+                "Diagnostics/contact_records_dropped": self._diagnostic_writer.dropped_records,
+            })
         if self.cfg.environment_preset == "curriculum":
             self.extras["log"].update({f"Curriculum/{key}": value
                                       for key, value in self._scenario.statistics().items()})
@@ -628,3 +818,9 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         self._approach_steps[env_ids] = 0
         self._approach_low_knee_steps[env_ids] = 0
         self._reached_goal[env_ids] = False
+        if hasattr(self, "_contact_diagnostic_episode"):
+            self._contact_diagnostic_episode[valid] += 1
+        if hasattr(self, "_diagnostic_initial_position"):
+            self._diagnostic_initial_position[env_ids] = self._robot.data.root_pos_w[env_ids]
+            self._diagnostic_initial_quaternion[env_ids] = self._robot.data.root_quat_w[env_ids]
+            self._diagnostic_initial_joints[env_ids] = self._robot.data.joint_pos[env_ids][:, self._joint_ids]

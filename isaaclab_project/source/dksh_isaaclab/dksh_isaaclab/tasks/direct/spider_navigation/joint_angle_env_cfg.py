@@ -106,6 +106,10 @@ class JointAngleNavigationEnvCfg(SpiderNavigationEnvCfg):
     non_distal_ground_clearance_m = 0.008
     non_distal_penetration_tolerance_m = 0.002
     non_distal_clearance_cost_scale = -5.0
+    contact_diagnostics_path = None
+    contact_diagnostics_pairs = False
+    contact_diagnostics_max_records = 64
+    contact_diagnostics_per_step = 4
     distal_contact_height_tolerance = 0.004
     proximal_contact_height_tolerance = 0.008
     foot_contact_height_tolerance = 0.004

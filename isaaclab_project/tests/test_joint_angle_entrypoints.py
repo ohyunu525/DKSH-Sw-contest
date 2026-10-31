@@ -30,8 +30,11 @@ class JointAngleEntrypointTests(unittest.TestCase):
         app = types.ModuleType("isaaclab.app")
         app.AppLauncher = Mock(side_effect=AssertionError("Simulator must not start in an entry routing test"))
         app.AppLauncher.add_app_launcher_args = lambda parser: None
+        diagnostic_spec = importlib.util.spec_from_file_location("contact_diagnostics_cli", SCRIPTS / "contact_diagnostics_cli.py")
+        diagnostics = importlib.util.module_from_spec(diagnostic_spec)
+        diagnostic_spec.loader.exec_module(diagnostics)
         return {"dksh_isaaclab": types.ModuleType("dksh_isaaclab"), "environment_cli": environment_cli,
-                "isaaclab": isaac, "isaaclab.app": app}
+                "isaaclab": isaac, "isaaclab.app": app, "contact_diagnostics_cli": diagnostics}
 
     def execute(self, name):
         path = SCRIPTS / name
@@ -71,7 +74,7 @@ class JointAngleEntrypointTests(unittest.TestCase):
         modules["environment_cli"].add_environment_args = environment_arguments
         modules["cad_readiness"] = types.ModuleType("cad_readiness")
         modules["cad_readiness"].assert_cad_ready = Mock()
-        for name in ("joint_angle_checkpoint", "joint_angle_runner_utils"):
+        for name in ("joint_angle_checkpoint", "joint_angle_runner_utils", "contact_diagnostics_cli"):
             spec = importlib.util.spec_from_file_location(name, SCRIPTS / f"{name}.py")
             modules[name] = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(modules[name])
@@ -102,6 +105,17 @@ class JointAngleEntrypointTests(unittest.TestCase):
         legacy = self.runner_arguments(["--mode=train", "--behavior_profile=legacy_v2", "--reset_exploration_std"])
         self.assertEqual(legacy["checkpoint_compatibility"]["expected_reward_contract"], "signed_progress_sustained_speed_v2")
         self.assertTrue(legacy["args"].reset_exploration_std)
+
+    def test_contact_diagnostics_options_are_parsed_and_validated_before_simulator(self):
+        namespace = self.runner_arguments(["--mode=train", "--contact_diagnostics",
+                                           "--contact_diagnostics_output=C:/diagnostic log/failure.jsonl",
+                                           "--contact_diagnostics_max_records=8", "--contact_diagnostics_per_step=2"])
+        self.assertTrue(namespace["args"].contact_diagnostics)
+        self.assertEqual(namespace["args"].contact_diagnostics_output, "C:/diagnostic log/failure.jsonl")
+        self.assertEqual((namespace["args"].contact_diagnostics_max_records, namespace["args"].contact_diagnostics_per_step), (8, 2))
+        for value in ("--contact_diagnostics_max_records=0", "--contact_diagnostics_per_step=-1"):
+            with self.subTest(value=value), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                self.runner_arguments(["--mode=train", value])
 
     def create_checkpoint(self, root, profile, *, task="Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2", saved_profile=None):
         spec = importlib.util.spec_from_file_location("entrypoint_checkpoint_fixture", SCRIPTS / "joint_angle_checkpoint.py")

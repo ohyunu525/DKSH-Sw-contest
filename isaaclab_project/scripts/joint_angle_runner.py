@@ -10,6 +10,9 @@ from pathlib import Path
 import time
 
 from environment_cli import add_environment_args, apply_environment_cfg, experiment_for_environment
+from contact_diagnostics_cli import (
+    add_contact_diagnostics_args, apply_contact_diagnostics_cfg, validate_contact_diagnostics_args,
+)
 from joint_angle_checkpoint import (
     ACTION_SEMANTICS, BEHAVIOR_PROFILES, EXPLORATION_PROFILE, SCHEMA_CONTRACTS,
     behavior_profile_from_metadata, expected_cad_asset_sha256,
@@ -43,6 +46,7 @@ parser.add_argument("--behavior_profile", choices=tuple(BEHAVIOR_PROFILES), defa
 parser.add_argument("--allow_behavior_transfer", action="store_true",
                     help="Explicitly allow training a known v2 reward/contact profile with another profile")
 add_environment_args(parser)
+add_contact_diagnostics_args(parser)
 add_course_args(parser)
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
@@ -50,6 +54,7 @@ if min(args.num_envs, args.max_iterations, args.steps) < 1:
     parser.error("Environment, iteration and step counts must be positive")
 try:
     require_v2_task(args.task)
+    validate_contact_diagnostics_args(args)
     if args.mode != "train" and (any(value is not None for value in
                                      (args.initial_noise_std, args.min_noise_std, args.max_noise_std))
                                 or args.reset_exploration_std or args.allow_behavior_transfer):
@@ -152,6 +157,12 @@ def train(env, runner, cfg, agent, log, checkpoint, source_metadata=None):
                                           for name, value in behavior_contracts.items())),
         "mass_assumption": getattr(cfg, "mass_assumption", None),
         "toe_button_sensor": toe_button_sensor_metadata(cfg),
+        "contact_diagnostics": {
+            "path": getattr(cfg, "contact_diagnostics_path", None),
+            "pairs": getattr(cfg, "contact_diagnostics_pairs", False),
+            "max_records": getattr(cfg, "contact_diagnostics_max_records", 64),
+            "per_step": getattr(cfg, "contact_diagnostics_per_step", 4),
+        },
         "environment": args.environment, "difficulty": args.difficulty,
         "seed": cfg.seed, "actions": cfg.action_space, "observations": cfg.observation_space,
         "environments": base.num_envs,
@@ -372,6 +383,11 @@ def main():
     log = root / datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f") if args.mode == "train" else None
     if log:
         log.mkdir(parents=True, exist_ok=False)
+    diagnostic_path = apply_contact_diagnostics_cfg(
+        cfg, args, project_root=Path(__file__).resolve().parents[2], run_dir=log,
+    )
+    if diagnostic_path is not None:
+        print(f"DKSH_CONTACT_DIAGNOSTICS path={diagnostic_path} pairs={cfg.contact_diagnostics_pairs}", flush=True)
     env = RslRlVecEnvWrapper(gym.make(args.task, cfg=cfg), clip_actions=agent.clip_actions)
     try:
         base = env.unwrapped
