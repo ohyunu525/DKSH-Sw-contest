@@ -17,6 +17,8 @@ from joint_angle_checkpoint import (
 )
 from joint_angle_runner_utils import (
     EvaluationAccumulator, PolicyStdConstraint, configure_evaluation, effective_seed, validate_exploration_bounds,
+    add_course_args, resolve_course_args, apply_course_cfg, course_configuration,
+    CurriculumCheckpointState, heldout_course_report,
 )
 from cad_readiness import assert_cad_ready
 from isaaclab.app import AppLauncher
@@ -37,10 +39,11 @@ parser.add_argument("--max_noise_std", type=float, default=None)
 parser.add_argument("--reset_exploration_std", action="store_true",
                     help="On resume, reset only policy std and its optimizer state before collecting rollouts")
 parser.add_argument("--behavior_profile", choices=tuple(BEHAVIOR_PROFILES), default=None,
-                    help="CAD6 training defaults revised_v6; other tasks default revised_v3; evaluation infers the saved profile")
+                    help="CAD6 training defaults revised_v7; other tasks default revised_v3; evaluation infers the saved profile")
 parser.add_argument("--allow_behavior_transfer", action="store_true",
                     help="Explicitly allow training a known v2 reward/contact profile with another profile")
 add_environment_args(parser)
+add_course_args(parser)
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 if min(args.num_envs, args.max_iterations, args.steps) < 1:
@@ -52,9 +55,9 @@ try:
                                 or args.reset_exploration_std or args.allow_behavior_transfer):
         raise ValueError("Noise std overrides, exploration reset and behavior transfer are training-only options")
     if args.mode == "train":
-        default_profile = "revised_v6" if "MG996R-Hip-CAD6" in args.task else "revised_v3"
+        default_profile = "revised_v7" if "MG996R-Hip-CAD6" in args.task else "revised_v3"
         args.behavior_profile = args.behavior_profile or default_profile
-        if args.behavior_profile in ("revised_v4", "revised_v5", "revised_v6", "revised_v7") and "MG996R-Hip-CAD6" not in args.task:
+        if args.behavior_profile in ("revised_v4", "revised_v5", "revised_v6", "revised_v7", "revised_v7_com") and "MG996R-Hip-CAD6" not in args.task:
             raise ValueError(f"{args.behavior_profile} toe-button contacts require the MG996R CAD6 toe geometry")
         validate_exploration_bounds(args.initial_noise_std if args.initial_noise_std is not None else 0.08,
                                     args.min_noise_std if args.min_noise_std is not None else 0.03,
@@ -62,12 +65,18 @@ try:
 except ValueError as error:
     parser.error(str(error))
 args.seed = effective_seed(args.mode, args.seed)
+try:
+    resolve_course_args(args)
+except ValueError as error:
+    parser.error(str(error))
 checkpoint_compatibility = ({"expected_reward_contract": BEHAVIOR_PROFILES[args.behavior_profile]["reward_contract"],
                              "expected_contact_contract": BEHAVIOR_PROFILES[args.behavior_profile]["contact_contract"],
                              "allow_behavior_transfer": args.allow_behavior_transfer}
                             if args.mode == "train" else {})
 if args.checkpoint:
-    validate_checkpoint(args.checkpoint, args.task, args.environment, **checkpoint_compatibility)
+    saved_metadata = validate_checkpoint(args.checkpoint, args.task, args.environment, **checkpoint_compatibility)
+    if args.environment == "curriculum" and args.mode != "train" and behavior_profile_from_metadata(saved_metadata) != "revised_v7":
+        parser.error("curriculum evaluation requires a revised_v7 distal-support checkpoint")
 cad_report = None
 if args.mode == "train" and expected_cad_asset_sha256(args.task) is not None:
     cad_report = assert_cad_ready(allow_provisional=args.allow_provisional_cad)
@@ -141,6 +150,7 @@ def train(env, runner, cfg, agent, log, checkpoint, source_metadata=None):
         "environment": args.environment, "difficulty": args.difficulty,
         "seed": cfg.seed, "actions": cfg.action_space, "observations": cfg.observation_space,
         "environments": base.num_envs,
+        "course_training": course_configuration(cfg, args.environment),
         "joint_names": [base._robot.joint_names[i] for i in base._joint_ids],
         "angle_limits_rad": base._angle_limits[0].cpu().tolist(),
         "target_rate_limit_rad_s": cfg.target_rate_limit, "target_smoothing": cfg.target_smoothing,
@@ -151,6 +161,11 @@ def train(env, runner, cfg, agent, log, checkpoint, source_metadata=None):
         "knee_below_body_approach_fraction": getattr(cfg, "knee_below_body_approach_fraction", None),
         "knee_below_body_penalty_scale": getattr(cfg, "knee_below_body_penalty_scale", None),
         "body_bottom_offset_z_m": getattr(cfg, "body_bottom_offset_z_m", None),
+        "distal_contact_height_tolerance": getattr(cfg, "distal_contact_height_tolerance", None),
+        "proximal_contact_height_tolerance": getattr(cfg, "proximal_contact_height_tolerance", None),
+        "knee_ground_clearance_m": getattr(cfg, "knee_ground_clearance_m", None),
+        "knee_ground_clearance_cost_scale": getattr(cfg, "knee_ground_clearance_cost_scale", None),
+        "non_distal_support_cost_scale": getattr(cfg, "non_distal_support_cost_scale", None),
         "servo_velocity_limits_rad_s": list(base._servo_velocity_limits[0].cpu().tolist())
             if base._servo_velocity_limits.shape[-1] > 1
             else float(base._servo_velocity_limits[0, 0].cpu()),
@@ -187,6 +202,7 @@ def train(env, runner, cfg, agent, log, checkpoint, source_metadata=None):
     }
     path = log / "run_metadata.json"
     std_constraint = None
+    course_state_hook = None
     try:
         if checkpoint:
             runner.load(str(checkpoint))
@@ -200,6 +216,12 @@ def train(env, runner, cfg, agent, log, checkpoint, source_metadata=None):
             with torch.no_grad():
                 output.weight.zero_()
                 output.bias.copy_(initial)
+        if args.environment == "curriculum":
+            course_state_hook = CurriculumCheckpointState(runner, base._scenario, metadata["course_training"])
+            metadata["course_state_restore"] = course_state_hook.restore(checkpoint) if checkpoint else "new_curriculum"
+            if metadata["course_state_restore"] == "restored_course_sequence_and_curriculum":
+                env.reset()  # Resume the course sequence with a fresh physical episode.
+            metadata["curriculum_initial"] = base._scenario.statistics()
         metadata["learning_rate_before"] = float(runner.alg.optimizer.param_groups[0]["lr"])
         metadata["optimizer_learning_rates_before"] = [float(group["lr"]) for group in runner.alg.optimizer.param_groups]
         std_constraint = PolicyStdConstraint(
@@ -222,6 +244,9 @@ def train(env, runner, cfg, agent, log, checkpoint, source_metadata=None):
         final = log / f"model_{runner.current_learning_iteration}.pt"
         if not final.is_file():
             raise RuntimeError("Training returned without its final checkpoint")
+        if course_state_hook is not None:
+            metadata["curriculum_final"] = base._scenario.statistics()
+            metadata["course_state_sidecar"] = str(course_state_hook.sidecar(final))
         metadata.update(status="completed", final_checkpoint=final.name,
                         final_sha256=hashlib.sha256(final.read_bytes()).hexdigest(),
                         final_iteration=runner.current_learning_iteration, completed_episodes=base.completed.copy(),
@@ -235,6 +260,8 @@ def train(env, runner, cfg, agent, log, checkpoint, source_metadata=None):
         write_json(path, metadata)
         raise
     finally:
+        if course_state_hook is not None:
+            course_state_hook.close()
         if std_constraint is not None:
             std_constraint.close()
 
@@ -245,6 +272,8 @@ def evaluate_or_play(env, runner, cfg, checkpoint, source_metadata):
     observation, _ = env.get_observations()
     base = env.unwrapped
     accumulator = EvaluationAccumulator(base.num_envs)
+    if args.environment == "curriculum":
+        base.completed_course_records.clear()
     steps = 0
     with torch.inference_mode():
         while app.is_running() and (args.mode == "play" or steps < args.steps):
@@ -256,14 +285,20 @@ def evaluate_or_play(env, runner, cfg, checkpoint, source_metadata):
             if not torch.isfinite(observation).all() or not torch.isfinite(rewards).all():
                 raise RuntimeError("Non-finite observation or reward")
             if args.mode == "evaluate":
-                accumulator.update(base.step_metrics, dones, base.step_dt)
+                if args.environment == "curriculum":
+                    accumulator.update(base.step_metrics, dones, base.step_dt,
+                                       course_records=base.completed_course_records)
+                    base.completed_course_records.clear()
+                else:
+                    accumulator.update(base.step_metrics, dones, base.step_dt)
             steps += 1
             if args.mode == "play" and not args.headless:
                 time.sleep(max(0, base.step_dt - (time.perf_counter() - started)))
     if args.mode == "evaluate":
         if steps != args.steps:
             raise RuntimeError("Evaluation ended before the requested number of steps")
-        scenario_distance = (float(torch.linalg.vector_norm(torch.tensor(base._scenario.layout.goal[:2])
+        scenario_distance = (None if args.environment == "curriculum" else
+                             float(torch.linalg.vector_norm(torch.tensor(base._scenario.layout.goal[:2])
                              - torch.tensor(base._scenario.layout.spawn[:2])))
                              if base._scenario is not None else float(cfg.evaluation_goal_distance))
         report = {
@@ -281,11 +316,16 @@ def evaluate_or_play(env, runner, cfg, checkpoint, source_metadata):
             **accumulator.report(target_speed=cfg.target_speed,
                                  minimum_speed_fraction=cfg.evaluation_min_speed_fraction, dt=base.step_dt),
         }
+        if args.environment == "curriculum":
+            report["course_evaluation"] = course_configuration(cfg, args.environment)
+            report.update(heldout_course_report(accumulator.completed, target_speed=cfg.target_speed,
+                                               minimum_speed_fraction=cfg.evaluation_min_speed_fraction))
         if args.output:
             write_json(args.output, report)
         print(json.dumps(report, indent=2, allow_nan=False), flush=True)
         # Completion is distinct from demonstrating successful locomotion.
-        print("DKSH_JOINT_ANGLE_EVAL_COMPLETE locomotion_pass=" + str(report["locomotion_pass"]), flush=True)
+        print("DKSH_JOINT_ANGLE_EVAL_COMPLETE locomotion_pass=" + str(report["locomotion_pass"])
+              + (" heldout_course_pass=" + str(report["heldout_course_pass"]) if args.environment == "curriculum" else ""), flush=True)
     else:
         print("DKSH_JOINT_ANGLE_PLAY_COMPLETE", flush=True)
 
@@ -293,6 +333,7 @@ def evaluate_or_play(env, runner, cfg, checkpoint, source_metadata):
 def main():
     cfg = parse_env_cfg(args.task, device=args.device, num_envs=args.num_envs, use_fabric=not args.disable_fabric)
     apply_environment_cfg(cfg, args.environment, args.difficulty, args.seed)
+    apply_course_cfg(cfg, args)
     for argument, attribute in (("initial_noise_std", "exploration_initial_std"),
                                  ("min_noise_std", "exploration_min_std"),
                                  ("max_noise_std", "exploration_max_std")):
@@ -315,6 +356,8 @@ def main():
                                                     if source_metadata else "revised_v3")
     for name, value in BEHAVIOR_PROFILES[cfg.behavior_profile].items():
         setattr(cfg, name, value)
+    if args.environment == "curriculum" and cfg.behavior_profile != "revised_v7":
+        raise ValueError("curriculum requires revised_v7 distal-support behavior")
     agent.policy.init_noise_std = cfg.exploration_initial_std
     log = root / datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f") if args.mode == "train" else None
     if log:

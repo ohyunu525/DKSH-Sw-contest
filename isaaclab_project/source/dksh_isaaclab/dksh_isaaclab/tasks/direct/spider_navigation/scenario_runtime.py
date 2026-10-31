@@ -239,13 +239,17 @@ class ScenarioRuntime:
     def ground_height(self, positions_w):
         return self.surface_heights(positions_w[:, None, :]).squeeze(1)
 
+    def _world_box_centers(self):
+        """World geometry shared by collision-aware height and LiDAR queries."""
+        return self._centers.unsqueeze(0) + self.env.scene.env_origins.unsqueeze(1)
+
     def surface_heights(self, positions_w):
         """Supporting terrain at each point (N, P, 3), including individual feet."""
         origins = self.env.scene.env_origins
         local = positions_w - origins[:, None, :]
         on_floor = (local[..., 0].abs() < 2.8) & (local[..., 1].abs() < self.layout.corridor_width / 2)
         floor = origins[:, 2:3] + torch.where(on_floor, self.floor_height[:, None], 0.0)
-        centers = self._centers.unsqueeze(0) + origins.unsqueeze(1)
+        centers = self._world_box_centers()
         return sample_box_heights(
             positions_w[..., :2], centers[:, self._terrain_indices], self._halves[self._terrain_indices],
             default_height=floor,
@@ -306,7 +310,7 @@ class ScenarioRuntime:
         quat = env._robot.data.root_quat_w
         yaw = torch.atan2(2 * (quat[:, 0] * quat[:, 3] + quat[:, 1] * quat[:, 2]),
                           1 - 2 * (quat[:, 2].square() + quat[:, 3].square()))
-        centers = self._centers.unsqueeze(0) + env.scene.env_origins.unsqueeze(1)
+        centers = self._world_box_centers()
         mount_b = pos.new_tensor(env.cfg.lidar_mount_position_b).expand(env.num_envs, -1)
         lidar_pos = pos + quat_rotate(quat, mount_b)
         ranges = self._lidar_observations(lidar_pos, quat, centers)

@@ -8,7 +8,10 @@ from dksh_isaaclab.assets.spiderbot import cad_spiderbot_cfg
 from .spider_navigation_env_cfg import SpiderNavigationEnvCfg
 from .agents.rsl_rl_ppo_cfg import SpiderNavigationPPORunnerCfg
 from .robot_actuators import mixed_servo_actuators
-from .joint_angle_foot_geometry import ONSHAPE_FOOT_SUPPORT_OFFSETS, ONSHAPE_TOE_BUTTON_OFFSETS
+from .joint_angle_foot_geometry import (
+    ONSHAPE_FOOT_SUPPORT_OFFSETS, ONSHAPE_TOE_BUTTON_OFFSETS,
+    ONSHAPE_DISTAL_FOOT_SUPPORT_OFFSETS, ONSHAPE_PROXIMAL_FOOT_OFFSETS,
+)
 from .servo_specs import (
     ACTUATOR_CONTRACT,
     MG996R_MASS_KG,
@@ -25,6 +28,7 @@ CAD_ANGLE_RANGES = {"hip": (-1.40, 1.40), "femur": (-1.10, 1.40), "tibia": (-0.4
 CAD_SOLE_OFFSET = (0.016120809, 0.0, -0.0803304305)
 KNEE_CLEARANCE_REWARD_CONTRACT = "signed_progress_huber_speed_knee_clearance_v1"
 FULL_FOOT_SLIP_REWARD_CONTRACT = "signed_progress_huber_speed_knee_clearance_full_foot_slip_v1"
+DISTAL_SUPPORT_REWARD_CONTRACT = "signed_progress_huber_speed_distal_support_v1"
 # Fixed-foot origins in main's normalized Onshape URDF, in policy leg order.
 ONSHAPE_SOLE_OFFSETS = (
     (0.137, 0.010, -0.01922),
@@ -44,6 +48,17 @@ def _cad6_joint_angle_robot():
 
 @configclass
 class JointAngleNavigationEnvCfg(SpiderNavigationEnvCfg):
+    # Opt in with --environment=curriculum. Static baseline presets retain
+    # their existing scene and reset behavior.
+    course_seed = None
+    course_split = "train"
+    curriculum_enabled = True
+    curriculum_flat_fraction = 0.25
+    curriculum_window = 20
+    curriculum_min_episodes = 20
+    curriculum_promote_threshold = 0.80
+    curriculum_demote_threshold = 0.30
+    curriculum_step = 0.10
     action_semantics = "absolute_joint_angles_v2"
     terrain_observation_contract = "terrain_full48_all_presets_v2"
     observation_contract = "joint_angles_targets_target_velocity_terrain48_v2"
@@ -83,6 +98,10 @@ class JointAngleNavigationEnvCfg(SpiderNavigationEnvCfg):
     contact_threshold = 1.0
     sole_contact_height_tolerance = 0.012
     foot_support_offsets = None  # Primitive/historical assets use their configured sole point.
+    distal_foot_support_offsets = None
+    proximal_foot_offsets = None
+    distal_contact_height_tolerance = 0.004
+    proximal_contact_height_tolerance = 0.008
     foot_contact_height_tolerance = 0.004
     toe_button_offsets = None
     toe_button_press_force_threshold = 1.0
@@ -149,12 +168,14 @@ def _mg996r_hip_cad6_robot():
 class MG996RHipCad6JointAngleEnvCfg(Cad6JointAngleEnvCfg):
     """Six MG996R hip servos and twelve provisional RC920DMG leg servos."""
     robot = _mg996r_hip_cad6_robot()
-    behavior_profile = "revised_v6"
-    reward_contract = FULL_FOOT_SLIP_REWARD_CONTRACT
-    contact_contract = "cad6_toe_button_hysteresis_v1"
+    behavior_profile = "revised_v7"
+    reward_contract = DISTAL_SUPPORT_REWARD_CONTRACT
+    contact_contract = "cad6_distal_support_toe_button_v1"
     joint_angle_ranges = Cad6JointAngleEnvCfg().joint_angle_ranges
     sole_offset = ONSHAPE_SOLE_OFFSETS
     foot_support_offsets = ONSHAPE_FOOT_SUPPORT_OFFSETS
+    distal_foot_support_offsets = ONSHAPE_DISTAL_FOOT_SUPPORT_OFFSETS
+    proximal_foot_offsets = ONSHAPE_PROXIMAL_FOOT_OFFSETS
     toe_button_offsets = ONSHAPE_TOE_BUTTON_OFFSETS
     use_asset_joint_limits = True
     enable_self_collisions = True
@@ -170,6 +191,11 @@ class MG996RHipCad6JointAngleEnvCfg(Cad6JointAngleEnvCfg):
     body_bottom_offset_z_m = -0.126578
     knee_below_body_approach_fraction = 0.50
     knee_below_body_penalty_scale = -5.0
+    # v7 uses the terrain under each knee every step, rather than a historical
+    # fraction below the body. Only the last 20 mm of the CAD foot may support it.
+    knee_ground_clearance_m = 0.03
+    knee_ground_clearance_cost_scale = -5.0
+    non_distal_support_cost_scale = -15.0
     episode_length_s = 240.0
     servo_model = None
     servo_reference_voltage_v = None

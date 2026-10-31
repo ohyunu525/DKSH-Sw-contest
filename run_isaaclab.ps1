@@ -15,7 +15,7 @@ param(
     [string]$ServoModel = 'mg996r',
     [ValidateSet('direct', 'legacy')]
     [string]$ControlMode = 'direct',
-    [ValidateSet('flat', 'narrow', 'vibrating', 'falling_debris', 'rough', 'mixed', 'stairs')]
+    [ValidateSet('flat', 'narrow', 'vibrating', 'falling_debris', 'rough', 'mixed', 'stairs', 'curriculum')]
     [string]$Environment = 'flat',
     [ValidateRange(0.0, 1.0)]
     [double]$Difficulty = 0.5,
@@ -26,8 +26,17 @@ param(
     [double]$MinNoiseStd,
     [double]$MaxNoiseStd,
     [switch]$ResetExplorationStd,
-    [ValidateSet('legacy_v2', 'revised_v3', 'revised_v4', 'revised_v5', 'revised_v6', 'revised_v7')][string]$BehaviorProfile,
+    [ValidateSet('legacy_v2', 'revised_v3', 'revised_v4', 'revised_v5', 'revised_v6', 'revised_v7', 'revised_v7_com')][string]$BehaviorProfile,
     [switch]$AllowBehaviorTransfer,
+    [ValidateRange(0, 2147483647)][int]$CourseSeed,
+    [ValidateSet('train', 'holdout')][string]$CourseSplit,
+    [double]$FlatFraction,
+    [ValidateRange(1, 100000)][int]$CurriculumWindow,
+    [ValidateRange(1, 100000)][int]$CurriculumMinEpisodes,
+    [double]$CurriculumPromoteThreshold,
+    [double]$CurriculumDemoteThreshold,
+    [double]$CurriculumStep,
+    [switch]$FreezeCurriculum,
     [switch]$AllowProvisionalCad,
     [switch]$Gui
 )
@@ -35,6 +44,38 @@ param(
 $projectRoot = $PSScriptRoot
 $noiseKeys = @('InitialNoiseStd', 'MinNoiseStd', 'MaxNoiseStd', 'ResetExplorationStd', 'AllowBehaviorTransfer')
 $noiseOptionsSpecified = @($noiseKeys | Where-Object { $PSBoundParameters.ContainsKey($_) }).Count -gt 0
+$courseKeys = @('CourseSeed', 'CourseSplit', 'FlatFraction', 'CurriculumWindow', 'CurriculumMinEpisodes',
+                'CurriculumPromoteThreshold', 'CurriculumDemoteThreshold', 'CurriculumStep', 'FreezeCurriculum')
+$courseOptionsSpecified = @($courseKeys | Where-Object { $PSBoundParameters.ContainsKey($_) }).Count -gt 0
+if ($courseOptionsSpecified -and ($Environment -ne 'curriculum' -or $ControlMode -ne 'direct' -or $Mode -notin @('train', 'evaluate', 'play'))) {
+    throw 'Course options require -Environment curriculum -ControlMode direct and train, evaluate or play mode.'
+}
+if ($Environment -eq 'curriculum' -and ($ControlMode -ne 'direct' -or $RobotModel -ne 'cad6' -or $ServoModel -ne 'mg996r_hip' -or
+    $Mode -notin @('train', 'evaluate', 'play', 'smoke'))) {
+    throw 'Curriculum requires the mixed-servo CAD6 direct-angle task.'
+}
+if ($Environment -eq 'curriculum') {
+    if ($PSBoundParameters.ContainsKey('BehaviorProfile') -and $BehaviorProfile -ne 'revised_v7') {
+        throw 'Curriculum requires revised_v7 distal-support behavior.'
+    }
+    $flatShare = if ($PSBoundParameters.ContainsKey('FlatFraction')) { $FlatFraction } else { 0.25 }
+    $windowSize = if ($PSBoundParameters.ContainsKey('CurriculumWindow')) { $CurriculumWindow } else { 20 }
+    $minimumEpisodes = if ($PSBoundParameters.ContainsKey('CurriculumMinEpisodes')) { $CurriculumMinEpisodes } else { 20 }
+    $promote = if ($PSBoundParameters.ContainsKey('CurriculumPromoteThreshold')) { $CurriculumPromoteThreshold } else { 0.8 }
+    $demote = if ($PSBoundParameters.ContainsKey('CurriculumDemoteThreshold')) { $CurriculumDemoteThreshold } else { 0.3 }
+    $levelStep = if ($PSBoundParameters.ContainsKey('CurriculumStep')) { $CurriculumStep } else { 0.1 }
+    if ([double]::IsNaN($flatShare) -or [double]::IsInfinity($flatShare) -or $flatShare -le 0 -or $flatShare -ge 1 -or
+        $minimumEpisodes -gt $windowSize -or [double]::IsNaN($promote) -or [double]::IsInfinity($promote) -or
+        [double]::IsNaN($demote) -or [double]::IsInfinity($demote) -or $demote -lt 0 -or $demote -ge $promote -or $promote -gt 1 -or
+        [double]::IsNaN($levelStep) -or [double]::IsInfinity($levelStep) -or $levelStep -le 0 -or $levelStep -gt 1) {
+        throw 'Invalid curriculum fraction, episode window, thresholds or difficulty step.'
+    }
+    if ($FreezeCurriculum -and $Mode -ne 'train') { throw 'FreezeCurriculum is training-only; evaluation is frozen.' }
+    if ($PSBoundParameters.ContainsKey('CourseSplit') -and (($Mode -eq 'train' -and $CourseSplit -ne 'train') -or
+        ($Mode -in @('evaluate', 'play') -and $CourseSplit -ne 'holdout'))) {
+        throw 'Training requires the train course split; evaluation/play requires holdout.'
+    }
+}
 if ($noiseOptionsSpecified -and ($ControlMode -ne 'direct' -or $Mode -ne 'train')) {
     throw 'Noise std overrides, exploration reset and behavior transfer require -ControlMode direct -Mode train.'
 }
@@ -111,6 +152,18 @@ try {
         if ($ResetExplorationStd) { $arguments += '--reset_exploration_std' }
         if ($PSBoundParameters.ContainsKey('BehaviorProfile')) { $arguments += "--behavior_profile=$BehaviorProfile" }
         if ($AllowBehaviorTransfer) { $arguments += '--allow_behavior_transfer' }
+        foreach ($pair in @(@('CourseSeed', 'course_seed'), @('CourseSplit', 'course_split'),
+                             @('FlatFraction', 'flat_fraction'), @('CurriculumWindow', 'curriculum_window'),
+                             @('CurriculumMinEpisodes', 'curriculum_min_episodes'),
+                             @('CurriculumPromoteThreshold', 'curriculum_promote_threshold'),
+                             @('CurriculumDemoteThreshold', 'curriculum_demote_threshold'), @('CurriculumStep', 'curriculum_step'))) {
+            if ($PSBoundParameters.ContainsKey($pair[0])) {
+                $value = $PSBoundParameters[$pair[0]]
+                if ($value -is [double]) { $value = $value.ToString([System.Globalization.CultureInfo]::InvariantCulture) }
+                $arguments += "--$($pair[1])=$value"
+            }
+        }
+        if ($FreezeCurriculum) { $arguments += '--freeze_curriculum' }
         if ($Mode -eq 'play') { $arguments += '--disable_fabric' }
         elseif (-not $Gui) { $arguments += '--headless' }
         if ($PSBoundParameters.ContainsKey('Steps')) { $arguments += "--steps=$Steps" }

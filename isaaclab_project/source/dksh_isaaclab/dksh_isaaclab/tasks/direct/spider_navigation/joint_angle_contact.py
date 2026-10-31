@@ -75,6 +75,18 @@ def sole_contact_state(
     return feet, body
 
 
+def _validate_foot_geometry(foot_positions_w: torch.Tensor, surface_heights: torch.Tensor) -> None:
+    if (foot_positions_w.ndim != 4 or foot_positions_w.shape[-1] != 3
+            or foot_positions_w.shape[1] < 1 or foot_positions_w.shape[2] < 1):
+        raise ValueError("foot_positions_w must have shape (N,L,K,3) with nonempty feet and witnesses")
+    if surface_heights.shape != foot_positions_w.shape[:-1]:
+        raise ValueError("surface_heights must have shape (N,L,K) matching foot_positions_w")
+    if surface_heights.device != foot_positions_w.device:
+        raise ValueError("foot positions and surface heights must share a device")
+    if not foot_positions_w.is_floating_point() or not surface_heights.is_floating_point():
+        raise ValueError("foot positions and surface heights must be floating-point tensors")
+
+
 def closest_foot_support(
     foot_positions_w: torch.Tensor, surface_heights: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -86,16 +98,7 @@ def closest_foot_support(
     Witnesses must describe foot geometry, not the tibia shaft. All validation
     inspects metadata only, avoiding device synchronization before selection.
     """
-    if (foot_positions_w.ndim != 4 or foot_positions_w.shape[-1] != 3
-            or foot_positions_w.shape[1] < 1 or foot_positions_w.shape[2] < 1):
-        raise ValueError("foot_positions_w must have shape (N,L,K,3) with nonempty feet and witnesses")
-    if surface_heights.shape != foot_positions_w.shape[:-1]:
-        raise ValueError("surface_heights must have shape (N,L,K) matching foot_positions_w")
-    if surface_heights.device != foot_positions_w.device:
-        raise ValueError("foot positions and surface heights must share a device")
-    if not foot_positions_w.is_floating_point() or not surface_heights.is_floating_point():
-        raise ValueError("foot positions and surface heights must be floating-point tensors")
-
+    _validate_foot_geometry(foot_positions_w, surface_heights)
     gaps = (foot_positions_w[..., 2] - surface_heights).abs()
     indices = gaps.argmin(dim=-1)
     positions = foot_positions_w.gather(2, indices[..., None, None].expand(-1, -1, 1, 3)).squeeze(2)
@@ -122,6 +125,54 @@ def foot_contact_state(
         sole_positions_w=positions, surface_heights=heights,
         force_threshold=force_threshold, height_tolerance=height_tolerance,
     )
+
+
+def distal_foot_contact_state(
+    force_history: torch.Tensor, *, sensor_feet: list[int], sensor_body: list[int],
+    distal_foot_positions_w: torch.Tensor, distal_surface_heights: torch.Tensor,
+    proximal_foot_positions_w: torch.Tensor, proximal_surface_heights: torch.Tensor,
+    force_threshold: float, height_tolerance: float, proximal_height_tolerance: float,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Estimate distal support while rejecting loaded non-distal grounding.
+
+    Distal and proximal geometry are leg-major ``(N,L,K,3)`` witness patches;
+    their witness counts may differ. The proximal argument must contain the
+    entire hull outside the distal patch, including the knee and middle shaft.
+    Returns support ``(N,L)``, undesired
+    contact ``(N,)`` and loaded legs without acceptable distal support ``(N,L)``.
+    A loaded proximal patch at/below its clearance tolerance invalidates a leg
+    even when its distal tip also reaches terrain, preventing a flat shaft
+    from qualifying as a foot. Deep proximal penetration is also rejected.
+
+    Net link forces cannot identify the physical contact point. The proximal
+    check is deliberately a conservative geometry test gated by link load;
+    it does not infer a collision from a nearby unloaded swing leg.
+    A non-distal witness near the patch boundary can therefore reject a loaded
+    foot before actual shaft contact; height tolerance controls that margin.
+    Historical full-foot and toe-button contracts are unchanged.
+    """
+    if not math.isfinite(proximal_height_tolerance) or proximal_height_tolerance < 0:
+        raise ValueError("proximal_height_tolerance must be finite and nonnegative")
+    _validate_foot_geometry(proximal_foot_positions_w, proximal_surface_heights)
+    supported, body = foot_contact_state(
+        force_history, sensor_feet=sensor_feet, sensor_body=sensor_body,
+        foot_positions_w=distal_foot_positions_w, surface_heights=distal_surface_heights,
+        force_threshold=force_threshold, height_tolerance=height_tolerance,
+    )
+    if proximal_foot_positions_w.shape[:2] != supported.shape:
+        raise ValueError("proximal geometry must share the distal geometry's environment and leg counts")
+    if proximal_foot_positions_w.device != force_history.device:
+        raise ValueError("proximal geometry and force history must share a device")
+    loaded = (
+        torch.linalg.vector_norm(force_history[:, :, list(sensor_feet)], dim=-1).amax(dim=1)
+        > force_threshold
+    )
+    proximal_grounded = (
+        proximal_foot_positions_w[..., 2] - proximal_surface_heights
+    ).amin(dim=-1) <= proximal_height_tolerance
+    supported = supported & ~proximal_grounded
+    non_distal_loaded = loaded & ~supported
+    return supported, body | non_distal_loaded.any(dim=-1), non_distal_loaded
 
 
 def toe_button_contact_state(

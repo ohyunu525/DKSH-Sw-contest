@@ -60,6 +60,8 @@ tailnet 안에서만 허용됩니다. 자세한 조건과 해제 방법은 [ROS2
 방식을 사용하지 않으며, 정책이 허용 범위 전체에서 각 관절의 목표각을 선택합니다.
 관절 제한·명령 변화 속도·접지·에너지 비용과 연속 계단 코스를 포함합니다.
 [직접 관절각 학습과 단계별 실행](isaaclab_project/docs/joint_angle_training.md)을 먼저 참고하세요.
+혼합 CAD6의 새 학습은 `revised_v7`을 사용해 tibia 말단 지지를 학습하고 무릎/근위부 접지를
+벌점 처리합니다. [Dynamic Gait 적용 검토](isaaclab_project/docs/dynamic_gait_review.md)도 함께 제공합니다.
 현재 혼합 서보 CAD6는 `run_cad6.ps1`로 실행합니다. MG90S 지원은 제거했습니다.
 공통 실행기의 기존 MG996R baseline v0는 `-ControlMode legacy`로 선택할 수 있습니다.
 v1 모델은 v2에서 새로 학습해야 합니다.
@@ -97,6 +99,10 @@ git submodule update --init --recursive
 `-ControlMode legacy`의 v0 로그 경로는 `logs/rsl_rl/dksh_spider_navigation_l2v1`입니다.
 
 ## 학습 환경 선택
+
+평지 보행을 유지하며 무작위 장애물로 전이하려면 `-Environment curriculum -Difficulty 0`을
+사용합니다. 평지 복습과 요철·계단·통로를 섞고 종류별 성공률로 난이도를 조절하며, 학습과
+분리한 새 코스로 평가합니다. [커리큘럼 실행 및 검증 안내](isaaclab_project/docs/terrain_curriculum.md)를 참고하세요.
 
 `-Environment`로 평지(`flat`), 좁은 틈(`narrow`), 진동 바닥(`vibrating`),
 낙하물 위험구역(`falling_debris`), 요철·단차(`rough`), 복합 환경(`mixed`), 연속 계단(`stairs`)을 선택합니다.

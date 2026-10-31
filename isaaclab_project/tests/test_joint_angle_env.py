@@ -126,6 +126,7 @@ namespace = {"torch": torch, "SpiderNavigationEnv": Parent, "quat_rotate": quat_
              "foot_contact_state": CONTACT.foot_contact_state,
              "closest_foot_support": CONTACT.closest_foot_support,
              "toe_button_contact_state": CONTACT.toe_button_contact_state,
+             "distal_foot_contact_state": CONTACT.distal_foot_contact_state,
              **{name: getattr(CONTROL, name) for name in (
                  "action_to_angles", "bounded_angle_targets", "joint_names", "motion_costs",
                  "normalize_angles", "observation_size", "point_velocity", "signed_progress", "speed_tracking_cost",
@@ -135,12 +136,13 @@ exec(compile(ast.Module(body=[definition], type_ignores=[]), "joint_angle_env.py
 Environment = namespace["JointAngleNavigationEnv"]
 
 
-def make_env(actions=18, support_offsets=None, *, behavior_profile="revised_v3", toe_button_offsets=None):
+def make_env(actions=18, support_offsets=None, *, behavior_profile="revised_v3", toe_button_offsets=None,
+             distal_offsets=None, proximal_offsets=None, environment_preset="flat"):
     # Read numeric tuning values from the real cfg, keeping external asset setup
     # out of these tensor tests; no duplicate copy of the reward implementation.
     cfg_tree = ast.parse((FOLDER / "joint_angle_env_cfg.py").read_text(encoding="utf-8"))
     classes = [next(node for node in cfg_tree.body if isinstance(node, ast.ClassDef))]
-    if behavior_profile in ("revised_v5", "revised_v6", "revised_v7"):
+    if behavior_profile in ("revised_v5", "revised_v6", "revised_v7", "revised_v7_com"):
         classes.append(next(node for node in cfg_tree.body
                             if isinstance(node, ast.ClassDef) and node.name == "MG996RHipCad6JointAngleEnvCfg"))
     settings = {}
@@ -152,12 +154,13 @@ def make_env(actions=18, support_offsets=None, *, behavior_profile="revised_v3",
                 except (ValueError, TypeError, AttributeError):
                     pass
     settings.update(
-        action_space=actions, environment_preset="flat", robot=NS(copy=lambda: NS(spawn=NS(usd_path="test", articulation_props=NS(enabled_self_collisions=False)))),
+        action_space=actions, environment_preset=environment_preset, robot=NS(copy=lambda: NS(spawn=NS(usd_path="test", articulation_props=NS(enabled_self_collisions=False)))),
         minimum_base_height=0.06, robot_height=0.24, max_distance_from_origin=5.5,
         joint_angle_ranges={"hip": (-1.4, 1.4), "femur": (-1.1, 1.4), "tibia": (-0.4, 1.4)},
         servo_velocity_limit=10.0, goal_reward=30, failure_penalty=-10, debris_impact_penalty=-2,
         foot_support_offsets=support_offsets,
         behavior_profile=behavior_profile, toe_button_offsets=toe_button_offsets,
+        distal_foot_support_offsets=distal_offsets, proximal_foot_offsets=proximal_offsets,
     )
     env = Environment(NS(**settings))
     env._reset_idx(torch.tensor([0, 1]))
@@ -382,7 +385,7 @@ class JointAngleEnvironmentTests(unittest.TestCase):
                 self.assertFalse(env._reached_goal.any())  # A heel is not a pressed toe button.
 
     def test_v7_uses_center_of_mass_for_support_velocity(self):
-        env = self.toe_button_env("revised_v7")
+        env = self.toe_button_env("revised_v7_com")
         data = env._robot.data
         data.body_com_pos_w = data.body_link_pos_w.clone()
         data.body_com_pos_w[:, env._feet, 0] += 0.05
@@ -421,6 +424,132 @@ class JointAngleEnvironmentTests(unittest.TestCase):
             env._get_rewards()
             expected = env.cfg.knee_below_body_penalty_scale * env.step_dt
             torch.testing.assert_close(env._episode_sums["knee_clearance"], torch.full((2,), expected))
+
+    def distal_env(self):
+        distal = tuple(((0.12, 0.0, -0.06),) for _ in range(6))
+        proximal = tuple(((0.0, 0.0, -0.01),) for _ in range(6))
+        hull = tuple(distal[leg] + proximal[leg] for leg in range(6))
+        buttons = tuple(points[0] for points in distal)
+        env = make_env(support_offsets=hull, behavior_profile="revised_v7", toe_button_offsets=buttons,
+                       distal_offsets=distal, proximal_offsets=proximal)
+        env._robot.data.body_link_pos_w[:, env._feet, 2] = 0.06
+        env._contacts.data.net_forces_w_history[:, :, env._sensor_feet, 2] = 2
+        return env
+
+    def test_distal_support_preserves_button_observation_and_stable_goal(self):
+        env = self.distal_env()
+        feet, body = env._contact_state()
+        self.assertTrue(feet.all())
+        self.assertFalse(body.any())
+        observation = env._get_observations()["policy"]
+        self.assertEqual(observation.shape, (2, 140))
+        torch.testing.assert_close(observation[:, 84:90], torch.ones((2, 6)))
+        env._get_rewards()
+        torch.testing.assert_close(env.step_metrics["distal_support_fraction"], torch.ones(2))
+        torch.testing.assert_close(env.step_metrics["non_distal_support_fraction"], torch.zeros(2))
+        torch.testing.assert_close(env._episode_sums["knee_clearance"], torch.zeros(2))
+        self.support_at_goal(env)
+        for _ in range(12):
+            env._get_dones()
+        self.assertTrue(env._reached_goal.all())
+
+    def test_proximal_only_support_is_penalized_and_cannot_complete_goal(self):
+        env = self.distal_env()
+        # Rotate the tip upwards, leaving the proximal witness at floor height.
+        env._robot.data.body_link_quat_w[:, env._feet, 0] = 2 ** -0.5
+        env._robot.data.body_link_quat_w[:, env._feet, 2] = -(2 ** -0.5)
+        env._robot.data.body_link_pos_w[:, env._feet, 2] = 0.0
+        env._robot.data.body_link_lin_vel_w[:, env._feet, 0] = 0.2
+        feet, body = env._contact_state()
+        self.assertFalse(feet.any())
+        self.assertTrue(body.all())
+        env._get_rewards()
+        torch.testing.assert_close(env.step_metrics["distal_support_fraction"], torch.zeros(2))
+        torch.testing.assert_close(env.step_metrics["non_distal_support_fraction"], torch.ones(2))
+        torch.testing.assert_close(env.step_metrics["foot_slip_m2_s2"], torch.full((2,), 0.04))
+        expected = env.cfg.non_distal_support_cost_scale * env.step_dt
+        torch.testing.assert_close(env._episode_sums["non_distal_support"], torch.full((2,), expected))
+        self.support_at_goal(env)
+        for _ in range(12):
+            env._get_dones()
+        self.assertFalse(env._reached_goal.any())
+
+    def test_simultaneous_proximal_and_tip_grounding_keeps_raw_button_but_blocks_goal(self):
+        env = self.distal_env()
+        env._proximal_foot_offsets = env._proximal_foot_offsets.clone()
+        env._proximal_foot_offsets[..., 2] = -0.06
+        feet, body = env._contact_state()
+        self.assertTrue(feet.all())  # Digital toe switches remain actual switch estimates.
+        self.assertTrue(body.all())
+        supported, _, invalid = env._distal_contact_state()
+        self.assertFalse(supported.any())
+        self.assertTrue(invalid.all())
+        self.support_at_goal(env)
+        for _ in range(12):
+            env._get_dones()
+        self.assertFalse(env._reached_goal.any())
+
+    def test_knee_clearance_uses_each_knees_terrain_immediately(self):
+        env = self.distal_env()
+        env._contacts.data.net_forces_w_history.zero_()  # Clearance also guides unloaded knees.
+        env._robot.data.body_link_pos_w[:, env._knees, 2] = 0.05
+        env._scenario = NS(surface_heights=lambda p: torch.tensor([0.0, 0.035])[:, None].expand(p.shape[:2]),
+                           floor_velocity=torch.zeros((2, 3)))
+        env._get_rewards()
+        torch.testing.assert_close(env.step_metrics["mean_knee_ground_clearance_m"], torch.tensor([0.05, 0.015]))
+        torch.testing.assert_close(env.step_metrics["knee_ground_clearance_violation_fraction"], torch.tensor([0.0, 1.0]))
+        expected = env.cfg.knee_ground_clearance_cost_scale * 0.5 * env.step_dt
+        torch.testing.assert_close(env._episode_sums["knee_clearance"], torch.tensor([0.0, expected]))
+        torch.testing.assert_close(env.step_metrics["non_distal_support_fraction"], torch.zeros(2))
+
+    def test_distal_profile_rejects_missing_geometry(self):
+        with self.assertRaisesRegex(ValueError, "requires distal_foot_support_offsets"):
+            make_env(behavior_profile="revised_v7")
+
+    def test_curriculum_requires_existing_distal_support_behavior(self):
+        with self.assertRaisesRegex(ValueError, "requires revised_v7"):
+            make_env(environment_preset="curriculum")
+
+    def test_curriculum_bounds_use_each_environments_actual_corridor(self):
+        env = self.distal_env()
+        env._robot.data.root_pos_w[:, 1] = 0.4
+        env._scenario = NS(collect_impacts=lambda: None, layout=NS(corridor_width=1.6),
+                           corridor_widths=torch.tensor([0.6, 1.6]),
+                           surface_heights=lambda p: torch.zeros(p.shape[:2]))
+        env._get_dones()
+        torch.testing.assert_close(env._out_of_bounds, torch.tensor([True, False]))
+
+    def test_completed_courses_are_snapshotted_before_reset_with_failure_precedence(self):
+        env = self.distal_env()
+        env.cfg.environment_preset = "curriculum"
+        env.cfg.evaluation_mode = True
+        env.episode_length_buf[:] = 10
+        env.reset_terminated[:] = True
+        env._reached_goal[:] = True
+        env._robot.data.projected_gravity_b[1, 2] = 0.0
+        outcomes = []
+        env._scenario = NS(
+            episode_metadata=lambda ids: [{"environment_index": int(i), "course_id": f"old_{i}"}
+                                          for i in ids],
+            record_outcomes=lambda ids, success: outcomes.append((ids.clone(), success.clone())),
+            statistics=lambda: {"difficulty/stairs": 0.2},
+        )
+        env._reset_idx(torch.tensor([1, 0]))
+        self.assertEqual([item["course_id"] for item in env.completed_course_records], ["old_0", "old_1"])
+        self.assertEqual([item["outcome"] for item in env.completed_course_records], ["goal", "fallen"])
+        torch.testing.assert_close(outcomes[0][1], torch.tensor([True, False]))
+        self.assertEqual(env.extras["log"]["Curriculum/difficulty/stairs"], 0.2)
+        self.assertFalse(env._reached_goal.any())
+
+    def test_manual_or_initial_course_reset_does_not_update_success_rate(self):
+        env = self.distal_env()
+        env.cfg.environment_preset = "curriculum"
+        env.cfg.evaluation_mode = True
+        env.episode_length_buf[:] = 10
+        env._scenario = NS(statistics=lambda: {},
+                           record_outcomes=lambda *args: self.fail("An unfinished episode changed the curriculum"))
+        env._reset_idx(torch.tensor([0, 1]))
+        self.assertEqual(env.completed_course_records, [])
 
 
 if __name__ == "__main__":

@@ -53,6 +53,9 @@ env.joint_angle_targets_rad는 실제 적용 목표각을 반환한다. 초기 �
 
 ## 새로 학습하고 평가하기
 
+평지 정책을 유지하며 무작위 장애물로 전이하는 `-Environment curriculum` 실행법은
+[혼합 코스 커리큘럼 안내](terrain_curriculum.md)를 참고한다. 기본 v7 접지·보상·관측은 유지한다.
+
 Isaac 실행은 [개발 컴퓨터 기준](../../DEVELOPMENT_REQUIREMENTS.md)의 GPU 장비에서 수행한다.
 잠정 CAD·서보 가정은 [혼합 서보 문서](mg996r_hip_correction.md)를 따른다.
 
@@ -92,10 +95,10 @@ Isaac 실행은 [개발 컴퓨터 기준](../../DEVELOPMENT_REQUIREMENTS.md)의 
 **v1 직접각 모델은 v2에서 재개·재생할 수 없으며 새 가중치로 학습한다.**
 작업 ID·CAD 해시·관절 순서·한계·모터·제어·관측·보상·접촉 계약을 검사한다.
 
-행동·관측·물리 제어는 v2 그대로이므로 현재 혼합 CAD6의 `model_350.pt`는 이어 학습할 수 있다.
+행동·관측 크기·물리 제어는 v2 그대로이므로 기존 혼합 CAD6 가중치는 명시적으로 전이할 수 있다.
 `legacy_v2`는 수정 전 보상·단일 발끝 접촉을 재현하는 비교 설정이며 MG90S 모드가 아니다.
 평가·재생은 옵션을 생략하면 저장된 보상·접촉 설정을 사용한다. MG996R-Hip CAD6는
-새 학습에서 `revised_v5`를 사용한다. 다른 JointAngles 작업은 `revised_v3`를 기본으로 유지한다.
+새 학습에서 `revised_v7`을 사용한다. 다른 JointAngles 작업은 `revised_v3`를 기본으로 유지한다.
 
 `revised_v4`는 CAD 발마다 가상 버튼 접촉 비트 1개를 계산한다. 발끝 지점 근접도와 tibia의
 위쪽 접촉력을 함께 사용하고, 누름/해제 힘 문턱으로 히스테리시스를 준다. 6개 비트는
@@ -105,6 +108,39 @@ Isaac 실행은 [개발 컴퓨터 기준](../../DEVELOPMENT_REQUIREMENTS.md)의 
 시간이 전체 접근의 절반을 넘으면 페널티를 준다. 목표 속도는 0.20 m/s이며 속도 오차 비용도
 강화해 진행 보상이 목표 속도를 계속 밀어 올리지 않도록 한다.
 기존 설정에서 바뀐 설정으로 학습할 때는 `-AllowBehaviorTransfer`로 전이를 명시한다.
+
+`revised_v6`는 버튼이 눌리지 않아도 전체 발 hull의 접지점에서 미끄럼 비용을 계산한다.
+`revised_v7`은 이를 유지하면서, **실제 CAD tibia 말단의 마지막 20 mm**만 유효 지지로
+인정한다. 말단을 제외한 무릎 쪽 및 중간 shaft 형상이 지면 8 mm 이내이거나 관통한 채 링크에
+하중이 걸리면, 말단도 닿아 있더라도 잘못된 접지로 분류한다. 말단/지형 높이 허용치는 4 mm다.
+각 다리의 서로 다른 좌표계로 변환한 기존 충돌 형상의 점을 사용하며 collider는 유지한다.
+
+새 보상은 하중이 걸린 다리 중 비말단 접지 비율에 `-15/초`, 각 무릎의 해당 지형에 대한
+30 mm 간격 부족 비율에 최대 `-5/초`를 적용한다. 무릎 비용은 즉시 적용하며, 이전
+몸체 기준 누적 시간 벌점은 v5/v6 비교용으로 남긴다. 목표 도착은 잘못된 접지가 없어야 한다.
+관측의 6개 가상 버튼 비트와 18개 절대각 출력은 유지하지만 접촉·보상 계약이 바뀌므로
+기존 정책을 그대로 재생하는 것만으로 새 보행이 만들어지지는 않는다.
+
+평가 JSON에는 `distal_support_fraction`, `non_distal_support_fraction`,
+`mean_knee_ground_clearance_m`, `knee_ground_clearance_violation_fraction`이 추가된다.
+앞의 두 비율은 **힘 문턱을 넘은 tibia 링크 수**를 분모로 하며, 무접촉 구간은 0이다.
+ContactSensor 합력과 기하학으로 추정한 값이며 실제 접촉점이나 하중 분포의 측정치는 아니다.
+목표 속도 0.20 m/s, 목표각 속도 제한 1.5 rad/s, 50 Hz 제어는 유지한다.
+속도 향상은 재학습 후 순진행 속도·낙상·비말단 접지·미끄럼·포화를 함께 비교해 판정한다.
+
+```powershell
+# A 등급 NVIDIA 장비에서 새 말단 지지 정책을 4환경부터 학습
+.\run_cad6.ps1 -Mode train -Environment flat -NumEnvs 4 -MaxIterations 4000 -BehaviorProfile revised_v7 -AllowProvisionalCad
+
+# 기존 v2 가중치에서 명시적으로 전이하는 대안
+.\run_cad6.ps1 -Mode train -Environment flat -NumEnvs 4 -MaxIterations 4000 -Checkpoint '<기존 model_N.pt>' -BehaviorProfile revised_v7 -AllowBehaviorTransfer -AllowProvisionalCad
+
+# 저장된 v7 접촉/보상 설정으로 평가
+.\run_cad6.ps1 -Mode evaluate -Environment flat -NumEnvs 4 -Steps 12000 -Seed 73 -Checkpoint '<새 model_N.pt>' -Output 'logs/distal_support_flat.json'
+```
+
+[Dynamic Gait 적용 검토](dynamic_gait_review.md)는 빠른 tripod부터 시작하는 별도 실험과
+서보 속도·주기·동적 안정성 제약을 정리한다. 이번 수정에 CPG나 강제 gait는 추가하지 않았다.
 
 `-InitialNoiseStd`, `-MinNoiseStd`, `-MaxNoiseStd`는 탐색 범위를 재정의한다.
 재개 기본값은 기존 std를 새 범위로만 제한한다. `-ResetExplorationStd`는 std를 초기값으로

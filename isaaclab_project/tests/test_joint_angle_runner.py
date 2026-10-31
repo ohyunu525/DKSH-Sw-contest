@@ -216,6 +216,25 @@ class EvaluationTests(unittest.TestCase):
         self.assertAlmostEqual(report["target_excursion_rad"], 0.12, places=6)
         self.assertTrue(report["locomotion_pass"])
 
+    def test_distal_and_knee_diagnostics_are_averaged_without_requiring_new_fields_on_old_profiles(self):
+        accumulator = UTILS.EvaluationAccumulator(2)
+        metrics = self.metrics(count=2, goal=1)
+        diagnostics = {
+            "distal_support_fraction": [0.5, 1.0],
+            "non_distal_support_fraction": [0.0, 0.5],
+            "mean_knee_ground_clearance_m": [0.02, 0.04],
+            "knee_ground_clearance_violation_fraction": [0.5, 0.0],
+        }
+        for name, values in diagnostics.items():
+            metrics[name] = torch.tensor(values)
+        accumulator.update(metrics, torch.tensor([True, True]), 1)
+        # An old profile may omit every new optional metric.
+        accumulator.update(self.metrics(count=2, goal=1), torch.tensor([True, True]), 1)
+        report = self.report(accumulator)
+        for name, values in diagnostics.items():
+            self.assertAlmostEqual(report[name], sum(values) / len(values), places=6)
+        self.assertTrue(report["locomotion_pass"])
+
 
 class ResumeIntegrationTests(unittest.TestCase):
     def test_real_resume_records_clamp_or_std_only_reset_and_preserves_weights_and_normalizer(self):
@@ -247,7 +266,10 @@ class ResumeIntegrationTests(unittest.TestCase):
                 cfg = NS(exploration_reference_saturation_probability=0.01, exploration_initial_std=0.08,
                          exploration_min_std=0.03, exploration_max_std=0.30, behavior_profile="legacy_v2",
                          target_rate_limit=1.5, target_smoothing=0.35, seed=42, action_space=18, observation_space=140,
-                         target_speed=0.20, speed_tracking_sigma=0.015, progress_reward_scale=25.0, speed_cost_scale=-0.50)
+                         target_speed=0.20, speed_tracking_sigma=0.015, progress_reward_scale=25.0, speed_cost_scale=-0.50,
+                         distal_contact_height_tolerance=0.004, proximal_contact_height_tolerance=0.008,
+                         knee_ground_clearance_m=0.03, knee_ground_clearance_cost_scale=-5.0,
+                         non_distal_support_cost_scale=-15.0)
                 args = NS(task="Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2", environment="flat", difficulty=0.5,
                           max_iterations=1, reset_exploration_std=reset, allow_behavior_transfer=False)
                 log = root / "resumed"
@@ -271,7 +293,9 @@ class ResumeIntegrationTests(unittest.TestCase):
                              "behavior_profile_from_metadata": CHECKPOINT.behavior_profile_from_metadata,
                              "expected_cad_asset_sha256": CHECKPOINT.expected_cad_asset_sha256,
                              "cad_report": None, "dump_yaml": Mock(),
-                             "PolicyStdConstraint": UTILS.PolicyStdConstraint}
+                             "PolicyStdConstraint": UTILS.PolicyStdConstraint,
+                             "course_configuration": UTILS.course_configuration,
+                             "CurriculumCheckpointState": UTILS.CurriculumCheckpointState}
                 exec(compile(functions, str(source), "exec"), namespace)
                 control = types.ModuleType("dksh_isaaclab.tasks.direct.spider_navigation.joint_angle_control")
                 control.exploration_std = Mock(return_value=0.0211844)
@@ -289,6 +313,10 @@ class ResumeIntegrationTests(unittest.TestCase):
                 self.assertEqual(metadata["reward_contract"], parent_metadata["reward_contract"])
                 self.assertEqual(metadata["exploration_std_cap"], 0.30)
                 self.assertEqual(metadata["cad_asset_sha256"], CHECKPOINT.expected_cad_asset_sha256(args.task))
+                for name in ("distal_contact_height_tolerance", "proximal_contact_height_tolerance",
+                             "knee_ground_clearance_m", "knee_ground_clearance_cost_scale",
+                             "non_distal_support_cost_scale"):
+                    self.assertEqual(metadata[name], getattr(cfg, name))
                 self.assertEqual(metadata["learning_rate_before"], 0.001)
                 self.assertEqual(metadata["learning_rate_after"], 0.001)
                 self.assertEqual(metadata["learning_rate_final"], 0.001)

@@ -16,6 +16,15 @@ TASK = "Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2"
 
 
 class CheckpointTests(unittest.TestCase):
+    def test_original_v7_com_checkpoint_and_distal_v7_are_distinct(self):
+        old = {**CHECKPOINT.BEHAVIOR_PROFILES["revised_v7_com"], "behavior_profile": "revised_v7"}
+        new = {**CHECKPOINT.BEHAVIOR_PROFILES["revised_v7"], "behavior_profile": "revised_v7"}
+        self.assertEqual(CHECKPOINT.behavior_profile_from_metadata(old), "revised_v7_com")
+        self.assertEqual(CHECKPOINT.behavior_profile_from_metadata(new), "revised_v7")
+        old["behavior_profile"] = "revised_v6"
+        with self.assertRaises(ValueError):
+            CHECKPOINT.behavior_profile_from_metadata(old)
+
     def test_tracked_model_350_preserves_legacy_behavior_and_requires_explicit_training_transfer(self):
         checkpoint = (Path(__file__).resolve().parents[2]
                       / "logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2/2026-10-23_00-54-23_673348/model_350.pt")
@@ -251,6 +260,32 @@ class CheckpointTests(unittest.TestCase):
                     if profile != "revised_v6":
                         with self.assertRaisesRegex(ValueError, f"--behavior_profile={profile}.*--allow_behavior_transfer"):
                             CHECKPOINT.validate_checkpoint(path, TASK, "flat", **compatibility)
+                    CHECKPOINT.validate_checkpoint(path, TASK, "flat", allow_behavior_transfer=True,
+                                                   **compatibility)
+
+    def test_distal_support_preserves_all_saved_profiles_and_requires_explicit_training_transfer(self):
+        current = CHECKPOINT.BEHAVIOR_PROFILES["revised_v7"]
+        self.assertEqual(current, {
+            "reward_contract": "signed_progress_huber_speed_distal_support_v1",
+            "contact_contract": "cad6_distal_support_toe_button_v1",
+        })
+        compatibility = {"expected_reward_contract": current["reward_contract"],
+                         "expected_contact_contract": current["contact_contract"]}
+        with TemporaryDirectory() as root:
+            path = self.create_checkpoint(root, "flat")
+            metadata_path = path.parent / "run_metadata.json"
+            original = json.loads(metadata_path.read_text(encoding="utf-8"))
+            for profile, contracts in CHECKPOINT.BEHAVIOR_PROFILES.items():
+                with self.subTest(profile=profile):
+                    metadata = original | contracts | {"behavior_profile": profile}
+                    metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+                    saved = CHECKPOINT.validate_checkpoint(path, TASK, "flat")
+                    self.assertEqual(CHECKPOINT.behavior_profile_from_metadata(saved), profile)
+                    if profile != "revised_v7":
+                        with self.assertRaisesRegex(ValueError, f"--behavior_profile={profile}.*--allow_behavior_transfer"):
+                            CHECKPOINT.validate_checkpoint(path, TASK, "flat", **compatibility)
+                    else:
+                        CHECKPOINT.validate_checkpoint(path, TASK, "flat", **compatibility)
                     CHECKPOINT.validate_checkpoint(path, TASK, "flat", allow_behavior_transfer=True,
                                                    **compatibility)
 

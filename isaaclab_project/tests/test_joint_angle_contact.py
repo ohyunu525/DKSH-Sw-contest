@@ -268,5 +268,177 @@ class FootContactStateTests(unittest.TestCase):
                 CONTACT.foot_contact_state(self.forces, **{**self.options, key: value})
 
 
+class DistalFootContactStateTests(unittest.TestCase):
+    def setUp(self):
+        self.forces = torch.zeros((2, 4, 5, 3), dtype=torch.float64)
+        self.distal = torch.zeros((2, 2, 3, 3), dtype=torch.float64)
+        self.distal_heights = torch.zeros((2, 2, 3), dtype=torch.float64)
+        self.proximal = torch.zeros((2, 2, 2, 3), dtype=torch.float64)
+        self.proximal[..., 2] = 0.06
+        self.proximal_heights = torch.zeros((2, 2, 2), dtype=torch.float64)
+        self.options = dict(
+            sensor_feet=[3, 1], sensor_body=[0, 2],
+            distal_foot_positions_w=self.distal, distal_surface_heights=self.distal_heights,
+            proximal_foot_positions_w=self.proximal, proximal_surface_heights=self.proximal_heights,
+            force_threshold=1.0, height_tolerance=0.004, proximal_height_tolerance=0.004,
+        )
+
+    def state(self):
+        return CONTACT.distal_foot_contact_state(self.forces, **self.options)
+
+    def test_distal_load_with_knee_raised_is_valid_in_public_leg_order(self):
+        self.forces[0, 0, 1, 2] = 2
+        self.forces[1, -1, 3, 2] = 3
+        support, body, wrong_load = self.state()
+        torch.testing.assert_close(support, torch.tensor([[False, True], [True, False]]))
+        self.assertFalse(bool(body.any()))
+        self.assertFalse(bool(wrong_load.any()))
+
+    def test_knee_only_load_is_rejected_even_though_full_hull_would_support_it(self):
+        self.distal[..., 2] = 0.08
+        self.proximal[..., 2] = 0
+        self.forces[:, -1, [3, 1], 2] = 5
+        support, body, wrong_load = self.state()
+        self.assertFalse(bool(support.any()))
+        self.assertTrue(bool(body.all()))
+        self.assertTrue(bool(wrong_load.all()))
+        historical_support, historical_body = CONTACT.foot_contact_state(
+            self.forces, sensor_feet=[3, 1], sensor_body=[0, 2],
+            foot_positions_w=torch.cat((self.distal, self.proximal), dim=2),
+            surface_heights=torch.cat((self.distal_heights, self.proximal_heights), dim=2),
+            force_threshold=1.0, height_tolerance=0.004,
+        )
+        self.assertTrue(bool(historical_support.all()))
+        self.assertFalse(bool(historical_body.any()))
+
+    def test_flat_shaft_load_is_rejected_when_distal_and_knee_both_reach_floor(self):
+        self.forces[:, -1, [3, 1], 2] = 5
+        self.proximal[..., 0, 2] = 0
+        support, body, wrong_load = self.state()
+        self.assertFalse(bool(support.any()))
+        self.assertTrue(bool(body.all()))
+        self.assertTrue(bool(wrong_load.all()))
+
+    def test_actual_middle_shaft_on_stair_is_rejected_with_knee_and_tip_on_other_surfaces(self):
+        geometry_spec = importlib.util.spec_from_file_location(
+            "actual_foot_geometry", MODULE.with_name("joint_angle_foot_geometry.py"),
+        )
+        geometry = importlib.util.module_from_spec(geometry_spec)
+        geometry_spec.loader.exec_module(geometry)
+        # Pitch the real CAD tibia down towards its tip. Its distal patch rests
+        # on z=0, while the knee and middle shaft clear this lower tread.
+        angle = 0.8
+        c, s = math.cos(angle), math.sin(angle)
+        rotation = torch.tensor([[c, 0, s], [0, 1, 0], [-s, 0, c]], dtype=torch.float64)
+        distal = torch.tensor(geometry.ONSHAPE_DISTAL_FOOT_SUPPORT_OFFSETS[0], dtype=torch.float64) @ rotation.T
+        proximal = torch.tensor(geometry.ONSHAPE_PROXIMAL_FOOT_OFFSETS[0], dtype=torch.float64) @ rotation.T
+        floor_shift = -distal[:, 2].min()
+        distal[:, 2] += floor_shift
+        proximal[:, 2] += floor_shift
+        forces = torch.zeros((1, 1, 1, 3), dtype=torch.float64)
+        forces[..., 2] = 5
+        surfaces = torch.zeros((1, 1, len(proximal)), dtype=torch.float64)
+        options = dict(
+            sensor_feet=[0], sensor_body=[],
+            distal_foot_positions_w=distal[None, None],
+            distal_surface_heights=torch.zeros((1, 1, len(distal)), dtype=torch.float64),
+            proximal_foot_positions_w=proximal[None, None], proximal_surface_heights=surfaces,
+            force_threshold=1.0, height_tolerance=0.004, proximal_height_tolerance=0.008,
+        )
+        support, body, wrong_load = CONTACT.distal_foot_contact_state(forces, **options)
+        self.assertTrue(bool(support.all()))
+        self.assertFalse(bool(body.any()))
+        self.assertFalse(bool(wrong_load.any()))
+        middle_indices = [i for i, point in enumerate(geometry._PROXIMAL_FOOT_HULL_POINTS_M)
+                          if 0.050 < point[1] < 0.125]
+        self.assertTrue(middle_indices)
+        # A narrow raised stair nosing now reaches a real middle-shaft witness.
+        # Knee-side witnesses still see the lower tread; the distal tip remains
+        # on its own lower surface. A first-50-mm-only check misses this load.
+        middle = min(middle_indices, key=lambda i: float(proximal[i, 2]))
+        self.assertGreater(float(proximal[middle, 2]), 0.008)
+        surfaces[0, 0, middle] = proximal[middle, 2]
+        support, body, wrong_load = CONTACT.distal_foot_contact_state(forces, **options)
+        self.assertFalse(bool(support.any()))
+        self.assertTrue(bool(body.all()))
+        self.assertTrue(bool(wrong_load.all()))
+        knee_indices = [i for i, point in enumerate(geometry._PROXIMAL_FOOT_HULL_POINTS_M)
+                        if point[1] <= 0.050]
+        historical, _, _ = CONTACT.distal_foot_contact_state(forces, **{
+            **options, "proximal_foot_positions_w": proximal[None, None, knee_indices],
+            "proximal_surface_heights": surfaces[:, :, knee_indices],
+        })
+        self.assertTrue(bool(historical.all()))
+
+    def test_deep_knee_penetration_cannot_be_hidden_by_distal_support(self):
+        self.forces[:, -1, [3, 1], 2] = 5
+        self.proximal[..., 1, 2] = -0.03
+        support, body, wrong_load = self.state()
+        self.assertFalse(bool(support.any()))
+        self.assertTrue(bool(body.all()))
+        self.assertTrue(bool(wrong_load.all()))
+
+    def test_unloaded_near_ground_swing_leg_does_not_create_bad_contact(self):
+        self.proximal[..., 2] = 0
+        support, body, wrong_load = self.state()
+        self.assertFalse(bool(support.any()))
+        self.assertFalse(bool(body.any()))
+        self.assertFalse(bool(wrong_load.any()))
+
+    def test_wall_and_downward_loads_are_bad_even_with_distal_patch_at_floor(self):
+        self.forces[0, 1, 3, 0] = 5
+        self.forces[1, 0, 1, 2] = -5
+        support, body, wrong_load = self.state()
+        self.assertFalse(bool(support.any()))
+        self.assertTrue(bool(body.all()))
+        torch.testing.assert_close(wrong_load, torch.tensor([[True, False], [False, True]]))
+
+    def test_each_patch_checks_its_own_terrain_on_stairs_and_clone_origins(self):
+        self.distal_heights[:] = torch.tensor([[[0, .1, .2], [0, .1, .2]],
+                                             [[1.5, 1.6, 1.7], [1.5, 1.6, 1.7]]])
+        self.distal[..., 2] = self.distal_heights
+        self.proximal_heights[:] = torch.tensor([[[.1, .2], [.3, .4]],
+                                               [[1.6, 1.7], [1.8, 1.9]]])
+        self.proximal[..., 2] = self.proximal_heights + .05
+        self.proximal[1, 1, 1, 2] = self.proximal_heights[1, 1, 1] + .003
+        self.forces[:, -1, [3, 1], 2] = 5
+        support, body, wrong_load = self.state()
+        torch.testing.assert_close(support, torch.tensor([[True, True], [True, False]]))
+        torch.testing.assert_close(body, torch.tensor([False, True]))
+        torch.testing.assert_close(wrong_load, torch.tensor([[False, False], [False, True]]))
+
+    def test_distal_support_does_not_mask_separate_nonfoot_collision(self):
+        self.forces[:, -1, [3, 1], 2] = 5
+        self.forces[0, 0, 2, 0] = 5
+        support, body, wrong_load = self.state()
+        self.assertTrue(bool(support.all()))
+        torch.testing.assert_close(body, torch.tensor([True, False]))
+        self.assertFalse(bool(wrong_load.any()))
+
+    def test_proximal_tolerance_is_inclusive_and_does_not_relax_distal_tolerance(self):
+        self.forces[:, -1, [3, 1], 2] = 5
+        self.proximal[0, 0, :, 2] = 0.004
+        self.proximal[0, 1, :, 2] = 0.00401
+        self.distal[1, 0, :, 2] = 0.00401
+        support, _, wrong_load = self.state()
+        torch.testing.assert_close(support, torch.tensor([[False, True], [False, True]]))
+        torch.testing.assert_close(wrong_load, ~support)
+
+    def test_proximal_geometry_and_tolerance_validation(self):
+        invalid = (
+            ("proximal_foot_positions_w", torch.zeros((1, 2, 2, 3))),
+            ("proximal_foot_positions_w", torch.zeros((2, 2, 0, 3))),
+            ("proximal_foot_positions_w", self.proximal.long()),
+            ("proximal_surface_heights", self.proximal_heights.long()),
+            ("proximal_foot_positions_w", self.proximal.to("meta")),
+            ("proximal_height_tolerance", -1),
+            ("proximal_height_tolerance", math.inf),
+            ("proximal_height_tolerance", math.nan),
+        )
+        for key, value in invalid:
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                CONTACT.distal_foot_contact_state(self.forces, **{**self.options, key: value})
+
+
 if __name__ == "__main__":
     unittest.main()

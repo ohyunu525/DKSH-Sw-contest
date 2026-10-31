@@ -1,0 +1,347 @@
+{
+  "task": "Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2",
+  "action_semantics": "absolute_joint_angles_v2",
+  "cad_asset_sha256": "2b95a93302d88c274349598e2e79064f124f069c9136efd7d0bf5320f10b2663",
+  "cad_readiness": {
+    "ready": false,
+    "manifest": "C:\\Users\\COM\\Documents\\GitHub\\DKSH-Sw-contest\\isaaclab_project\\assets\\spiderbot_variants\\cad_source.json",
+    "manifest_sha256": "288eecff59498602a07860be71d2cb1e8dbf980de7f460d87a090ca6c3ecb8b5",
+    "source_url": "https://cad.onshape.com/documents/f646c0fde8bd91cfa43cbae7/w/279609403375cff4404c6eae/e/76a6985095c8e8f19d67aec6",
+    "lifecycle": "in_progress",
+    "blockers": [
+      "Onshape lifecycle is not released_for_simulation",
+      "link mass/COM data with motor inclusion labels are incomplete",
+      "MG996R/RC920DMG layout is not verified in CAD",
+      "servo operating-point specs lack a versioned source or bench verification"
+    ],
+    "provisional_override": true
+  },
+  "terrain_observation_contract": "terrain_full48_all_presets_v2",
+  "observation_contract": "joint_angles_targets_target_velocity_terrain48_v2",
+  "reward_contract": "signed_progress_huber_speed_knee_clearance_com_foot_slip_v2",
+  "contact_contract": "cad6_toe_button_hysteresis_v1",
+  "control_contract": "absolute_targets_rate_limited_observed_velocity_v2",
+  "behavior_profile": "revised_v7_com",
+  "source_behavior_profile": "revised_v7_com",
+  "source_reward_contract": "signed_progress_huber_speed_knee_clearance_com_foot_slip_v2",
+  "source_contact_contract": "cad6_toe_button_hysteresis_v1",
+  "behavior_transfer_requested": false,
+  "behavior_transfer_applied": false,
+  "mass_assumption": "Onshape CAD6 links 1.792339 kg + L2 0.230 kg; known mixed-servo masses are recorded but not redistributed across provisional link inertias",
+  "toe_button_sensor": {
+    "model": "virtual_toe_button_force_hysteresis_v1",
+    "count": 6,
+    "offsets_in_tibia_link_frame_m": [
+      [
+        0.137,
+        0.01,
+        -0.02572
+      ],
+      [
+        0.137,
+        0.01,
+        -0.02572
+      ],
+      [
+        0.137,
+        0.01,
+        -0.02572
+      ],
+      [
+        0.137,
+        0.01,
+        -0.02572
+      ],
+      [
+        0.01,
+        -0.137,
+        -0.02572
+      ],
+      [
+        0.0150579,
+        -0.136537,
+        -0.02572
+      ]
+    ],
+    "press_force_threshold_n": 1.0,
+    "release_force_threshold_n": 0.5,
+    "toe_surface_gap_tolerance_m": 0.004,
+    "physical_switch_geometry_in_cad": false,
+    "physical_switch_stroke_modelled": false,
+    "signal_source": "upward tibia ContactSensor force plus CAD distal-toe witness proximity"
+  },
+  "environment": "stairs",
+  "difficulty": 1.0,
+  "seed": 42,
+  "actions": 18,
+  "observations": 140,
+  "environments": 256,
+  "course_training": null,
+  "joint_names": [
+    "leg_0_hip_joint",
+    "leg_0_femur_joint",
+    "leg_0_tibia_joint",
+    "leg_1_hip_joint",
+    "leg_1_femur_joint",
+    "leg_1_tibia_joint",
+    "leg_2_hip_joint",
+    "leg_2_femur_joint",
+    "leg_2_tibia_joint",
+    "leg_3_hip_joint",
+    "leg_3_femur_joint",
+    "leg_3_tibia_joint",
+    "leg_4_hip_joint",
+    "leg_4_femur_joint",
+    "leg_4_tibia_joint",
+    "leg_5_hip_joint",
+    "leg_5_femur_joint",
+    "leg_5_tibia_joint"
+  ],
+  "angle_limits_rad": [
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ],
+    [
+      -1.5707963705062866,
+      1.5707963705062866
+    ]
+  ],
+  "target_rate_limit_rad_s": 1.5,
+  "target_smoothing": 0.35,
+  "target_speed_mps": 0.2,
+  "speed_tracking_sigma_mps": 0.015,
+  "progress_reward_scale": 25.0,
+  "speed_cost_scale": -0.5,
+  "knee_below_body_approach_fraction": 0.5,
+  "knee_below_body_penalty_scale": -5.0,
+  "body_bottom_offset_z_m": -0.126578,
+  "distal_contact_height_tolerance": 0.004,
+  "proximal_contact_height_tolerance": 0.008,
+  "knee_ground_clearance_m": 0.03,
+  "knee_ground_clearance_cost_scale": -5.0,
+  "non_distal_support_cost_scale": -15.0,
+  "servo_velocity_limits_rad_s": [
+    5.511566162109375,
+    6.544984817504883,
+    6.544984817504883,
+    5.511566162109375,
+    6.544984817504883,
+    6.544984817504883,
+    5.511566162109375,
+    6.544984817504883,
+    6.544984817504883,
+    5.511566162109375,
+    6.544984817504883,
+    6.544984817504883,
+    5.511566162109375,
+    6.544984817504883,
+    6.544984817504883,
+    5.511566162109375,
+    6.544984817504883,
+    6.544984817504883
+  ],
+  "actuator_contract": "mg996r_4v8_rc920dmg_5v_v1",
+  "servo_model": null,
+  "servo_reference_voltage_v": null,
+  "servo_stall_torque_nm": null,
+  "servo_effort_limit_nm": null,
+  "hip_servo_model": "MG996R",
+  "leg_servo_model": "RC920DMG",
+  "hip_servo_reference_voltage_v": 4.8,
+  "leg_servo_reference_voltage_v": 5.0,
+  "hip_servo_stall_torque_nm": 0.9218251000000001,
+  "leg_servo_stall_torque_nm": 1.8632635,
+  "hip_servo_effort_limit_nm": 0.6913688250000001,
+  "leg_servo_effort_limit_nm": 1.3974476249999999,
+  "supply_voltage": null,
+  "known_servo_mass_per_leg_kg": 0.175,
+  "control_frequency_hz": 50.0,
+  "exploration_profile": "independent_std_bounds_v1",
+  "exploration_initial_std": 0.08,
+  "exploration_min_std": 0.03,
+  "exploration_max_std": 0.3,
+  "exploration_std_cap": 0.3,
+  "initial_saturation_reference_std": 0.021184403588553256,
+  "exploration_reference_saturation_probability": 0.01,
+  "source_exploration_bounds": {
+    "initial": 0.08,
+    "minimum": 0.03,
+    "maximum": 0.3
+  },
+  "exploration_bounds_changed": false,
+  "exploration_std_reset_requested": false,
+  "exploration_std_reset_applied": false,
+  "source_checkpoint": "C:\\Users\\COM\\Documents\\GitHub\\DKSH-Sw-contest\\logs\\rsl_rl\\dksh_mg996r_hip_cad6_jointangles_v2_obstacles\\2026-10-29_13-31-45_905442\\model_20000.pt",
+  "source_sha256": "e694b7c278cf35706945fb6fe986e0f7481b5328d6bad258e07b2002bd4253c9",
+  "additional_iterations": 500,
+  "status": "completed",
+  "learning_rate_before": 5.0625000000000024e-05,
+  "optimizer_learning_rates_before": [
+    5.0625000000000024e-05
+  ],
+  "exploration_std_before": [
+    0.0824483260512352,
+    0.034853264689445496,
+    0.06136016920208931,
+    0.03661500662565231,
+    0.04587671160697937,
+    0.0505656972527504,
+    0.03996586427092552,
+    0.030962945893406868,
+    0.034035857766866684,
+    0.05059447139501572,
+    0.059025250375270844,
+    0.05755704641342163,
+    0.031744781881570816,
+    0.041238412261009216,
+    0.045569926500320435,
+    0.07725843787193298,
+    0.05207668989896774,
+    0.05023081228137016
+  ],
+  "exploration_std_after": [
+    0.0824483260512352,
+    0.034853264689445496,
+    0.06136016920208931,
+    0.03661500662565231,
+    0.04587671160697937,
+    0.0505656972527504,
+    0.03996586427092552,
+    0.030962945893406868,
+    0.034035857766866684,
+    0.05059447139501572,
+    0.059025250375270844,
+    0.05755704641342163,
+    0.031744781881570816,
+    0.041238412261009216,
+    0.045569926500320435,
+    0.07725843787193298,
+    0.05207668989896774,
+    0.05023081228137016
+  ],
+  "exploration_std_optimizer_state_cleared": false,
+  "learning_rate_after": 5.0625000000000024e-05,
+  "optimizer_learning_rates_after": [
+    5.0625000000000024e-05
+  ],
+  "exploration_std_initial": [
+    0.0824483260512352,
+    0.034853264689445496,
+    0.06136016920208931,
+    0.03661500662565231,
+    0.04587671160697937,
+    0.0505656972527504,
+    0.03996586427092552,
+    0.030962945893406868,
+    0.034035857766866684,
+    0.05059447139501572,
+    0.059025250375270844,
+    0.05755704641342163,
+    0.031744781881570816,
+    0.041238412261009216,
+    0.045569926500320435,
+    0.07725843787193298,
+    0.05207668989896774,
+    0.05023081228137016
+  ],
+  "start_iteration": 20001,
+  "final_checkpoint": "model_20500.pt",
+  "final_sha256": "be224ebb848eb8d6c42ab57b1c9359347fdb7f5ac4863c201bf0a6c7a2604b7e",
+  "final_iteration": 20500,
+  "completed_episodes": {
+    "episodes": 17313,
+    "goal": 17310,
+    "fallen": 0,
+    "time_out": 3,
+    "out_of_bounds": 0
+  },
+  "exploration_std_final": [
+    0.0702839195728302,
+    0.030423881486058235,
+    0.06172582879662514,
+    0.030140094459056854,
+    0.0346280001103878,
+    0.03973700851202011,
+    0.03314347192645073,
+    0.030412977561354637,
+    0.032615333795547485,
+    0.04179234057664871,
+    0.0565464049577713,
+    0.05077176168560982,
+    0.029999999329447746,
+    0.04002758860588074,
+    0.03751787543296814,
+    0.0779508426785469,
+    0.049575697630643845,
+    0.05645563825964928
+  ],
+  "learning_rate_final": 7.593750000000004e-05,
+  "optimizer_learning_rates_final": [
+    7.593750000000004e-05
+  ]
+}

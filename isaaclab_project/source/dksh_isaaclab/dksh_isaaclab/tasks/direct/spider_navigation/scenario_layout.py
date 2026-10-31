@@ -44,7 +44,9 @@ class ScenarioLayout:
 
 def validate_environment(preset: str, difficulty: float) -> None:
     """Raise ``ValueError`` for an unsupported preset or invalid difficulty."""
-    if preset not in ENVIRONMENT_PRESETS:
+    # Curriculum uses its own fixed-pool, per-environment sampler. Keep the
+    # historical presets below stable for reproducible baseline evaluation.
+    if preset not in (*ENVIRONMENT_PRESETS, "curriculum"):
         raise ValueError(
             f"Unknown environment preset {preset!r}; choose from {', '.join(ENVIRONMENT_PRESETS)}."
         )
@@ -77,6 +79,8 @@ def build_layout(
     vibration and falling debris, with an open top so debris reaches the robot.
     """
     validate_environment(preset, difficulty)
+    if preset == "curriculum":
+        raise ValueError("Curriculum courses must be generated with sample_course, not build_layout")
     for name, value, maximum in (("robot_width", robot_width, 1.2), ("robot_height", robot_height, 2.0)):
         if (
             isinstance(value, bool)

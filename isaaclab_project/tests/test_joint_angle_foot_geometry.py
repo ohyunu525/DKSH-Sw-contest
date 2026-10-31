@@ -169,6 +169,64 @@ class FootGeometryTests(unittest.TestCase):
                 lowest = lambda points: min(sum(p*d for p, d in zip(point, direction)) for point in points)
                 self.assertAlmostEqual(lowest(anchors), lowest(foot_points), delta=5e-7)
 
+    def test_distal_and_proximal_patches_use_actual_hull_in_every_link_frame(self):
+        geometry = GEOMETRY
+        distal_indices = [i for i, point in enumerate(geometry._FOOT_HULL_POINTS_M)
+                          if point[1] >= max(p[1] for p in geometry._FOOT_HULL_POINTS_M) - 0.020]
+        proximal_indices = [i for i, point in enumerate(geometry._FOOT_HULL_POINTS_M)
+                            if i not in distal_indices]
+        self.assertEqual(geometry.ONSHAPE_DISTAL_FOOT_LENGTH_M, 0.020)
+        self.assertGreater(len(distal_indices), 1)
+        self.assertGreater(len(proximal_indices), 1)
+        self.assertFalse(set(distal_indices) & set(proximal_indices))
+        self.assertEqual(set(distal_indices) | set(proximal_indices), set(range(137)))
+        self.assertTrue(any(0.050 < geometry._FOOT_HULL_POINTS_M[i][1] < 0.125
+                            for i in proximal_indices))
+        self.assertEqual(geometry.ONSHAPE_DISTAL_FOOT_SUPPORT_VERTEX_COUNT, len(distal_indices))
+        self.assertEqual(geometry.ONSHAPE_PROXIMAL_FOOT_VERTEX_COUNT, len(proximal_indices))
+        for full, distal, proximal in zip(geometry.ONSHAPE_FOOT_SUPPORT_OFFSETS,
+                                         geometry.ONSHAPE_DISTAL_FOOT_SUPPORT_OFFSETS,
+                                         geometry.ONSHAPE_PROXIMAL_FOOT_OFFSETS):
+            self.assertEqual(distal, tuple(full[index] for index in distal_indices))
+            self.assertEqual(proximal, tuple(full[index] for index in proximal_indices))
+            self.assertEqual(len(distal), geometry.ONSHAPE_DISTAL_FOOT_SUPPORT_VERTEX_COUNT)
+            self.assertEqual(len(proximal), geometry.ONSHAPE_PROXIMAL_FOOT_VERTEX_COUNT)
+
+    def test_raised_toe_knee_side_grounding_does_not_reach_distal_patch(self):
+        # A posture that the historical full-hull contract accepted is invalid
+        # for the new toe-supported gait: the long proximal piece reaches the
+        # floor while the last 20 mm remain visibly airborne.
+        angles = {"leg_0_femur_joint": 0.1, "leg_0_tibia_joint": 0.1}
+        tibia = self.world_frame("leg_0_tibia", angles)
+        full_ground = min(transform(tibia, point)[2]
+                          for point in GEOMETRY.ONSHAPE_FOOT_SUPPORT_OFFSETS[0])
+        distal_ground = min(transform(tibia, point)[2]
+                            for point in GEOMETRY.ONSHAPE_DISTAL_FOOT_SUPPORT_OFFSETS[0])
+        proximal_ground = min(transform(tibia, point)[2]
+                              for point in GEOMETRY.ONSHAPE_PROXIMAL_FOOT_OFFSETS[0])
+        self.assertAlmostEqual(full_ground, proximal_ground, delta=1e-9)
+        self.assertGreater(distal_ground - full_ground, 0.020)
+
+    def test_all_legs_have_reachable_distal_support_with_non_distal_patch_clear(self):
+        # A feasible witness within the existing limits verifies that rejecting
+        # the entire remaining shaft does not make distal support impossible.
+        # This is a geometry check, not a forced gait or reset posture.
+        for leg in range(6):
+            with self.subTest(leg=leg):
+                angles = {f"leg_{leg}_femur_joint": -0.30, f"leg_{leg}_tibia_joint": -0.30}
+                tibia = self.world_frame(f"leg_{leg}_tibia", angles)
+                full_ground = min(transform(tibia, point)[2]
+                                  for point in GEOMETRY.ONSHAPE_FOOT_SUPPORT_OFFSETS[leg])
+                distal_ground = min(transform(tibia, point)[2]
+                                    for point in GEOMETRY.ONSHAPE_DISTAL_FOOT_SUPPORT_OFFSETS[leg])
+                non_distal_ground = min(transform(tibia, point)[2]
+                                        for point in GEOMETRY.ONSHAPE_PROXIMAL_FOOT_OFFSETS[leg])
+                button = transform(tibia, GEOMETRY.ONSHAPE_TOE_BUTTON_OFFSETS[leg])
+                self.assertAlmostEqual(distal_ground, full_ground, delta=1e-9)
+                self.assertAlmostEqual(button[2], full_ground, delta=1e-6)
+                self.assertGreater(non_distal_ground - full_ground, 0.008)
+                self.assertGreater(tibia[2][3] - full_ground, 0.080)
+
     def test_rotated_heel_support_fixes_the_twelve_mm_toe_false_negative(self):
         for angle in (0.0, math.radians(0.9), 0.03, 0.1):
             angles = {"leg_0_femur_joint": angle, "leg_0_tibia_joint": angle}

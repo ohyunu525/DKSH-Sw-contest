@@ -1,0 +1,174 @@
+[INFO] Using python from: C:\Users\COM\Documents\GitHub\DKSH-Sw-contest\IsaacLab\\_isaac_sim\python.bat
+Loading user config located at: 'c:/users/com/documents/github/dksh-sw-contest/isaaclab/_isaac_sim/kit/data/Kit/Isaac-Sim/4.5/user.config.json'
+[Info] [carb] Logging to file: c:/users/com/documents/github/dksh-sw-contest/isaaclab/_isaac_sim/kit/logs/Kit/Isaac-Sim/4.5/kit_20261031_162304.log
+2026-10-31 07:23:04 [0ms] [Warning] [omni.kit.app.plugin] No crash reporter present, dumps uploading isn't available.
+2026-10-31 07:23:05 [883ms] [Warning] [omni.usd_config.extension] Enable omni.materialx.libs extension to use MaterialX
+2026-10-31 07:23:05 [1,318ms] [Warning] [omni.datastore] OmniHub is inaccessible
+2026-10-31 07:23:05 [1,512ms] [Warning] [omni.isaac.dynamic_control] omni.isaac.dynamic_control is deprecated as of Isaac Sim 4.5. No action is needed from end-users.
+
+|---------------------------------------------------------------------------------------------|
+| Driver Version: 560.94        | Graphics API: D3D12
+|=============================================================================================|
+| GPU | Name                             | Active | LDA | GPU Memory | Vendor-ID | LUID       |
+|     |                                  |        |     |            | Device-ID | UUID       |
+|     |                                  |        |     |            | Bus-ID    |            |
+|---------------------------------------------------------------------------------------------|
+| 0   | NVIDIA GeForce RTX 3070          | Yes: 0 |     | 8018    MB | 10de      | d0db0000.. |
+|     |                                  |        |     |            | 2488      | 0          |
+|     |                                  |        |     |            | 1         |            |
+|=============================================================================================|
+| OS: Windows 10 Education, Version: 10.0 (22H2), Build: 19045, Kernel: 10.0.19041.6456
+| Processor: 12th Gen Intel(R) Core(TM) i5-12600KF
+| Cores: 10 | Logical Cores: 16
+|---------------------------------------------------------------------------------------------|
+| Total Memory (MB): 32619 | Free Memory: 21112
+| Total Page/Swap (MB): 37483 | Free Page/Swap: 21085
+|---------------------------------------------------------------------------------------------|
+2026-10-31 07:23:10 [6,371ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdPreviewSurface.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 07:23:10 [6,372ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdUVTexture.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 07:23:10 [6,372ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdPrimvarReader_float.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 07:23:10 [6,372ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdPrimvarReader_float2.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 07:23:10 [6,373ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdPrimvarReader_float3.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 07:23:10 [6,373ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdPrimvarReader_float4.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 07:23:10 [6,373ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolv[INFO][AppLauncher]: Loading experience file: C:\Users\COM\Documents\GitHub\DKSH-Sw-contest\IsaacLab\apps\isaaclab.python.headless.kit
+[INFO]: Parsing configuration from: dksh_isaaclab.tasks.direct.spider_navigation.joint_angle_env_cfg:MG996RHipCad6JointAngleEnvCfg
+[INFO]: Parsing configuration from: dksh_isaaclab.tasks.direct.spider_navigation.joint_angle_env_cfg:JointAnglePPORunnerCfg
+Setting seed: 42
+[INFO]: Base environment:
+	Environment device    : cuda:0
+	Environment seed      : 42
+	Physics step-size     : 0.005
+	Rendering step-size   : 0.02
+	Environment step-size : 0.02
+[INFO]: Time taken for scene creation : 1.407575 seconds
+[INFO]: Scene manager:  <class InteractiveScene>
+	Number of environments: 1024
+	Environment spacing   : 7.0
+	Source prim name      : /World/envs/env_0
+	Global prim paths     : ['/World/ground']
+	Replicate physics     : True
+[INFO]: Starting the simulation. This may take a few seconds. Please wait...
+[INFO]: Time taken for simulation start : 2.018413 seconds
+[INFO]: Completed setting up the environment...
+Actor MLP: Sequential(
+  (0): Linear(in_features=140, out_features=256, bias=True)
+  (1): ELU(alpha=1.0)
+  (2): Linear(in_features=256, out_features=128, bias=True)
+  (3): ELU(alpha=1.0)
+  (4): Linear(in_features=128, out_features=64, bias=True)
+  (5): ELU(alpha=1.0)
+  (6): Linear(in_features=64, out_features=18, bias=True)
+)
+Critic MLP: Sequential(
+  (0): Linear(in_features=140, out_features=256, bias=True)
+  (1): ELU(alpha=1.0)
+  (2): Linear(in_features=256, out_features=128, bias=True)
+  (3): ELU(alpha=1.0)
+  (4): Linear(in_features=128, out_features=64, bias=True)
+  (5): ELU(alpha=1.0)
+  (6): Linear(in_features=64, out_features=1, bias=True)
+)
+################################################################################
+                    [1m Learning iteration 27751/27753 [0m                    
+
+                       Computation: 13296 steps/s (collection: 9.618s, learning 0.240s)
+             Mean action noise std: 0.04
+                    value_function: 97.1959
+                         surrogate: 0.0106
+                           entropy: -31.7207
+         Metrics/forward_speed_mps: 0.0592
+   Metrics/step_progress_speed_mps: 0.0600
+        Metrics/mechanical_power_w: 1.7129
+                Metrics/progress_m: 0.0012
+         Metrics/reward_progress_m: 0.0012
+              Metrics/body_contact: 0.9844
+          Metrics/joint_limit_cost: 0.0000
+           Metrics/foot_slip_m2_s2: 0.0289
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0024
+    Metrics/target_rate_saturation: 0.8544
+         Metrics/torque_saturation: 0.0013
+        Metrics/tracking_error_rad: 0.0369
+              Metrics/feet_contact: 0.6152
+      Metrics/target_excursion_rad: 0.2251
+       Metrics/joint_excursion_rad: 0.2195
+  Metrics/joint_velocity_rms_rad_s: 1.2293
+     Metrics/mean_foot_clearance_m: 0.0016
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.0000
+Metrics/non_distal_support_fraction: 0.9844
+Metrics/mean_knee_ground_clearance_m: 0.0225
+Metrics/knee_ground_clearance_violation_fraction: 0.9504
+--------------------------------------------------------------------------------
+                   Total timesteps: 131072
+                    Iteration time: 9.86s
+                        Total time: 9.86s
+                               ETA: 19.7s
+
+Storing git diff for 'IsaacLab' in: C:\Users\COM\Documents\GitHub\DKSH-Sw-contest\logs\rsl_rl\dksh_mg996r_hip_cad6_jointangles_v2_curriculum\2026-10-31_16-23-09_628202\git\IsaacLab.diff
+################################################################################
+                    [1m Learning iteration 27752/27753 [0m                    
+
+                       Computation: 13528 steps/s (collection: 9.513s, learning 0.176s)
+             Mean action noise std: 0.04
+                    value_function: 35.9385
+                         surrogate: -0.0006
+                           entropy: -31.7135
+         Metrics/forward_speed_mps: 0.0309
+   Metrics/step_progress_speed_mps: 0.0318
+        Metrics/mechanical_power_w: 2.4206
+                Metrics/progress_m: 0.0006
+         Metrics/reward_progress_m: 0.0006
+              Metrics/body_contact: 1.0000
+          Metrics/joint_limit_cost: 0.0000
+           Metrics/foot_slip_m2_s2: 0.0405
+                      Metrics/goal: 0.0000
+                    Metrics/fallen: 0.0000
+             Metrics/out_of_bounds: 0.0000
+         Metrics/target_rate_rad_s: 1.5000
+         Metrics/travel_distance_m: 0.0020
+    Metrics/target_rate_saturation: 0.8336
+         Metrics/torque_saturation: 0.0078
+        Metrics/tracking_error_rad: 0.0561
+              Metrics/feet_contact: 2.3792
+      Metrics/target_excursion_rad: 0.2501
+       Metrics/joint_excursion_rad: 0.2438
+  Metrics/joint_velocity_rms_rad_s: 1.1380
+     Metrics/mean_foot_clearance_m: 0.0006
+ Metrics/knees_below_body_fraction: 0.0000
+Metrics/approach_low_knee_time_fraction: 0.0000
+   Metrics/distal_support_fraction: 0.0258
+Metrics/non_distal_support_fraction: 0.9742
+Metrics/mean_knee_ground_clearance_m: 0.0223
+Metrics/knee_ground_clearance_violation_fraction: 0.9570
+--------------------------------------------------------------------------------
+                   Total timesteps: 262144
+                    Iteration time: 9.69s
+                        Total time: 19.55s
+                               ETA: 9.8s
+
+DKSH_JOINT_ANGLE_TRAINING_COMPLETE C:\Users\COM\Documents\GitHub\DKSH-Sw-contest\logs\rsl_rl\dksh_mg996r_hip_cad6_jointangles_v2_curriculum\2026-10-31_16-23-09_628202\model_27752.pt
+e info:sourceAsset </UsdPrimvarReader_int.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 07:23:10 [6,375ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdPrimvarReader_string.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 07:23:10 [6,376ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdPrimvarReader_normal.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 07:23:10 [6,376ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdPrimvarReader_point.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 07:23:10 [6,377ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdPrimvarReader_vector.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 07:23:10 [6,377ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdPrimvarReader_matrix.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+
+2026-10-31 07:23:10 [6,377ms] [Warning] [omni.usd] Warning: in GetNodeDiscoveryResults at line 136 of C:\g\122538378\USD\pxr\usd\usdShade\shaderDefUtils.cpp -- Unable to resolve info:sourceAsset </UsdTransform2d.info:mdl:sourceAsset> with value @UsdPreviewSurface.mdl@.
+

@@ -15,11 +15,14 @@ from .joint_angle_control import (
 )
 from .joint_angle_contact import (
     sole_contact_state, foot_contact_state, closest_foot_support, toe_button_contact_state,
+    distal_foot_contact_state,
 )
 
 
 class JointAngleNavigationEnv(SpiderNavigationEnv):
     def __init__(self, cfg, render_mode=None, **kwargs):
+        if cfg.environment_preset == "curriculum" and cfg.behavior_profile != "revised_v7":
+            raise ValueError("Mixed-course curriculum requires revised_v7 distal-support behavior")
         cfg.robot = cfg.robot.copy()
         cfg.robot.spawn.activate_contact_sensors = True
         cfg.robot.spawn.articulation_props.enabled_self_collisions = cfg.enable_self_collisions
@@ -65,6 +68,20 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             self._foot_support_offsets = self._sole_offset.unsqueeze(2)
         else:
             self._foot_support_offsets = torch.tensor(support_offsets, device=self.device).unsqueeze(0).expand(self.num_envs, -1, -1, -1)
+        self._distal_foot_support_offsets = None
+        self._proximal_foot_offsets = None
+        if cfg.behavior_profile == "revised_v7":
+            for setting, attribute in (("distal_foot_support_offsets", "_distal_foot_support_offsets"),
+                                       ("proximal_foot_offsets", "_proximal_foot_offsets")):
+                values = getattr(cfg, setting)
+                if values is None:
+                    raise ValueError(f"Distal-support profile requires {setting}")
+                offsets = torch.tensor(values, device=self.device)
+                if offsets.ndim != 3 or offsets.shape[0] != len(self._feet) or offsets.shape[1] < 1 or offsets.shape[2] != 3:
+                    raise ValueError(f"{setting} must provide nonempty 3-D CAD points per foot")
+                setattr(self, attribute, offsets.unsqueeze(0).expand(self.num_envs, -1, -1, -1))
+            if cfg.knee_ground_clearance_m <= 0:
+                raise ValueError("knee_ground_clearance_m must be positive")
         button_offsets = cfg.toe_button_offsets
         self._toe_button_offsets = (None if button_offsets is None else
                                     torch.tensor(button_offsets, device=self.device).unsqueeze(0)
@@ -81,10 +98,11 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         if self._servo_velocity_limits.shape[-1] not in (1, cfg.action_space):
             raise ValueError("servo_velocity_limit must be scalar or provide one value per action")
         self.completed = {name: 0 for name in ("episodes", "goal", "fallen", "time_out", "out_of_bounds")}
+        self.completed_course_records = []
         self._episode_sums = {name: torch.zeros(self.num_envs, device=self.device) for name in (
             "progress", "speed", "upright", "joint_limit", "joint_velocity", "torque", "power",
             "target_acceleration", "body_contact", "foot_slip", "angular_velocity", "stillness",
-            "goal", "failure", "debris_impact", "knee_clearance",
+            "goal", "failure", "debris_impact", "knee_clearance", "non_distal_support",
         )}
         self.step_metrics = {}
 
@@ -125,7 +143,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         self._processed_actions[:, self._joint_ids] = targets
 
     def _contact_state(self):
-        if self.cfg.behavior_profile in ("revised_v4", "revised_v5", "revised_v6", "revised_v7"):
+        if self.cfg.behavior_profile in ("revised_v4", "revised_v5", "revised_v6", "revised_v7", "revised_v7_com"):
             if self._toe_button_offsets is None or self._foot_support_offsets is None:
                 raise ValueError("Toe-button profiles require CAD toe-button and foot-support geometry")
             points, surfaces = self._foot_support_geometry()
@@ -144,6 +162,9 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
                 button_height_tolerance=self.cfg.toe_button_height_tolerance,
             )
             self._toe_button_pressed.copy_(pressed)
+            if self.cfg.behavior_profile == "revised_v7":
+                _, distal_body, _ = self._distal_contact_state()
+                body |= distal_body
             return self._toe_button_pressed, body
         if self.cfg.behavior_profile != "legacy_v2" and self.cfg.foot_support_offsets is not None:
             points, surfaces = self._foot_support_geometry()
@@ -166,14 +187,27 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             height_tolerance=self.cfg.sole_contact_height_tolerance,
         )
 
-    def _foot_support_geometry(self):
-        offsets = self._foot_support_offsets
+    def _foot_support_geometry(self, offsets=None):
+        offsets = self._foot_support_offsets if offsets is None else offsets
         rotations = self._robot.data.body_link_quat_w[:, self._feet, None, :].expand(-1, -1, offsets.shape[2], -1)
         rotated = quat_rotate(rotations.reshape(-1, 4), offsets.reshape(-1, 3)).reshape_as(offsets)
         points = self._robot.data.body_link_pos_w[:, self._feet, None, :] + rotated
         surfaces = (self.scene.env_origins[:, None, 2:3].expand(points.shape[:-1])
                     if self._scenario is None else self._scenario.surface_heights(points.flatten(1, 2)).reshape(points.shape[:-1]))
         return points, surfaces
+
+    def _distal_contact_state(self):
+        distal, distal_surfaces = self._foot_support_geometry(self._distal_foot_support_offsets)
+        proximal, proximal_surfaces = self._foot_support_geometry(self._proximal_foot_offsets)
+        return distal_foot_contact_state(
+            self._contacts.data.net_forces_w_history,
+            sensor_feet=self._sensor_feet, sensor_body=self._sensor_body,
+            distal_foot_positions_w=distal, distal_surface_heights=distal_surfaces,
+            proximal_foot_positions_w=proximal, proximal_surface_heights=proximal_surfaces,
+            force_threshold=self.cfg.contact_threshold,
+            height_tolerance=self.cfg.distal_contact_height_tolerance,
+            proximal_height_tolerance=self.cfg.proximal_contact_height_tolerance,
+        )
 
     def _toe_button_world_positions(self):
         rotations = self._robot.data.body_link_quat_w[:, self._feet]
@@ -247,7 +281,8 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         if self._scenario is None:
             self._out_of_bounds = torch.linalg.vector_norm(local[:, :2], dim=-1) > self.cfg.max_distance_from_origin
         else:
-            self._out_of_bounds = (local[:, 0].abs() > 2.5) | (local[:, 1].abs() > self._scenario.layout.corridor_width / 2)
+            widths = getattr(self._scenario, "corridor_widths", self._scenario.layout.corridor_width)
+            self._out_of_bounds = (local[:, 0].abs() > 2.5) | (local[:, 1].abs() > widths / 2)
         return self._reached_goal | self._fallen() | self._out_of_bounds, self.episode_length_buf >= self.max_episode_length - 1
 
     def _get_rewards(self):
@@ -273,7 +308,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             points, surfaces = self._foot_support_geometry()
             support, support_height, _ = closest_foot_support(points, surfaces)
             offset = support - data.body_link_pos_w[:, self._feet]
-            if self.cfg.behavior_profile in ("revised_v6", "revised_v7"):
+            if self.cfg.behavior_profile in ("revised_v6", "revised_v7", "revised_v7_com"):
                 # A raised toe button does not remove a grounded heel's slip.
                 # Use the closest hull witness already selected for velocity,
                 # while observations and goal gates retain the button bits.
@@ -289,7 +324,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             support = data.body_link_pos_w[:, self._feet] + offset
             support_height = (self.scene.env_origins[:, 2:3] if self._scenario is None
                               else self._scenario.surface_heights(support))
-        if self.cfg.behavior_profile == "revised_v7":
+        if self.cfg.behavior_profile == "revised_v7_com":
             offset = support - data.body_com_pos_w[:, self._feet]
         velocity = point_velocity(data.body_link_lin_vel_w[:, self._feet], data.body_link_ang_vel_w[:, self._feet], offset)
         if self._scenario is not None:
@@ -300,7 +335,28 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         knee_below_body_fraction = torch.zeros_like(self._goal_hold_time)
         approach_low_knee_fraction = torch.zeros_like(self._goal_hold_time)
         knee_clearance_rate = torch.zeros_like(self._goal_hold_time)
-        if self.cfg.behavior_profile in ("revised_v5", "revised_v6", "revised_v7"):
+        non_distal_support_rate = torch.zeros_like(self._goal_hold_time)
+        distal_support_fraction = torch.zeros_like(self._goal_hold_time)
+        non_distal_support_fraction = torch.zeros_like(self._goal_hold_time)
+        mean_knee_ground_clearance = torch.zeros_like(self._goal_hold_time)
+        knee_ground_clearance_violation = torch.zeros_like(self._goal_hold_time)
+        if self.cfg.behavior_profile == "revised_v7":
+            distal_support, _, non_distal_loaded = self._distal_contact_state()
+            force_history = self._contacts.data.net_forces_w_history[:, :, self._sensor_feet]
+            loaded = torch.linalg.vector_norm(force_history, dim=-1).amax(dim=1) > self.cfg.contact_threshold
+            loaded_count = loaded.sum(-1).clamp_min(1)
+            distal_support_fraction = distal_support.sum(-1) / loaded_count
+            non_distal_support_fraction = non_distal_loaded.sum(-1) / loaded_count
+            non_distal_support_rate = self.cfg.non_distal_support_cost_scale * non_distal_support_fraction
+            knees = data.body_link_pos_w[:, self._knees]
+            knee_clearance = knees[..., 2] - self._surface_heights(knees)
+            mean_knee_ground_clearance = knee_clearance.mean(-1)
+            knee_ground_clearance_violation = (knee_clearance < self.cfg.knee_ground_clearance_m).float().mean(-1)
+            # Immediate terrain-relative clearance also discourages unloaded
+            # knees from approaching the floor, without prescribing a gait.
+            deficit = (1 - knee_clearance / self.cfg.knee_ground_clearance_m).clamp(0, 1).mean(-1)
+            knee_clearance_rate = self.cfg.knee_ground_clearance_cost_scale * deficit
+        if self.cfg.behavior_profile in ("revised_v5", "revised_v6", "revised_v7_com"):
             knee_z = data.body_link_pos_w[:, self._knees, 2]
             body_bottom_offset = torch.zeros_like(data.root_pos_w)
             body_bottom_offset[:, 2] = self.cfg.body_bottom_offset_z_m
@@ -330,6 +386,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
                 0.1 * self.cfg.target_speed - forward
             ) / self.cfg.speed_tracking_sigma,
             "knee_clearance": knee_clearance_rate,
+            "non_distal_support": non_distal_support_rate,
         }
         terms = {name: rate * self.step_dt for name, rate in rates.items()}
         terms.update(
@@ -364,6 +421,13 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             "knees_below_body_fraction": knee_below_body_fraction,
             "approach_low_knee_time_fraction": approach_low_knee_fraction,
         }
+        if self.cfg.behavior_profile == "revised_v7":
+            self.step_metrics.update(
+                distal_support_fraction=distal_support_fraction,
+                non_distal_support_fraction=non_distal_support_fraction,
+                mean_knee_ground_clearance_m=mean_knee_ground_clearance,
+                knee_ground_clearance_violation_fraction=knee_ground_clearance_violation,
+            )
         self.extras["log"].update({f"Metrics/{name}": value.mean() for name, value in self.step_metrics.items()})
         return torch.stack(tuple(terms.values())).sum(0)
 
@@ -371,6 +435,22 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         if env_ids is None:
             env_ids = self._robot._ALL_INDICES
         valid = env_ids[self.episode_length_buf[env_ids] > 0]
+        if self.cfg.environment_preset == "curriculum" and len(valid):
+            # Capture the completed course before the parent's reset samples
+            # its replacement. Initial/manual resets never count as failures.
+            finished = valid[(self.reset_terminated | self.reset_time_outs)[valid]].sort().values
+            if len(finished):
+                fallen = self._fallen()[finished]
+                outside = self._out_of_bounds[finished]
+                successes = self._reached_goal[finished] & ~fallen & ~outside
+                if self.cfg.evaluation_mode:
+                    records = self._scenario.episode_metadata(finished)
+                    for index, record in enumerate(records):
+                        record["outcome"] = ("fallen" if bool(fallen[index]) else
+                                             "out_of_bounds" if bool(outside[index]) else
+                                             "goal" if bool(successes[index]) else "time_out")
+                    self.completed_course_records.extend(records)
+                self._scenario.record_outcomes(finished, successes)
         counts = {name: 0 for name in self.completed}
         counts["episodes"] = len(valid)
         if len(valid):
@@ -381,6 +461,9 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         for name, count in counts.items():
             self.completed[name] += count
         super()._reset_idx(env_ids)
+        if self.cfg.environment_preset == "curriculum":
+            self.extras["log"].update({f"Curriculum/{key}": value
+                                      for key, value in self._scenario.statistics().items()})
         if hasattr(self, "_toe_button_pressed"):
             self._toe_button_pressed[env_ids] = False
         if self.cfg.evaluation_mode and self._scenario is None:
