@@ -874,11 +874,15 @@ class TerminalContactDiagnosticTests(unittest.TestCase):
         )
         bodies = ["base"] + [f"leg_{leg}_{part}" for leg in range(6)
                               for part in ("hip", "femur", "tibia")]
-        fixed_targets = ["/World/ground"] + [prefix + "Robot/" + body for body in bodies]
-        for preset, scenario, scene_targets in cases:
-            with self.subTest(preset=preset):
+        body_targets = [prefix + "Robot/" + body for body in bodies]
+        for device, (preset, scenario, scene_targets) in (
+            (device, case) for device in ("cpu", "cuda:0") for case in cases
+        ):
+            with self.subTest(preset=preset, device=device):
+                fixed_targets = ([] if device.startswith("cuda") else ["/World/ground"]) + body_targets
                 env = Environment.__new__(Environment)
                 env.cfg = NS(action_space=18, decimation=4, contact_diagnostics_pairs=True)
+                env.device = device
                 env.scene = NS(sensors={})
                 env._scenario = scenario
                 with patch.object(Parent, "_setup_scene", lambda _: None, create=True), patch.dict(
@@ -890,6 +894,10 @@ class TerminalContactDiagnosticTests(unittest.TestCase):
                 self.assertEqual(env._contacts.cfg.history_length, 4)
                 self.assertEqual(env._contact_pair_sources, bodies)
                 self.assertEqual(env._contact_pair_targets, fixed_targets + scene_targets)
+                self.assertEqual(env._contact_pair_unsupported_targets, (
+                    [{"path": "/World/ground", "reason": "gpu_plane_contact_filter_unsupported"}]
+                    if device.startswith("cuda") else []
+                ))
                 self.assertEqual(len(env._contact_pair_sensors), 19)
                 self.assertEqual(len(env.scene.sensors), 20)
                 for body, sensor in zip(bodies, env._contact_pair_sensors):

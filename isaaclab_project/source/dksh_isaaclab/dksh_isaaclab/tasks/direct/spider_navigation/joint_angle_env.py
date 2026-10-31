@@ -171,6 +171,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             self._contact_pair_history = ContactPairHistory(
                 self.num_envs, self._contact_pair_sources, self._contact_pair_targets,
                 history_length=self.cfg.decimation, device=self.device,
+                unsupported_targets=self._contact_pair_unsupported_targets,
             )
         if self._diagnostic_writer is not None:
             self._diagnostic_initial_position = self._robot.data.root_pos_w.clone()
@@ -201,9 +202,21 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
                 f"leg_{leg}_{part}" for leg in range(self.cfg.action_space // 3)
                 for part in ("hip", "femur", "tibia")
             ]
-            self._contact_pair_targets = ["/World/ground"] + [
+            self._contact_pair_unsupported_targets = []
+            self._contact_pair_targets = [
                 f"/World/envs/env_.*/Robot/{name}" for name in self._contact_pair_sources
             ]
+            if str(self.device).startswith("cuda"):
+                # Isaac Sim 4.5 GPU filtering cannot attribute contacts to the
+                # static plane. Keep the real floor and unfiltered sensor; a
+                # zero plane column must never be presented as measured data.
+                self._contact_pair_unsupported_targets.append({
+                    "path": "/World/ground", "reason": "gpu_plane_contact_filter_unsupported",
+                })
+                print("DKSH_CONTACT_DIAGNOSTICS ground_pair_filter=unavailable_gpu_plane "
+                      "unfiltered_forces=retained self_pairs=enabled", flush=True)
+            else:
+                self._contact_pair_targets.insert(0, "/World/ground")
             if self._scenario is not None:
                 if hasattr(self._scenario, "boxes"):
                     self._contact_pair_targets += [body.cfg.prim_path for body in self._scenario.boxes]

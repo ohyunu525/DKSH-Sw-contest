@@ -160,6 +160,43 @@ class ContactPairHistoryTests(unittest.TestCase):
         self.assertEqual(snapshot["filter_target_paths"],
                          ["/World/ground", "/World/envs/env_1/Robot/base"])
         self.assertFalse(snapshot["empty_pairs_prove_no_contact"])
+        self.assertIsNone(snapshot["filter_coverage_complete"])
+        self.assertFalse(snapshot["filter_matching_verified"])
+        self.assertEqual(snapshot["unsupported_filter_targets"], [])
+
+    def test_unsupported_ground_is_explicit_while_body_pair_evidence_is_retained(self):
+        history = DIAGNOSTICS.ContactPairHistory(
+            2, ["leg_1_femur"], ["/World/envs/env_.*/Robot/base"], 1,
+            unsupported_targets=[{"path": "/World/ground", "reason": "gpu_plane_contact_filter_unsupported"}],
+        )
+        force = torch.zeros((2, 1, 1, 3))
+        force[1, 0, 0] = torch.tensor([6.217, -1.0, 0.0])
+        history.capture(force, 0)
+        snapshot = history.snapshot(1)
+        self.assertTrue(snapshot["complete"])  # Every supported filter was sampled.
+        self.assertFalse(snapshot["filter_coverage_complete"])
+        self.assertFalse(snapshot["filter_matching_verified"])
+        self.assertFalse(snapshot["empty_pairs_prove_no_contact"])
+        self.assertEqual(snapshot["filter_target_paths"], ["/World/envs/env_1/Robot/base"])
+        self.assertEqual(snapshot["unsupported_filter_targets"], [
+            {"path": "/World/ground", "reason": "gpu_plane_contact_filter_unsupported"},
+        ])
+        self.assertEqual(len(snapshot["pairs"]), 1)
+        self.assertEqual(snapshot["pairs"][0]["target_path"], "/World/envs/env_1/Robot/base")
+        self.assertAlmostEqual(snapshot["pairs"][0]["samples"][0]["force_w_n"][0], 6.217, places=6)
+        self.assertEqual(history.snapshot(0)["pairs"], [])
+        self.assertFalse(history.snapshot(0)["filter_coverage_complete"])
+
+    def test_unsupported_local_target_path_is_resolved_for_each_environment(self):
+        history = DIAGNOSTICS.ContactPairHistory(
+            2, ["base"], ["/World/envs/env_.*/Robot/leg_0_femur"], 1,
+            unsupported_targets=[{"path": "/World/envs/env_.*/Unsupported_plane", "reason": "backend_unsupported"}],
+        )
+        snapshot = history.snapshot(1)
+        self.assertEqual(snapshot["unsupported_filter_targets"], [
+            {"path": "/World/envs/env_1/Unsupported_plane", "reason": "backend_unsupported"},
+        ])
+        self.assertFalse(snapshot["filter_coverage_complete"])
 
     def test_new_step_never_reuses_stale_previous_contact(self):
         history = self.history()

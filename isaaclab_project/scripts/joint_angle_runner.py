@@ -162,6 +162,7 @@ def train(env, runner, cfg, agent, log, checkpoint, source_metadata=None):
             "pairs": getattr(cfg, "contact_diagnostics_pairs", False),
             "max_records": getattr(cfg, "contact_diagnostics_max_records", 64),
             "per_step": getattr(cfg, "contact_diagnostics_per_step", 4),
+            "unsupported_filter_targets": getattr(base, "_contact_pair_unsupported_targets", []),
         },
         "environment": args.environment, "difficulty": args.difficulty,
         "seed": cfg.seed, "actions": cfg.action_space, "observations": cfg.observation_space,

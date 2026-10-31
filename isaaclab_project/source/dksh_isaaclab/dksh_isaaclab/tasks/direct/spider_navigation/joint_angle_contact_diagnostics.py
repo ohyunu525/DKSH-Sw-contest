@@ -137,11 +137,20 @@ class ContactPairHistory:
     This buffer is diagnostic only, separate from the support classifier.
     """
 
-    def __init__(self, num_envs, source_names, target_paths, history_length, device="cpu"):
+    def __init__(self, num_envs, source_names, target_paths, history_length, device="cpu", unsupported_targets=()):
         self.num_envs = _positive_integer(num_envs, "num_envs")
         self.history_length = _positive_integer(history_length, "history_length")
         self.source_names = tuple(source_names)
         self.target_paths = tuple(target_paths)
+        self.unsupported_targets = []
+        for target in unsupported_targets:
+            if (not isinstance(target, dict) or not isinstance(target.get("path"), str)
+                    or not target["path"].startswith("/") or not isinstance(target.get("reason"), str)
+                    or not target["reason"]):
+                raise ValueError("Unsupported targets must identify a path and reason")
+            if target["path"] in self.target_paths:
+                raise ValueError("An unsupported target cannot also be an active filter")
+            self.unsupported_targets.append(dict(target))
         for name, values in (("source_names", self.source_names), ("target_paths", self.target_paths)):
             if not values or any(not isinstance(value, str) or not value for value in values):
                 raise ValueError(f"{name} must contain nonempty names")
@@ -210,6 +219,14 @@ class ContactPairHistory:
             "expected_physics_substeps": self.history_length,
             "source_names": list(self.source_names),
             "filter_target_paths": [self._environment_path(path, environment_id) for path in self.target_paths],
+            "unsupported_filter_targets": [
+                {**target, "path": self._environment_path(target["path"], environment_id)}
+                for target in self.unsupported_targets
+            ],
+            # Absence of a known limitation is not a successful physical
+            # calibration of every filter. Unknown coverage stays explicit.
+            "filter_coverage_complete": False if self.unsupported_targets else None,
+            "filter_matching_verified": False,
             # Correct dimensions and configured labels do not establish that
             # PhysX actually matched every filter. Empty matrices alone cannot
             # establish that a body had no contact with an unverified target.
