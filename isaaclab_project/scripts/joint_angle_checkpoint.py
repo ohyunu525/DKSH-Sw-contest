@@ -43,6 +43,8 @@ BEHAVIOR_PROFILES = {
                    "contact_contract": "cad6_strict_distal_all_links_v2"},
     "revised_v10": {"reward_contract": BUDGETED_COST_REWARD_CONTRACT,
                     "contact_contract": "cad6_external_distal_self_filtered_v1"},
+    "revised_v11": {"reward_contract": "centered_speed_signed_progress_independent_costs_v1",
+                    "contact_contract": "cad6_external_distal_substep_v1"},
 }
 CONTROL_CONTRACT = "absolute_targets_rate_limited_observed_velocity_v2"
 SCHEMA_CONTRACTS = {
@@ -95,7 +97,8 @@ def behavior_profile_from_metadata(metadata):
 
 
 def validate_checkpoint(path, task, environment, *, expected_reward_contract=None,
-                        expected_contact_contract=None, allow_behavior_transfer=False):
+                        expected_contact_contract=None, expected_control_frequency_hz=None,
+                        allow_behavior_transfer=False):
     require_v2_task(task)
     path = Path(path).expanduser().resolve()
     metadata_path = path.parent / "run_metadata.json"
@@ -115,7 +118,7 @@ def validate_checkpoint(path, task, environment, *, expected_reward_contract=Non
         if metadata.get(name) != expected_contract:
             raise ValueError(f"Checkpoint {name.replace('_', ' ')} differs from v2; retrain the policy")
     profile = behavior_profile_from_metadata(metadata)
-    expected_force_contract = (SELF_FILTERED_CONTACT_FORCE_CONTRACT if profile == "revised_v10"
+    expected_force_contract = (SELF_FILTERED_CONTACT_FORCE_CONTRACT if profile in ("revised_v10", "revised_v11")
                                else CONTACT_FORCE_CONTRACT)
     if metadata.get("contact_force_contract", CONTACT_FORCE_CONTRACT) != expected_force_contract:
         raise ValueError("Checkpoint contact force contract disagrees with its behavior profile")
@@ -128,6 +131,11 @@ def validate_checkpoint(path, task, environment, *, expected_reward_contract=Non
             saved_profile = behavior_profile_from_metadata(metadata)
             raise ValueError(f"Checkpoint behavior differs from the selected profile; select --behavior_profile={saved_profile} "
                              "for an explicit historical comparison, retrain, or use --allow_behavior_transfer during training")
+    if expected_control_frequency_hz is not None:
+        saved_frequency = metadata.get("control_frequency_hz")
+        if (isinstance(saved_frequency, bool) or not isinstance(saved_frequency, (int, float))
+                or not math.isclose(saved_frequency, expected_control_frequency_hz, rel_tol=1e-6, abs_tol=1e-8)):
+            raise ValueError("Checkpoint control frequency differs from the selected policy; train fresh weights for the new decision interval")
     cad_hash = expected_cad_asset_sha256(task)
     if cad_hash is not None and metadata.get("cad_asset_sha256") != cad_hash:
         raise ValueError("Checkpoint CAD asset differs from the current Onshape model; train a new policy")

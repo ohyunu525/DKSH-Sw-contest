@@ -47,7 +47,7 @@ class CourseArgumentsTests(unittest.TestCase):
         self.assertEqual((cfg.course_split, cfg.course_seed), ("holdout", 73))
 
     def test_strict_distal_profile_is_allowed_for_curriculum(self):
-        for profile in ("revised_v7", "revised_v8", "revised_v9"):
+        for profile in ("revised_v7", "revised_v8", "revised_v9", "revised_v10", "revised_v11"):
             with self.subTest(profile=profile):
                 self.assertEqual(self.arguments(profile=profile).behavior_profile, profile)
 
@@ -199,7 +199,8 @@ class CourseEvaluationTests(unittest.TestCase):
         cfg = NS(environment_difficulty=.3, target_speed=.2, evaluation_min_speed_fraction=.5,
                  goal_radius=.08, episode_length_s=240, behavior_profile="revised_v7",
                  reward_contract="signed_progress_huber_speed_distal_support_v1",
-                 contact_contract="cad6_distal_support_toe_button_v1", seed=73, evaluation_goal_distance=1)
+                 contact_contract="cad6_distal_support_toe_button_v1", contact_force_contract="net_normal_forces_v1",
+                 seed=73, evaluation_goal_distance=1)
         course_args = CourseArgumentsTests().arguments(mode="evaluate", profile=None)
         UTILS.apply_course_cfg(cfg, course_args)
         base = NS(num_envs=4, device="cpu", step_dt=1, _scenario=NS(), completed_course_records=[])
@@ -221,12 +222,16 @@ class CourseEvaluationTests(unittest.TestCase):
                      "args": NS(mode="evaluate", environment="curriculum", steps=2, task="test", difficulty=.3,
                                 num_envs=4, output="holdout.json", headless=True),
                      "app": NS(is_running=lambda: True), "ACTION_SEMANTICS": "absolute_joint_angles_v2",
+                     "CONTACT_FORCE_CONTRACT": "net_normal_forces_v1",
                      "behavior_profile_from_metadata": lambda metadata: "revised_v7"}
         exec(compile(ast.Module(body=functions, type_ignores=[]), str(source), "exec"), namespace)
         source_metadata = {"reward_contract": cfg.reward_contract, "contact_contract": cfg.contact_contract}
         with contextlib.redirect_stdout(io.StringIO()):
             namespace["evaluate_or_play"](env, runner, cfg, "model.pt", source_metadata)
         report = write.call_args.args[1]
+        self.assertEqual(report["contact_force_contract"], "net_normal_forces_v1")
+        self.assertEqual(report["source_contact_force_contract"], "net_normal_forces_v1")
+        self.assertEqual(report["actor_output_init_std"], 0.0)
         self.assertTrue(report["heldout_course_pass"])
         self.assertIsNone(report["fixed_scenario_distance_m"])
         self.assertEqual(len(report["completed_episode_records"]), 8)

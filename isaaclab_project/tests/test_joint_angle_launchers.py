@@ -124,7 +124,7 @@ class JointAngleLauncherTests(unittest.TestCase):
 
     def test_strict_support_and_previous_toe_profiles_are_forwarded(self):
         for script in ("run_cad6.ps1", "run_isaaclab.ps1"):
-            for profile in ("revised_v4", "revised_v5", "revised_v6", "revised_v7", "revised_v7_com", "revised_v8", "revised_v9"):
+            for profile in ("revised_v4", "revised_v5", "revised_v6", "revised_v7", "revised_v7_com", "revised_v8", "revised_v9", "revised_v10", "revised_v11"):
                 with self.subTest(script=script, profile=profile):
                     result = self.launch(script, "-Mode", "evaluate", "-BehaviorProfile", profile)
                     self.assertEqual(result.returncode, 0, result.stderr)
@@ -132,7 +132,7 @@ class JointAngleLauncherTests(unittest.TestCase):
 
     def test_curriculum_accepts_explicit_strict_and_historical_distal_profiles(self):
         for script in ("run_cad6.ps1", "run_isaaclab.ps1"):
-            for profile in ("revised_v7", "revised_v8", "revised_v9"):
+            for profile in ("revised_v7", "revised_v8", "revised_v9", "revised_v10", "revised_v11"):
                 arguments = ["-Mode", "evaluate", "-Environment", "curriculum", "-BehaviorProfile", profile]
                 if script == "run_isaaclab.ps1":
                     arguments += ["-RobotModel", "cad6", "-ServoModel", "mg996r_hip"]

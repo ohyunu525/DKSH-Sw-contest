@@ -33,6 +33,7 @@ DISTAL_SUPPORT_REWARD_CONTRACT = "signed_progress_huber_speed_distal_support_v1"
 STRICT_SUPPORT_REWARD_CONTRACT = "signed_progress_huber_speed_strict_support_v1"
 STRICT_CONTACT_SUPPORT_REWARD_CONTRACT = "signed_progress_huber_speed_strict_support_v2"
 CAPPED_PROGRESS_BUDGETED_COSTS_REWARD_CONTRACT = "capped_progress_budgeted_costs_v1"
+CENTERED_SPEED_INDEPENDENT_COSTS_REWARD_CONTRACT = "centered_speed_signed_progress_independent_costs_v1"
 # Fixed-foot origins in main's normalized Onshape URDF, in policy leg order.
 ONSHAPE_SOLE_OFFSETS = (
     (0.137, 0.010, -0.01922),
@@ -93,11 +94,13 @@ class JointAngleNavigationEnvCfg(SpiderNavigationEnvCfg):
     exploration_min_std = 0.03
     exploration_max_std = 0.30
     exploration_reference_saturation_probability = 0.01
+    actor_output_init_std = 0.001
     # Working limits intersect the asset limits. The knee stays on its assembled
     # bend branch; these are simulation settings, not measured PWM calibration.
     joint_angle_ranges = {"hip": (-1.40, 1.40), "femur": (-1.10, 1.40), "tibia": (0.10, 1.45)}
     target_rate_limit = 3.0  # rad/s, below the modeled MG996R no-load speed
     target_smoothing = 0.35
+    target_filter_interval_s = 0.02
     servo_velocity_limit = MG996R_NO_LOAD_SPEED_RAD_S
     sole_offset = (0.120, 0.0, 0.0)
     contact_threshold = 1.0
@@ -133,6 +136,9 @@ class JointAngleNavigationEnvCfg(SpiderNavigationEnvCfg):
     speed_tracking_sigma = 0.06
     progress_reward_scale = 25.0
     progress_slip_sigma_mps = 0.03
+    speed_reward_slope = 3.0
+    stance_slip_cost_coefficient = 6.0
+    independent_cost_limit_per_s = 0.05
     speed_cost_scale = -0.10
     upright_cost_scale = -2.0
     joint_limit_cost_scale = -1.0
@@ -193,10 +199,14 @@ def _mg996r_hip_cad6_robot():
 class MG996RHipCad6JointAngleEnvCfg(Cad6JointAngleEnvCfg):
     """Six MG996R hip servos and twelve provisional RC920DMG leg servos."""
     robot = _mg996r_hip_cad6_robot()
-    behavior_profile = "revised_v10"
-    reward_contract = CAPPED_PROGRESS_BUDGETED_COSTS_REWARD_CONTRACT
-    contact_contract = "cad6_external_distal_self_filtered_v1"
+    behavior_profile = "revised_v11"
+    reward_contract = CENTERED_SPEED_INDEPENDENT_COSTS_REWARD_CONTRACT
+    contact_contract = "cad6_external_distal_substep_v1"
     contact_force_contract = "external_normal_forces_self_filtered_v1"
+    # Each policy choice is held for 100 ms; the target filter still advances
+    # every 20 ms inside the 200 Hz physics loop.
+    decimation = 20
+    sim = Cad6JointAngleEnvCfg().sim.replace(render_interval=decimation)
     joint_angle_ranges = Cad6JointAngleEnvCfg().joint_angle_ranges
     sole_offset = ONSHAPE_SOLE_OFFSETS
     foot_support_offsets = ONSHAPE_FOOT_SUPPORT_OFFSETS
@@ -209,8 +219,14 @@ class MG996RHipCad6JointAngleEnvCfg(Cad6JointAngleEnvCfg):
     robot_width = 0.56
     # Preserve the established mixed-CAD6 tuning independently of generic CAD6.
     minimum_base_height = 0.06
-    target_speed = 0.20
+    target_speed = 0.05
     speed_tracking_sigma = 0.015
+    progress_reward_scale = 2.0
+    exploration_initial_std = 0.12
+    exploration_min_std = 0.04
+    exploration_max_std = 0.25
+    goal_min_distance = 0.25
+    goal_max_distance = 0.75
     # Make target-speed tracking competitive with the signed-progress reward.
     speed_cost_scale = -0.50
     # The CAD URDF's tibia link frame is the knee hinge; hull bottom at q=0 is
@@ -223,7 +239,7 @@ class MG996RHipCad6JointAngleEnvCfg(Cad6JointAngleEnvCfg):
     knee_ground_clearance_m = 0.03
     knee_ground_clearance_cost_scale = -5.0
     non_distal_support_cost_scale = -15.0
-    episode_length_s = 240.0
+    episode_length_s = 30.0
     servo_model = None
     servo_reference_voltage_v = None
     servo_stall_torque_nm = None

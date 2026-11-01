@@ -40,8 +40,8 @@ def resolve_course_args(args):
         return args
     if "MG996R-Hip-CAD6" not in args.task:
         raise ValueError("curriculum requires the MG996R-Hip-CAD6 direct-angle task and distal-support behavior")
-    if args.behavior_profile not in (None, "revised_v7", "revised_v8", "revised_v9", "revised_v10"):
-        raise ValueError("curriculum requires revised_v7, revised_v8, revised_v9 or revised_v10 distal-support behavior")
+    if args.behavior_profile not in (None, "revised_v7", "revised_v8", "revised_v9", "revised_v10", "revised_v11"):
+        raise ValueError("curriculum requires revised_v7 through revised_v11 distal-support behavior")
     if args.freeze_curriculum and args.mode != "train":
         raise ValueError("freeze_curriculum is training-only; evaluation is always frozen")
     split = "train" if args.mode == "train" else "holdout"
@@ -178,6 +178,19 @@ def validate_exploration_bounds(initial, minimum, maximum):
     if not minimum <= initial <= maximum:
         raise ValueError("Exploration standard deviations must satisfy minimum <= initial <= maximum")
     return tuple(float(value) for value in values)
+
+
+def initialize_absolute_actor_output(actor, initial, *, weight_std):
+    """Start near stance while allowing observation-dependent absolute targets."""
+    if not math.isfinite(weight_std) or weight_std < 0:
+        raise ValueError("Actor output initialization std must be finite and nonnegative")
+    output = [layer for layer in actor if isinstance(layer, torch.nn.Linear)][-1]
+    with torch.no_grad():
+        if weight_std:
+            output.weight.normal_(std=weight_std)
+        else:
+            output.weight.zero_()
+        output.bias.copy_(initial)
 
 
 class PolicyStdConstraint:

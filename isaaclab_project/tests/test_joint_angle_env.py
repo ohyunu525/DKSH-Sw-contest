@@ -82,11 +82,18 @@ class Robot:
 
 class Parent:
     def __init__(self, cfg, render_mode=None, **kwargs):
-        self.cfg, self.num_envs, self.device, self.step_dt = cfg, 2, "cpu", 0.02
+        self.cfg, self.num_envs, self.device = cfg, 2, "cpu"
+        self.physics_dt = 0.005
+        self.step_dt = self.physics_dt * cfg.decimation
         self._scenario, self.extras = None, {"log": {}}
         self._robot = Robot(2, cfg.action_space // 3)
         self.scene = NS(env_origins=torch.zeros((2, 3)))
-        self._contacts = NS(body_names=self._robot.body_names.copy(), data=NS(net_forces_w_history=torch.zeros((2, 4, len(self._robot.body_names), 3))))
+        body_count = len(self._robot.body_names)
+        self._contacts = NS(body_names=self._robot.body_names.copy(), data=NS(net_forces_w_history=torch.zeros((2, cfg.decimation, body_count, 3))))
+        self._self_contact_sources = self._robot.body_names.copy()
+        self._self_contact_sensors = [NS(data=NS(net_forces_w=torch.zeros((2, 1, 3)),
+                                               force_matrix_w=torch.zeros((2, 1, body_count, 3))))
+                                      for _ in self._self_contact_sources]
         self._actions = torch.zeros((2, cfg.action_space))
         self._previous_actions = torch.zeros_like(self._actions)
         self._target_positions_w = torch.tensor([[0.5, 0, 0.015]]).expand(2, 3).clone()
@@ -96,8 +103,10 @@ class Parent:
         self.reset_terminated = torch.zeros(2, dtype=torch.bool)
         self.max_episode_length = 1000
         self.common_step_counter = 0
-        self.physics_dt = self.step_dt / 4
         self._configure_gym_env_spaces()
+
+    def _apply_action(self):
+        self._robot.set_joint_position_target(self._processed_actions)
 
     def _configure_gym_env_spaces(self):
         self.spaces_observations = self.cfg.observation_space
@@ -139,7 +148,8 @@ namespace = {"torch": torch, "math": math, "SpiderNavigationEnv": Parent, "quat_
              **{name: getattr(CONTROL, name) for name in (
                  "action_to_angles", "bounded_angle_targets", "joint_names", "motion_costs",
                  "normalize_angles", "observation_size", "point_velocity", "signed_progress", "speed_tracking_cost",
-                 "uncapped_signed_progress", "huber_speed_tracking_cost",
+                 "uncapped_signed_progress", "huber_speed_tracking_cost", "budgeted_dense_costs",
+                 "centered_huber_speed_reward", "independently_bounded_costs", "stance_slip_cost",
              )}}
 exec(compile(ast.Module(body=[definition], type_ignores=[]), "joint_angle_env.py", "exec"), namespace)
 Environment = namespace["JointAngleNavigationEnv"]
@@ -152,7 +162,7 @@ def make_env(actions=18, support_offsets=None, *, behavior_profile="revised_v3",
     # out of these tensor tests; no duplicate copy of the reward implementation.
     cfg_tree = ast.parse((FOLDER / "joint_angle_env_cfg.py").read_text(encoding="utf-8"))
     classes = [next(node for node in cfg_tree.body if isinstance(node, ast.ClassDef))]
-    if behavior_profile in ("revised_v5", "revised_v6", "revised_v7", "revised_v7_com", "revised_v8", "revised_v9"):
+    if behavior_profile in ("revised_v5", "revised_v6", "revised_v7", "revised_v7_com", "revised_v8", "revised_v9", "revised_v10", "revised_v11"):
         classes.append(next(node for node in cfg_tree.body
                             if isinstance(node, ast.ClassDef) and node.name == "MG996RHipCad6JointAngleEnvCfg"))
     settings = {}
@@ -164,11 +174,14 @@ def make_env(actions=18, support_offsets=None, *, behavior_profile="revised_v3",
                 except (ValueError, TypeError, AttributeError):
                     pass
     settings.update(
-        action_space=actions, environment_preset=environment_preset, decimation=4, seed=42,
+        action_space=actions, environment_preset=environment_preset,
+        decimation=20 if behavior_profile == "revised_v11" else 4, seed=42,
         robot=NS(copy=lambda: NS(spawn=NS(usd_path="test", articulation_props=NS(enabled_self_collisions=False)))),
         minimum_base_height=0.06, robot_height=0.24, max_distance_from_origin=5.5,
         joint_angle_ranges={"hip": (-1.4, 1.4), "femur": (-1.1, 1.4), "tibia": (-0.4, 1.4)},
-        servo_velocity_limit=10.0, goal_reward=30, failure_penalty=-10, debris_impact_penalty=-2,
+        servo_velocity_limit=10.0, goal_reward=30,
+        failure_penalty=-100 if behavior_profile in ("revised_v10", "revised_v11") else -10,
+        debris_impact_penalty=-2,
         foot_support_offsets=support_offsets,
         behavior_profile=behavior_profile, toe_button_offsets=toe_button_offsets,
         distal_foot_support_offsets=distal_offsets, proximal_foot_offsets=proximal_offsets,
@@ -1053,6 +1066,7 @@ class TerminalContactDiagnosticTests(unittest.TestCase):
                 fixed_targets = ([] if device.startswith("cuda") else ["/World/ground"]) + body_targets
                 env = Environment.__new__(Environment)
                 env.cfg = NS(action_space=18, decimation=4, contact_diagnostics_pairs=True)
+                env.cfg.behavior_profile = "revised_v9"
                 env.device = device
                 env.scene = NS(sensors={})
                 env._scenario = scenario
@@ -1304,6 +1318,185 @@ class TerminalContactDiagnosticTests(unittest.TestCase):
         self.assertEqual(env.extras["log"]["Episode_Termination/fallen"], 1)
         self.assertFalse(bool(env._strict_contact_failure[0]))
         self.assertFalse(bool(env._strict_contact_failure[1]))
+
+
+class V11LearningIntegrationTests(unittest.TestCase):
+    def make_env(self, profile="revised_v11"):
+        env = StrictContactEnvironmentTests().strict_env(behavior_profile=profile)
+        for name, sensor in zip(env._self_contact_sources, env._self_contact_sensors):
+            if name.endswith("_tibia"):
+                sensor.data.net_forces_w[..., 2] = 2.0
+        self.capture_step(env)
+        return env
+
+    def capture_step(self, env):
+        env._self_contact_last_capture = -1
+        env._stance_slip_sum.zero_()
+        env._stance_slip_samples = 0
+        for substep in range(env.cfg.decimation):
+            env._contact_diagnostic_substep = substep + 1
+            env._capture_external_contacts()
+        env._strict_contact_cache = None
+
+    def test_one_absolute_action_is_held_for_100ms_with_five_20ms_slew_updates(self):
+        env = self.make_env()
+        initial = env.joint_angle_targets_rad.clone()
+        sampled_action = torch.ones((2, 18))
+        env._pre_physics_step(sampled_action)
+        torch.testing.assert_close(env.joint_angle_targets_rad, initial)
+        previous = initial
+        updates = []
+        for substep in range(20):
+            env._apply_action()
+            actual = env.joint_angle_targets_rad.clone()
+            if not torch.equal(actual, previous):
+                updates.append(substep)
+                self.assertLessEqual(float((actual - previous).abs().max()), 0.030001)
+            torch.testing.assert_close(env._actions, sampled_action)
+            torch.testing.assert_close(env._robot.targets[:, env._joint_ids], actual)
+            previous = actual
+        self.assertEqual(updates, [0, 4, 8, 12, 16])
+        torch.testing.assert_close(previous - initial, torch.full_like(initial, 0.15))
+        env._get_dones()
+        self.assertEqual(env._self_contact_last_capture, 19)
+        self.assertEqual(env._external_force_history.shape[1], 20)
+        self.assertTrue((env._rate_saturation <= 1.000001).all())
+
+    def test_constant_policy_output_converges_to_absolute_angles_without_drift(self):
+        env = self.make_env()
+        action = torch.tensor([[0.3, -0.2, 0.1] * 6]).expand(2, -1)
+        desired = CONTROL.action_to_angles(action, env._angle_limits)
+        # Run actual routing methods with unchanged tensor sensor samples.
+        for _ in range(18):
+            env._pre_physics_step(action)
+            for _ in range(20):
+                env._apply_action()
+        torch.testing.assert_close(env.joint_angle_targets_rad, desired, atol=1e-6, rtol=0)
+        observation = env._get_observations()["policy"]
+        self.assertEqual(observation.shape, (2, 140))
+        torch.testing.assert_close(observation[:, 48:66], CONTROL.normalize_angles(desired, env._angle_limits))
+        torch.testing.assert_close(observation[:, 66:84], env._target_velocity / env.cfg.target_rate_limit)
+
+    def test_small_advances_get_credit_and_slip_does_not_gate_progress(self):
+        stationary = self.make_env()
+        standing_reward = stationary._get_rewards().clone()
+        for speed in (0.0002, 0.02, 0.05):
+            with self.subTest(speed=speed):
+                env = self.make_env()
+                env._robot.data.root_pos_w[:, 0] += speed * env.step_dt
+                env._robot.data.root_lin_vel_w[:, 0] = speed
+                advanced = env._get_rewards()
+                self.assertTrue((advanced > standing_reward).all())
+                self.assertTrue((env.step_metrics["speed_reward_per_s"] > 0).all())
+                torch.testing.assert_close(env.step_metrics["progress_slip_gate"], torch.ones(2))
+                torch.testing.assert_close(env.step_metrics["reward_progress_m"],
+                                           env.step_metrics["progress_m"])
+        sliding = self.make_env()
+        sliding._robot.data.root_pos_w[:, 0] += 0.05 * sliding.step_dt
+        sliding._robot.data.body_link_lin_vel_w[:, sliding._feet, 0] = 0.05
+        self.capture_step(sliding)
+        sliding._get_rewards()
+        torch.testing.assert_close(sliding.step_metrics["reward_progress_m"],
+                                   sliding.step_metrics["progress_m"])
+        self.assertLess(float(sliding._episode_sums["foot_slip"][0]), 0)
+        self.assertTrue((sum(sliding._episode_sums.values()) < standing_reward).all())
+
+    def test_explicit_self_force_is_removed_but_external_contact_still_fails(self):
+        env = self.make_env()
+        base_id = env._contacts.body_names.index("base")
+        femur_id = env._contacts.body_names.index("leg_5_femur")
+        base = env._self_contact_sensors[base_id].data
+        femur = env._self_contact_sensors[femur_id].data
+        base.net_forces_w[:, 0, 0] = 12
+        femur.net_forces_w[:, 0, 0] = -12
+        base.force_matrix_w[:, 0, femur_id, 0] = 12
+        femur.force_matrix_w[:, 0, base_id, 0] = -12
+        self.capture_step(env)
+        terminated, _ = env._get_dones()
+        self.assertFalse(terminated.any())
+        env._get_rewards()
+        torch.testing.assert_close(env.step_metrics["self_contact_force_n"], torch.full((2,), 12.0))
+        self.assertTrue((env._episode_sums["self_contact"] < 0).all())
+        # Additional external load survives vector subtraction even with an
+        # internal pair present at the same time and well above the floor.
+        femur.net_forces_w[0, 0, 2] = 3
+        self.capture_step(env)
+        terminated, _ = env._get_dones()
+        self.assertTrue(terminated[0])
+        self.assertFalse(terminated[1])
+
+    def test_lifted_unloaded_foot_does_not_inherit_old_stance_force(self):
+        env = self.make_env()
+        foot = env._feet[0]
+        sensor = env._self_contact_sensors[env._sensor_feet[0]].data
+        self.assertGreater(float(env._external_force_history[0, -1, env._sensor_feet[0], 2]), 1)
+        env._robot.data.body_link_pos_w[:, foot, 2] += 0.02
+        sensor.net_forces_w.zero_()
+        env._self_contact_last_capture = -1
+        env._contact_diagnostic_substep = 20
+        env._capture_external_contacts()
+        terminated, _ = env._get_dones()
+        self.assertFalse(terminated.any())
+        self.assertEqual(env._contact_force_history().shape[1], 1)
+        self.assertFalse(env._strict_contact_state()[0][:, 0].any())
+
+    def test_transient_external_collision_latches_until_episode_reset(self):
+        env = self.make_env()
+        env._pre_physics_step(torch.zeros((2, 18)))
+        sensor = env._self_contact_sensors[env._contacts.body_names.index("leg_1_femur")].data
+        for substep in range(20):
+            sensor.net_forces_w[0, 0, 2] = 3.0 if substep == 3 else 0.0
+            env._contact_diagnostic_substep = substep + 1
+            env._capture_external_contacts()
+        self.assertFalse(env._strict_contact_state()[1].any())  # endpoint is clear
+        terminated, _ = env._get_dones()
+        self.assertTrue(terminated[0])
+        self.assertFalse(terminated[1])
+        self.assertEqual(int(env._strict_failure_substep[0]), 3)
+        env.episode_length_buf[:] = 1
+        env._reset_idx(torch.tensor([0]))
+        self.assertFalse(env._strict_contact_failure.any())
+        self.assertEqual(int(env._strict_failure_substep[0]), -1)
+
+    def test_slip_before_last_frame_still_contributes_to_policy_reward(self):
+        env = self.make_env()
+        env._pre_physics_step(torch.zeros((2, 18)))
+        for substep in range(20):
+            env._robot.data.body_link_lin_vel_w[:, env._feet, 0] = 0.05 if substep < 16 else 0.0
+            env._contact_diagnostic_substep = substep + 1
+            env._capture_external_contacts()
+        env._get_rewards()
+        torch.testing.assert_close(env.step_metrics["foot_slip_m2_s2"], torch.full((2,), 0.8 * 0.05 ** 2))
+        self.assertTrue((env._episode_sums["foot_slip"] < 0).all())
+        torch.testing.assert_close(env.step_metrics["contact_samples_per_policy_step"], torch.full((2,), 20.0))
+
+    def test_first_inner_target_velocity_reversal_keeps_acceleration_cost(self):
+        env = self.make_env()
+        for action in (torch.ones((2, 18)), -torch.ones((2, 18))):
+            env._pre_physics_step(action)
+            for _ in range(20):
+                env._apply_action()
+            env._get_dones()
+        # Only the first of five filter updates reverses from +1.5 to -1.5;
+        # the final two velocity samples alone would incorrectly give zero.
+        torch.testing.assert_close(env._target_acceleration_sum, torch.full((2,), 4.0 / 5), atol=1e-5, rtol=0)
+        env._get_rewards()
+        self.assertTrue((env._episode_sums["target_acceleration"] < 0).all())
+
+    def test_partial_reset_clears_held_targets_and_force_state_only_locally(self):
+        env = self.make_env()
+        env._pre_physics_step(torch.ones((2, 18)))
+        for _ in range(20):
+            env._apply_action()
+        other_target = env.joint_angle_targets_rad[1].clone()
+        other_history = env._external_force_history[1].clone()
+        env.episode_length_buf[:] = 1
+        env._reset_idx(torch.tensor([0]))
+        torch.testing.assert_close(env.joint_angle_targets_rad[1], other_target)
+        torch.testing.assert_close(env._external_force_history[1], other_history)
+        self.assertTrue((env._external_force_history[0] == 0).all())
+        torch.testing.assert_close(env._actions[0], CONTROL.normalize_angles(
+            env._robot.data.default_joint_pos[0, env._joint_ids], env._angle_limits[0]))
 
 
 if __name__ == "__main__":

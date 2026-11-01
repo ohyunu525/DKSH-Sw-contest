@@ -26,6 +26,21 @@ CHECKPOINT_SPEC.loader.exec_module(CHECKPOINT)
 
 
 class StdConstraintTests(unittest.TestCase):
+    def test_absolute_actor_starts_near_stance_with_observation_dependent_outputs(self):
+        actor = torch.nn.Sequential(torch.nn.Linear(4, 18))
+        initial = torch.linspace(-.2, .2, 18)
+        with torch.random.fork_rng():
+            torch.manual_seed(71)
+            UTILS.initialize_absolute_actor_output(actor, initial, weight_std=.001)
+        torch.testing.assert_close(actor(torch.zeros(4)), initial)
+        self.assertGreater(float(actor[0].weight.abs().sum()), 0)
+        self.assertFalse(torch.equal(actor(torch.ones(4)), initial))
+        self.assertLess(float((actor(torch.ones(4)) - initial).abs().max()), .01)
+        actor(torch.ones(4)).sum().backward()
+        self.assertGreater(float(actor[0].weight.grad.abs().sum()), 0)
+        UTILS.initialize_absolute_actor_output(actor, initial, weight_std=0)
+        torch.testing.assert_close(actor(torch.ones(4)), initial)
+
     def make_policy(self, logarithmic=False, value=0.12):
         policy = torch.nn.Module()
         name = "log_std" if logarithmic else "std"
@@ -359,7 +374,8 @@ class ResumeIntegrationTests(unittest.TestCase):
                          distal_contact_height_tolerance=0.004, proximal_contact_height_tolerance=0.008,
                          knee_ground_clearance_m=0.03, knee_ground_clearance_cost_scale=-5.0,
                          non_distal_support_cost_scale=-15.0,
-                         non_distal_ground_clearance_m=0.008, non_distal_contact_height_tolerance_m=0.001)
+                         non_distal_ground_clearance_m=0.008, non_distal_contact_height_tolerance_m=0.001,
+                         contact_force_contract=CHECKPOINT.CONTACT_FORCE_CONTRACT, enable_self_collisions=True)
                 args = NS(task="Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2", environment="flat", difficulty=0.5,
                           max_iterations=1, reset_exploration_std=reset, allow_behavior_transfer=False)
                 log = root / "resumed"
@@ -380,6 +396,7 @@ class ResumeIntegrationTests(unittest.TestCase):
                 namespace = {"Path": Path, "torch": torch, "json": json, "hashlib": hashlib, "args": args,
                              "ACTION_SEMANTICS": CHECKPOINT.ACTION_SEMANTICS, "SCHEMA_CONTRACTS": CHECKPOINT.SCHEMA_CONTRACTS,
                              "BEHAVIOR_PROFILES": CHECKPOINT.BEHAVIOR_PROFILES, "EXPLORATION_PROFILE": CHECKPOINT.EXPLORATION_PROFILE,
+                             "CONTACT_FORCE_CONTRACT": CHECKPOINT.CONTACT_FORCE_CONTRACT,
                              "behavior_profile_from_metadata": CHECKPOINT.behavior_profile_from_metadata,
                              "expected_cad_asset_sha256": CHECKPOINT.expected_cad_asset_sha256,
                              "cad_report": None, "dump_yaml": Mock(),
@@ -391,7 +408,7 @@ class ResumeIntegrationTests(unittest.TestCase):
                 control.exploration_std = Mock(return_value=0.0211844)
                 parent_metadata = CHECKPOINT.BEHAVIOR_PROFILES["legacy_v2"] | {"exploration_std_cap": 0.0211844}
                 with patch.dict(sys.modules, {control.__name__: control}), contextlib.redirect_stdout(io.StringIO()):
-                    namespace["train"](NS(unwrapped=base), runner, cfg, NS(), log, checkpoint, parent_metadata)
+                    namespace["train"](NS(unwrapped=base), runner, cfg, NS(algorithm=NS(schedule="adaptive")), log, checkpoint, parent_metadata)
                 metadata = json.loads((log / "run_metadata.json").read_text(encoding="utf-8"))
                 self.assertEqual(metadata["status"], "completed")
                 self.assertAlmostEqual(metadata["exploration_std_before"][0], 0.01, places=6)

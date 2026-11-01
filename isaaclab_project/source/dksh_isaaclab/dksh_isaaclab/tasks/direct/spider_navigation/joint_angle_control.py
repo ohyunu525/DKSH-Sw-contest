@@ -131,6 +131,30 @@ def huber_speed_tracking_cost(
     return torch.where(magnitude <= 1, 0.5 * error.square(), magnitude - 0.5)
 
 
+def centered_huber_speed_reward(
+    forward: torch.Tensor, command: torch.Tensor | float, sigma: float, slope: float,
+) -> torch.Tensor:
+    """Reward speed improvement relative to rest, with convex error costs.
+
+    Rest earns exactly zero. Subtracting the same constant from the convex
+    speed error preserves the rule that zero-mean velocity oscillations
+    cannot outperform rest. ``slope`` sets the magnitude of the linear tails
+    in reward per metre, independently of the transition width ``sigma``.
+    """
+    if not math.isfinite(slope) or slope <= 0:
+        raise ValueError("slope must be finite and positive")
+    resting_cost = huber_speed_tracking_cost(torch.zeros_like(forward), command, sigma)
+    moving_cost = huber_speed_tracking_cost(forward, command, sigma)
+    return slope * sigma * (resting_cost - moving_cost)
+
+
+def stance_slip_cost(slip_m2_s2: torch.Tensor, coefficient: float) -> torch.Tensor:
+    """Penalize RMS stance-foot speed without gating displacement credit."""
+    if not math.isfinite(coefficient) or coefficient <= 0:
+        raise ValueError("coefficient must be finite and positive")
+    return -coefficient * torch.sqrt(slip_m2_s2.clamp_min(0.0))
+
+
 def budgeted_dense_costs(
     rates: dict[str, torch.Tensor], *, cost_limit_per_s: float, reference_cost_rate: float,
 ) -> dict[str, torch.Tensor]:
@@ -153,6 +177,31 @@ def budgeted_dense_costs(
     total_cost = -sum(nonpositive.values())
     factor = cost_limit_per_s / (reference_cost_rate + total_cost)
     return {name: rate * factor for name, rate in nonpositive.items()}
+
+
+def independently_bounded_costs(
+    rates: dict[str, torch.Tensor], *, cost_limits_per_s: dict[str, float],
+) -> dict[str, torch.Tensor]:
+    """Bound each posture or effort cost without suppressing other terms.
+
+    For a nonpositive input ``r`` and its positive limit ``L``, return
+    ``r / (1 - r / L)``. The derivative at zero is one and the rate approaches
+    ``-L`` as the input cost grows. Positive inputs are clamped to zero.
+    Speed tracking and stance-slip costs are kept outside this map by the
+    caller. No accumulated state or tensor-to-host reads are required.
+    """
+    if not rates:
+        raise ValueError("rates must contain at least one dense cost")
+    if rates.keys() != cost_limits_per_s.keys():
+        raise ValueError("rates and cost_limits_per_s must have matching keys")
+    result = {}
+    for name, rate in rates.items():
+        limit = cost_limits_per_s[name]
+        if not math.isfinite(limit) or limit <= 0:
+            raise ValueError(f"Cost limit for {name} must be finite and positive")
+        nonpositive = rate.clamp_max(0.0)
+        result[name] = nonpositive / (1.0 - nonpositive / limit)
+    return result
 
 
 def exploration_std(

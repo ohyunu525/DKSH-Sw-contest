@@ -61,8 +61,11 @@ class CheckpointTests(unittest.TestCase):
             "cad_asset_sha256": CHECKPOINT.expected_cad_asset_sha256(task),
             **CHECKPOINT.SCHEMA_CONTRACTS,
             **({**CHECKPOINT.BEHAVIOR_PROFILES[profile], "behavior_profile": profile} if profile else {}),
+            **({"contact_force_contract": CHECKPOINT.SELF_FILTERED_CONTACT_FORCE_CONTRACT}
+               if profile in ("revised_v10", "revised_v11") else {}),
             "target_rate_limit_rad_s": 1.5, "target_smoothing": 0.35,
-            "control_frequency_hz": 50, "exploration_std_cap": 0.0211844041781,
+            "control_frequency_hz": 10 if profile == "revised_v11" else 50,
+            "exploration_std_cap": 0.0211844041781,
         }), encoding="utf-8")
         return path
 
@@ -255,6 +258,10 @@ class CheckpointTests(unittest.TestCase):
                     self.assertEqual(contracts["reward_contract"], reward)
                     self.assertEqual(contracts["contact_contract"], "cad6_toe_button_hysteresis_v1")
                     metadata = original | contracts | {"behavior_profile": profile}
+                    if profile in ("revised_v10", "revised_v11"):
+                        metadata["contact_force_contract"] = CHECKPOINT.SELF_FILTERED_CONTACT_FORCE_CONTRACT
+                    if profile == "revised_v11":
+                        metadata["control_frequency_hz"] = 10
                     metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
                     saved = CHECKPOINT.validate_checkpoint(path, TASK, "flat")
                     self.assertEqual(CHECKPOINT.behavior_profile_from_metadata(saved), profile)
@@ -280,6 +287,10 @@ class CheckpointTests(unittest.TestCase):
             for profile, contracts in CHECKPOINT.BEHAVIOR_PROFILES.items():
                 with self.subTest(profile=profile):
                     metadata = original | contracts | {"behavior_profile": profile}
+                    if profile in ("revised_v10", "revised_v11"):
+                        metadata["contact_force_contract"] = CHECKPOINT.SELF_FILTERED_CONTACT_FORCE_CONTRACT
+                    if profile == "revised_v11":
+                        metadata["control_frequency_hz"] = 10
                     metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
                     saved = CHECKPOINT.validate_checkpoint(path, TASK, "flat")
                     self.assertEqual(CHECKPOINT.behavior_profile_from_metadata(saved), profile)
@@ -382,6 +393,42 @@ class CheckpointTests(unittest.TestCase):
             metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "profile disagrees"):
                 CHECKPOINT.validate_checkpoint(path, TASK, "flat", allow_behavior_transfer=True)
+
+    def test_filtered_force_contract_cannot_be_missing_or_used_by_historical_profiles(self):
+        with TemporaryDirectory() as root:
+            path = self.create_checkpoint(root, "flat", profile="revised_v10")
+            metadata_path = path.parent / "run_metadata.json"
+            original = json.loads(metadata_path.read_text(encoding="utf-8"))
+            CHECKPOINT.validate_checkpoint(path, TASK, "flat")
+            for value in (None, CHECKPOINT.CONTACT_FORCE_CONTRACT, "unknown"):
+                altered = original.copy()
+                if value is None:
+                    altered.pop("contact_force_contract")
+                else:
+                    altered["contact_force_contract"] = value
+                metadata_path.write_text(json.dumps(altered), encoding="utf-8")
+                with self.subTest(value=value), self.assertRaisesRegex(ValueError, "contact force contract"):
+                    CHECKPOINT.validate_checkpoint(path, TASK, "flat", allow_behavior_transfer=True)
+            historical = original | CHECKPOINT.BEHAVIOR_PROFILES["revised_v9"] | {"behavior_profile": "revised_v9"}
+            metadata_path.write_text(json.dumps(historical), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "contact force contract"):
+                CHECKPOINT.validate_checkpoint(path, TASK, "flat")
+
+    def test_policy_decision_frequency_change_requires_fresh_training_even_with_behavior_transfer(self):
+        with TemporaryDirectory() as root:
+            historical = self.create_checkpoint(root, "flat", profile="revised_v10")
+            current = CHECKPOINT.BEHAVIOR_PROFILES["revised_v11"]
+            compatibility = {"expected_reward_contract": current["reward_contract"],
+                             "expected_contact_contract": current["contact_contract"],
+                             "expected_control_frequency_hz": 10, "allow_behavior_transfer": True}
+            with self.assertRaisesRegex(ValueError, "control frequency.*fresh weights"):
+                CHECKPOINT.validate_checkpoint(historical, TASK, "flat", **compatibility)
+            path = self.create_checkpoint(root, "flat", profile="revised_v11")
+            saved = CHECKPOINT.validate_checkpoint(path, TASK, "flat", **compatibility)
+            self.assertEqual(saved["action_semantics"], "absolute_joint_angles_v2")
+            self.assertEqual((saved["control_frequency_hz"], saved["observations"], saved["actions"]), (10, 140, 18))
+            with self.assertRaisesRegex(ValueError, "control frequency"):
+                CHECKPOINT.validate_checkpoint(path, TASK, "flat", expected_control_frequency_hz=50)
 
 
 if __name__ == "__main__":

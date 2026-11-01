@@ -74,10 +74,17 @@ def load_cfg():
         configclass = decorator_module.configclass
 
         @configclass
+        class Simulation:
+            dt = 1.0 / 200.0
+            render_interval = 4
+
+        @configclass
         class Base:
             action_space = 24
             robot = Asset()
             environment_preset = "flat"
+            decimation = 4
+            sim = Simulation()
 
         @configclass
         class Policy:
@@ -118,17 +125,21 @@ class JointAngleConfigurationTests(unittest.TestCase):
                 self.assertGreater(cfg.target_rate_limit, 0)
                 self.assertEqual(cfg.observation_space, 140 if "Cad6" in name else 166)
                 self.assertEqual(cfg.joint_reset_noise, 0)
-                self.assertGreaterEqual(cfg.goal_min_distance, 0.5)
+                self.assertGreaterEqual(cfg.goal_min_distance, 0.25 if name == "MG996RHipCad6JointAngleEnvCfg" else 0.5)
                 self.assertLess(cfg.speed_cost_scale, 0)
-                expected_profile = "revised_v9" if name == "MG996RHipCad6JointAngleEnvCfg" else "revised_v3"
+                expected_profile = "revised_v11" if name == "MG996RHipCad6JointAngleEnvCfg" else "revised_v3"
                 self.assertEqual(cfg.behavior_profile, expected_profile)
-                expected_reward = ("signed_progress_huber_speed_strict_support_v2" if expected_profile == "revised_v9"
+                expected_reward = ("centered_speed_signed_progress_independent_costs_v1" if expected_profile == "revised_v11"
                                    else "signed_progress_huber_speed_v3")
                 self.assertEqual(cfg.reward_contract, expected_reward)
-                expected_contact = ("cad6_strict_distal_all_links_v2" if expected_profile == "revised_v9"
+                expected_contact = ("cad6_external_distal_substep_v1" if expected_profile == "revised_v11"
                                     else "support_surface_foot_geometry_v3")
                 self.assertEqual(cfg.contact_contract, expected_contact)
-                self.assertEqual((cfg.exploration_initial_std, cfg.exploration_min_std, cfg.exploration_max_std), (0.08, 0.03, 0.30))
+                expected_force = ("external_normal_forces_self_filtered_v1" if expected_profile == "revised_v11"
+                                  else "net_normal_forces_v1")
+                self.assertEqual(cfg.contact_force_contract, expected_force)
+                expected_noise = (0.12, 0.04, 0.25) if expected_profile == "revised_v11" else (0.08, 0.03, 0.30)
+                self.assertEqual((cfg.exploration_initial_std, cfg.exploration_min_std, cfg.exploration_max_std), expected_noise)
                 speed = cfg.servo_velocity_limit
                 self.assertLess(cfg.target_rate_limit, min(speed) if isinstance(speed, tuple) else speed)
                 for lower, upper in cfg.joint_angle_ranges.values():
@@ -179,11 +190,11 @@ class JointAngleConfigurationTests(unittest.TestCase):
         cfg = module.MG996RHipCad6JointAngleEnvCfg()
         self.assertEqual(module.MG996RHipCad6JointAngleEnvCfg.__bases__, (module.Cad6JointAngleEnvCfg,))
         self.assertEqual((cfg.minimum_base_height, cfg.target_speed, cfg.speed_tracking_sigma,
-                          cfg.episode_length_s), (0.06, 0.20, 0.015, 240.0))
+                          cfg.episode_length_s), (0.06, 0.05, 0.015, 30.0))
         self.assertEqual((cfg.speed_cost_scale, cfg.knee_below_body_approach_fraction,
                           cfg.knee_below_body_penalty_scale), (-0.50, 0.50, -5.0))
         self.assertEqual((cfg.target_rate_limit, cfg.target_smoothing), (1.5, 0.35))
-        self.assertEqual((cfg.goal_min_distance, cfg.goal_max_distance, cfg.goal_radius), (0.5, 1.5, 0.08))
+        self.assertEqual((cfg.goal_min_distance, cfg.goal_max_distance, cfg.goal_radius), (0.25, 0.75, 0.08))
         self.assertEqual((cfg.robot_width, cfg.robot_height), (0.56, 0.24))
         self.assertEqual(cfg.actuator_contract, "mg996r_4v8_rc920dmg_5v_v1")
         self.assertEqual(cfg.foot_support_offsets, GEOMETRY.ONSHAPE_FOOT_SUPPORT_OFFSETS)
@@ -203,6 +214,36 @@ class JointAngleConfigurationTests(unittest.TestCase):
         self.assertEqual(cfg.servo_velocity_limit,
                          (SERVO.MG996R_NO_LOAD_SPEED_RAD_S, SERVO.RC920DMG_NO_LOAD_SPEED_RAD_S_5V,
                           SERVO.RC920DMG_NO_LOAD_SPEED_RAD_S_5V) * 6)
+
+    def test_v11_holds_policy_decisions_at_ten_hz_with_fifty_hz_target_filter(self):
+        module, _ = load_cfg()
+        cfg = module.MG996RHipCad6JointAngleEnvCfg()
+        self.assertEqual(cfg.sim.dt, 0.005)
+        self.assertEqual(cfg.decimation, 20)
+        self.assertEqual(cfg.sim.render_interval, cfg.decimation)
+        self.assertAlmostEqual(cfg.sim.dt * cfg.decimation, 0.1)
+        self.assertEqual(cfg.target_filter_interval_s, 0.02)
+        self.assertAlmostEqual(cfg.target_filter_interval_s / cfg.sim.dt, 4)
+        self.assertEqual((cfg.action_space, cfg.observation_space), (18, 140))
+        self.assertEqual(cfg.action_semantics, "absolute_joint_angles_v2")
+        self.assertEqual(cfg.control_contract, "absolute_targets_rate_limited_observed_velocity_v2")
+        self.assertEqual((cfg.progress_reward_scale, cfg.speed_reward_slope,
+                          cfg.stance_slip_cost_coefficient, cfg.independent_cost_limit_per_s),
+                         (2.0, 3.0, 6.0, 0.05))
+        self.assertEqual(cfg.actor_output_init_std, 0.001)
+        self.assertEqual((cfg.failure_penalty, cfg.goal_reward), (-100.0, 5.0))
+
+    def test_v11_defaults_do_not_change_generic_policy_clock_or_exploration(self):
+        module, _ = load_cfg()
+        mixed = module.MG996RHipCad6JointAngleEnvCfg()
+        mixed.sim.render_interval = 99
+        for name in ("JointAngleNavigationEnvCfg", "Cad8JointAngleEnvCfg", "Cad6JointAngleEnvCfg"):
+            cfg = getattr(module, name)()
+            self.assertEqual(cfg.decimation, 4)
+            self.assertEqual(cfg.sim.render_interval, 4)
+            self.assertEqual((cfg.exploration_initial_std, cfg.exploration_min_std,
+                              cfg.exploration_max_std), (0.08, 0.03, 0.30))
+            self.assertEqual((cfg.goal_min_distance, cfg.goal_max_distance), (0.5, 1.5))
 
     def test_mixed_actuator_factory_preserves_physical_limits_and_returns_fresh_configs(self):
         factory = servo_factories()["mixed_servo_actuators"]

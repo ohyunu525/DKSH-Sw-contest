@@ -250,5 +250,135 @@ class JointAngleControlTests(unittest.TestCase):
                 CONTROL.exploration_std(self.limits, **options)
 
 
+class V11RewardControlTests(unittest.TestCase):
+    command = 0.05
+    sigma = 0.015
+    slope = 3.0
+    progress_scale = 2.0
+
+    def locomotion_rate(self, velocity):
+        return self.progress_scale * velocity + CONTROL.centered_huber_speed_reward(
+            velocity, self.command, self.sigma, self.slope,
+        )
+
+    def test_centered_speed_reward_is_zero_at_rest_and_credits_tiny_advance(self):
+        velocity = torch.tensor([0.0, 0.0002], dtype=torch.float64)
+        speed = CONTROL.centered_huber_speed_reward(velocity, self.command, self.sigma, self.slope)
+        self.assertEqual(float(speed[0]), 0.0)
+        self.assertAlmostEqual(float(speed[1]), self.slope * 0.0002, places=12)
+        self.assertGreater(float(self.locomotion_rate(velocity)[1]), 0.0)
+
+    def test_advancing_with_low_stance_slip_outperforms_rest(self):
+        velocity = torch.tensor([0.02, 0.05], dtype=torch.float64)
+        # This fixture assumes 2 mm/s RMS stance slip; it is not a measured
+        # tolerance for the robot or proof of physics convergence.
+        stance_slip = torch.full_like(velocity, 0.002 ** 2)
+        reward = self.locomotion_rate(velocity) + CONTROL.stance_slip_cost(stance_slip, 6.0)
+        self.assertTrue((reward > 0).all())
+        torch.testing.assert_close(reward, torch.tensor([0.088, 0.2155], dtype=torch.float64))
+
+    def test_bursty_net_advance_keeps_all_displacement_credit(self):
+        dt = 0.1
+        velocity = torch.tensor([0.08, -0.04], dtype=torch.float64)
+        distance = 1.0 - torch.cat((torch.zeros(1, dtype=torch.float64), (velocity * dt).cumsum(0)))
+        reward = self.progress_scale * CONTROL.uncapped_signed_progress(distance[:-1], distance[1:])
+        reward += CONTROL.centered_huber_speed_reward(velocity, self.command, self.sigma, self.slope) * dt
+        # Isolate locomotion credit here: finite-slip and posture costs are
+        # tested separately and can still outweigh a weak advancing gait.
+        self.assertAlmostEqual(float(velocity.mean()), 0.02, places=12)
+        self.assertAlmostEqual(float(reward.mean() / dt), 0.01, places=12)
+        self.assertGreater(float(reward.sum()), 0.0)
+
+    def test_closed_distance_loops_cannot_earn_positive_locomotion_reward(self):
+        dt = 0.1
+        for forward, forward_count, backward, backward_count in (
+            (0.02, 40, -0.02, 40),
+            (0.08, 10, -0.02, 40),
+            (0.01, 80, -0.08, 10),
+        ):
+            velocity = torch.cat((
+                torch.full((forward_count,), forward, dtype=torch.float64),
+                torch.full((backward_count,), backward, dtype=torch.float64),
+            ))
+            distance = 1.0 - torch.cat((torch.zeros(1, dtype=torch.float64), (velocity * dt).cumsum(0)))
+            progress = CONTROL.uncapped_signed_progress(distance[:-1], distance[1:])
+            speed = CONTROL.centered_huber_speed_reward(velocity, self.command, self.sigma, self.slope)
+            with self.subTest(forward=forward, backward=backward):
+                self.assertAlmostEqual(float(progress.sum()), 0.0, places=12)
+                self.assertLessEqual(float(speed.sum()), 1e-12)
+                self.assertLessEqual(float((self.progress_scale * progress + speed * dt).sum()), 1e-12)
+
+    def test_overspeed_reward_has_a_finite_peak_and_negative_tail_slope(self):
+        peak_speed = self.command + self.progress_scale * self.sigma / self.slope
+        velocity = torch.tensor([peak_speed - 0.005, peak_speed, peak_speed + 0.005, 0.2, 1.0], dtype=torch.float64)
+        reward = self.locomotion_rate(velocity)
+        self.assertGreater(float(reward[1]), float(reward[0]))
+        self.assertGreater(float(reward[1]), float(reward[2]))
+        self.assertGreater(float(reward[2]), float(reward[3]))
+        self.assertGreater(float(reward[3]), float(reward[4]))
+        self.assertAlmostEqual(float((reward[4] - reward[3]) / (velocity[4] - velocity[3])), -1.0, places=12)
+
+    def test_translating_on_all_planted_feet_is_worse_than_rest(self):
+        velocity = torch.tensor([0.01, 0.02, 0.05, 0.1, 0.2, 1.0], dtype=torch.float64)
+        # Pure translation of every planted foot gives RMS stance slip v.
+        reward = self.locomotion_rate(velocity) + CONTROL.stance_slip_cost(velocity.square(), 6.0)
+        self.assertTrue((reward < 0).all())
+        self.assertTrue((reward <= -velocity + 1e-12).all())
+        torch.testing.assert_close(CONTROL.stance_slip_cost(torch.tensor([0.0, -1.0]), 6.0), torch.zeros(2))
+
+    def test_independent_costs_retain_other_terms_when_one_cost_spikes(self):
+        ordinary = {"torque": torch.tensor([-0.01], dtype=torch.float64),
+                    "clearance": torch.tensor([-0.02], dtype=torch.float64)}
+        limits = {"torque": 0.05, "clearance": 0.05}
+        baseline = CONTROL.independently_bounded_costs(ordinary, cost_limits_per_s=limits)
+        changed = CONTROL.independently_bounded_costs(
+            {**ordinary, "clearance": torch.tensor([-1e12], dtype=torch.float64)},
+            cost_limits_per_s=limits,
+        )
+        torch.testing.assert_close(changed["torque"], baseline["torque"])
+        self.assertLess(float(changed["clearance"]), float(baseline["clearance"]))
+        self.assertGreaterEqual(float(changed["clearance"]), -limits["clearance"])
+        torch.testing.assert_close(ordinary["clearance"], torch.tensor([-0.02], dtype=torch.float64))
+
+    def test_independent_costs_are_nonpositive_bounded_and_keep_small_gradients(self):
+        raw = torch.tensor([0.1, 0.0, -1e-9, -0.01, -1e20], dtype=torch.float64, requires_grad=True)
+        bounded = CONTROL.independently_bounded_costs({"posture": raw}, cost_limits_per_s={"posture": 0.05})["posture"]
+        self.assertTrue((bounded <= 0).all())
+        self.assertTrue((bounded >= -0.05).all())
+        torch.testing.assert_close(bounded[:2], torch.zeros(2, dtype=torch.float64))
+        bounded.sum().backward()
+        self.assertAlmostEqual(float(raw.grad[2]), 1.0, places=6)
+        self.assertGreater(float(raw.grad[3]), 0.0)
+
+    def test_stationary_continuation_beats_immediate_failure_at_training_discount(self):
+        dt, duration = 0.1, 240.0
+        gamma = 0.9995 ** 5
+        # Even if all thirteen bounded posture/effort costs reach their
+        # 0.05/s limits, centered speed and zero stance slip add no loss at
+        # rest. This compares a stationary baseline, not every retreat path.
+        worst_standing_rate = -13 * 0.05
+        steps = int(duration / dt)
+        return_bound = worst_standing_rate * dt * (1 - gamma ** steps) / (1 - gamma)
+        self.assertGreater(return_bound, -100.0)
+        self.assertEqual(float(CONTROL.centered_huber_speed_reward(
+            torch.tensor(0.0), self.command, self.sigma, self.slope,
+        )), 0.0)
+
+    def test_v11_cost_helpers_reject_invalid_parameters(self):
+        velocity = torch.tensor([0.0])
+        for invalid in (0.0, -1.0, math.nan, math.inf):
+            with self.subTest(parameter="slope", value=invalid), self.assertRaises(ValueError):
+                CONTROL.centered_huber_speed_reward(velocity, self.command, self.sigma, invalid)
+            with self.subTest(parameter="sigma", value=invalid), self.assertRaises(ValueError):
+                CONTROL.centered_huber_speed_reward(velocity, self.command, invalid, self.slope)
+            with self.subTest(parameter="slip_coefficient", value=invalid), self.assertRaises(ValueError):
+                CONTROL.stance_slip_cost(velocity, invalid)
+            with self.subTest(parameter="cost_limit", value=invalid), self.assertRaises(ValueError):
+                CONTROL.independently_bounded_costs({"posture": velocity}, cost_limits_per_s={"posture": invalid})
+        for rates, limits in (({}, {}), ({"posture": velocity}, {}), ({"posture": velocity}, {"other": 0.05})):
+            with self.subTest(rates=list(rates), limits=list(limits)), self.assertRaises(ValueError):
+                CONTROL.independently_bounded_costs(rates, cost_limits_per_s=limits)
+
+
 if __name__ == "__main__":
     unittest.main()

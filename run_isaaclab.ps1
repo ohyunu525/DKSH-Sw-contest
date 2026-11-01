@@ -26,7 +26,7 @@ param(
     [double]$MinNoiseStd,
     [double]$MaxNoiseStd,
     [switch]$ResetExplorationStd,
-    [ValidateSet('legacy_v2', 'revised_v3', 'revised_v4', 'revised_v5', 'revised_v6', 'revised_v7', 'revised_v7_com', 'revised_v8', 'revised_v9', 'revised_v10')][string]$BehaviorProfile,
+    [ValidateSet('legacy_v2', 'revised_v3', 'revised_v4', 'revised_v5', 'revised_v6', 'revised_v7', 'revised_v7_com', 'revised_v8', 'revised_v9', 'revised_v10', 'revised_v11')][string]$BehaviorProfile,
     [switch]$AllowBehaviorTransfer,
     [switch]$ContactDiagnostics,
     [string]$ContactDiagnosticsOutput = '',
@@ -71,8 +71,8 @@ if ($Environment -eq 'curriculum' -and ($ControlMode -ne 'direct' -or $RobotMode
     throw 'Curriculum requires the mixed-servo CAD6 direct-angle task.'
 }
 if ($Environment -eq 'curriculum') {
-    if ($PSBoundParameters.ContainsKey('BehaviorProfile') -and $BehaviorProfile -notin @('revised_v7', 'revised_v8', 'revised_v9', 'revised_v10')) {
-        throw 'Curriculum requires revised_v7, revised_v8, revised_v9 or revised_v10 distal-support behavior.'
+    if ($PSBoundParameters.ContainsKey('BehaviorProfile') -and $BehaviorProfile -notin @('revised_v7', 'revised_v8', 'revised_v9', 'revised_v10', 'revised_v11')) {
+        throw 'Curriculum requires revised_v7 through revised_v11 distal-support behavior.'
     }
     $flatShare = if ($PSBoundParameters.ContainsKey('FlatFraction')) { $FlatFraction } else { 0.25 }
     $windowSize = if ($PSBoundParameters.ContainsKey('CurriculumWindow')) { $CurriculumWindow } else { 20 }
@@ -99,9 +99,14 @@ if ($PSBoundParameters.ContainsKey('BehaviorProfile') -and ($ControlMode -ne 'di
     throw 'BehaviorProfile requires direct train, evaluate or play mode.'
 }
 if ($ControlMode -eq 'direct' -and $Mode -eq 'train') {
-    $initialStd = if ($PSBoundParameters.ContainsKey('InitialNoiseStd')) { $InitialNoiseStd } else { 0.08 }
-    $minimumStd = if ($PSBoundParameters.ContainsKey('MinNoiseStd')) { $MinNoiseStd } else { 0.03 }
-    $maximumStd = if ($PSBoundParameters.ContainsKey('MaxNoiseStd')) { $MaxNoiseStd } else { 0.30 }
+    $currentCad6 = $RobotModel -eq 'cad6' -and $ServoModel -eq 'mg996r_hip' -and
+        (-not $PSBoundParameters.ContainsKey('BehaviorProfile') -or $BehaviorProfile -eq 'revised_v11')
+    $defaultInitialStd = if ($currentCad6) { 0.12 } else { 0.08 }
+    $defaultMinimumStd = if ($currentCad6) { 0.04 } else { 0.03 }
+    $defaultMaximumStd = if ($currentCad6) { 0.25 } else { 0.30 }
+    $initialStd = if ($PSBoundParameters.ContainsKey('InitialNoiseStd')) { $InitialNoiseStd } else { $defaultInitialStd }
+    $minimumStd = if ($PSBoundParameters.ContainsKey('MinNoiseStd')) { $MinNoiseStd } else { $defaultMinimumStd }
+    $maximumStd = if ($PSBoundParameters.ContainsKey('MaxNoiseStd')) { $MaxNoiseStd } else { $defaultMaximumStd }
     if ([double]::IsNaN($initialStd) -or [double]::IsInfinity($initialStd) -or
         [double]::IsNaN($minimumStd) -or [double]::IsInfinity($minimumStd) -or
         [double]::IsNaN($maximumStd) -or [double]::IsInfinity($maximumStd) -or
