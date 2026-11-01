@@ -32,6 +32,7 @@ FULL_FOOT_SLIP_REWARD_CONTRACT = "signed_progress_huber_speed_knee_clearance_ful
 DISTAL_SUPPORT_REWARD_CONTRACT = "signed_progress_huber_speed_distal_support_v1"
 STRICT_SUPPORT_REWARD_CONTRACT = "signed_progress_huber_speed_strict_support_v1"
 STRICT_CONTACT_SUPPORT_REWARD_CONTRACT = "signed_progress_huber_speed_strict_support_v2"
+CAPPED_PROGRESS_BUDGETED_COSTS_REWARD_CONTRACT = "capped_progress_budgeted_costs_v1"
 # Fixed-foot origins in main's normalized Onshape URDF, in policy leg order.
 ONSHAPE_SOLE_OFFSETS = (
     (0.137, 0.010, -0.01922),
@@ -68,6 +69,7 @@ class JointAngleNavigationEnvCfg(SpiderNavigationEnvCfg):
     behavior_profile = "revised_v3"
     reward_contract = "signed_progress_huber_speed_v3"
     contact_contract = "support_surface_foot_geometry_v3"
+    contact_force_contract = "net_normal_forces_v1"
     control_contract = "absolute_targets_rate_limited_observed_velocity_v2"
     robot = SPIDERBOT_CFG.replace(prim_path="/World/envs/env_.*/Robot")
     actuator_contract = "mg996r_4v8_v1"
@@ -130,6 +132,7 @@ class JointAngleNavigationEnvCfg(SpiderNavigationEnvCfg):
     target_speed = 0.10
     speed_tracking_sigma = 0.06
     progress_reward_scale = 25.0
+    progress_slip_sigma_mps = 0.03
     speed_cost_scale = -0.10
     upright_cost_scale = -2.0
     joint_limit_cost_scale = -1.0
@@ -138,6 +141,12 @@ class JointAngleNavigationEnvCfg(SpiderNavigationEnvCfg):
     power_cost_scale = -0.02
     target_acceleration_cost_scale = -0.02
     body_contact_cost_scale = -2.0
+    self_contact_cost_scale = -1.0
+    self_contact_force_reference_n = 20.0
+    # V10 bounds all dense costs together below the terminal failure cost
+    # over the mixed CAD6 episode horizon, while retaining their gradients.
+    dense_cost_limit_per_s = 0.25
+    dense_cost_reference_rate = 1.0
     foot_slip_cost_scale = -2.0
     angular_velocity_cost_scale = -0.10
     stillness_penalty_scale = -0.02
@@ -184,9 +193,10 @@ def _mg996r_hip_cad6_robot():
 class MG996RHipCad6JointAngleEnvCfg(Cad6JointAngleEnvCfg):
     """Six MG996R hip servos and twelve provisional RC920DMG leg servos."""
     robot = _mg996r_hip_cad6_robot()
-    behavior_profile = "revised_v9"
-    reward_contract = STRICT_CONTACT_SUPPORT_REWARD_CONTRACT
-    contact_contract = "cad6_strict_distal_all_links_v2"
+    behavior_profile = "revised_v10"
+    reward_contract = CAPPED_PROGRESS_BUDGETED_COSTS_REWARD_CONTRACT
+    contact_contract = "cad6_external_distal_self_filtered_v1"
+    contact_force_contract = "external_normal_forces_self_filtered_v1"
     joint_angle_ranges = Cad6JointAngleEnvCfg().joint_angle_ranges
     sole_offset = ONSHAPE_SOLE_OFFSETS
     foot_support_offsets = ONSHAPE_FOOT_SUPPORT_OFFSETS

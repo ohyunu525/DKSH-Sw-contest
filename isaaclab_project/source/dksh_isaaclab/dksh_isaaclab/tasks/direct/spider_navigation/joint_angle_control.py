@@ -131,6 +131,30 @@ def huber_speed_tracking_cost(
     return torch.where(magnitude <= 1, 0.5 * error.square(), magnitude - 0.5)
 
 
+def budgeted_dense_costs(
+    rates: dict[str, torch.Tensor], *, cost_limit_per_s: float, reference_cost_rate: float,
+) -> dict[str, torch.Tensor]:
+    """Smoothly bound combined nonpositive costs while retaining their proportions.
+
+    Inputs and outputs are rates per second; the caller applies the control
+    timestep. For total input cost ``c``, the combined output cost is
+    ``cost_limit_per_s * c / (reference_cost_rate + c)``. Thus dense costs
+    cannot exceed the configured rate even when an individual term spikes.
+    Positive inputs are clamped to zero so this helper never creates a bonus.
+    The map has no accumulated state and performs no tensor-to-host reads.
+    """
+    if not math.isfinite(cost_limit_per_s) or cost_limit_per_s <= 0:
+        raise ValueError("cost_limit_per_s must be finite and positive")
+    if not math.isfinite(reference_cost_rate) or reference_cost_rate <= 0:
+        raise ValueError("reference_cost_rate must be finite and positive")
+    if not rates:
+        raise ValueError("rates must contain at least one dense cost")
+    nonpositive = {name: rate.clamp_max(0.0) for name, rate in rates.items()}
+    total_cost = -sum(nonpositive.values())
+    factor = cost_limit_per_s / (reference_cost_rate + total_cost)
+    return {name: rate * factor for name, rate in nonpositive.items()}
+
+
 def exploration_std(
     limits: torch.Tensor, *, dt: float, rate_limit: float, smoothing: float,
     saturation_probability: float = 0.01,

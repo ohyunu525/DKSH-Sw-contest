@@ -16,7 +16,10 @@ FULL_FOOT_SLIP_REWARD_CONTRACT = "signed_progress_huber_speed_knee_clearance_ful
 DISTAL_SUPPORT_REWARD_CONTRACT = "signed_progress_huber_speed_distal_support_v1"
 STRICT_SUPPORT_REWARD_CONTRACT = "signed_progress_huber_speed_strict_support_v1"
 STRICT_CONTACT_SUPPORT_REWARD_CONTRACT = "signed_progress_huber_speed_strict_support_v2"
+BUDGETED_COST_REWARD_CONTRACT = "capped_progress_budgeted_costs_v1"
 CONTACT_CONTRACT = "support_surface_foot_geometry_v3"
+CONTACT_FORCE_CONTRACT = "net_normal_forces_v1"
+SELF_FILTERED_CONTACT_FORCE_CONTRACT = "external_normal_forces_self_filtered_v1"
 TOE_BUTTON_CONTACT_CONTRACT = "cad6_toe_button_hysteresis_v1"
 DISTAL_SUPPORT_CONTACT_CONTRACT = "cad6_distal_support_toe_button_v1"
 EXPLORATION_PROFILE = "independent_std_bounds_v1"
@@ -38,6 +41,8 @@ BEHAVIOR_PROFILES = {
                    "contact_contract": "cad6_strict_distal_all_links_v1"},
     "revised_v9": {"reward_contract": STRICT_CONTACT_SUPPORT_REWARD_CONTRACT,
                    "contact_contract": "cad6_strict_distal_all_links_v2"},
+    "revised_v10": {"reward_contract": BUDGETED_COST_REWARD_CONTRACT,
+                    "contact_contract": "cad6_external_distal_self_filtered_v1"},
 }
 CONTROL_CONTRACT = "absolute_targets_rate_limited_observed_velocity_v2"
 SCHEMA_CONTRACTS = {
@@ -109,7 +114,11 @@ def validate_checkpoint(path, task, environment, *, expected_reward_contract=Non
             continue
         if metadata.get(name) != expected_contract:
             raise ValueError(f"Checkpoint {name.replace('_', ' ')} differs from v2; retrain the policy")
-    behavior_profile_from_metadata(metadata)
+    profile = behavior_profile_from_metadata(metadata)
+    expected_force_contract = (SELF_FILTERED_CONTACT_FORCE_CONTRACT if profile == "revised_v10"
+                               else CONTACT_FORCE_CONTRACT)
+    if metadata.get("contact_force_contract", CONTACT_FORCE_CONTRACT) != expected_force_contract:
+        raise ValueError("Checkpoint contact force contract disagrees with its behavior profile")
     for name, expected_contract in (("reward_contract", expected_reward_contract),
                                     ("contact_contract", expected_contact_contract)):
         known = {contracts[name] for contracts in BEHAVIOR_PROFILES.values()}

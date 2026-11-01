@@ -188,6 +188,12 @@ def strict_leg_contact_state(
     supported; tibia load is invalid when ``distal_supported`` is false.
     The caller supplies distal support after its force and geometry checks.
 
+    v10 callers supply external normal forces after subtracting explicitly
+    filtered robot-to-robot forces at each physics substep. Self contact must
+    not become a nonfoot ground load here. Historical profiles retain their
+    original net-force input; this helper does not guess contact pairs from
+    equal/opposite vectors or from terrain clearance.
+
     Sensor indices may have any order. ``sensor_leg_nonfeet`` provides each
     leg's hip/femur indices in the same public leg order as ``sensor_feet``.
     ``sensor_body`` additionally covers base and other nonfoot links; overlap

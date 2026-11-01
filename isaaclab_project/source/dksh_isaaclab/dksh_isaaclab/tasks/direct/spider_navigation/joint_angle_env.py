@@ -12,7 +12,7 @@ from .spider_navigation_env import SpiderNavigationEnv
 from .joint_angle_control import (
     action_to_angles, bounded_angle_targets, joint_names, motion_costs,
     normalize_angles, observation_size, point_velocity, signed_progress, speed_tracking_cost,
-    uncapped_signed_progress, huber_speed_tracking_cost,
+    uncapped_signed_progress, huber_speed_tracking_cost, budgeted_dense_costs,
 )
 from .joint_angle_contact import (
     sole_contact_state, foot_contact_state, closest_foot_support, toe_button_contact_state,
@@ -23,12 +23,12 @@ from .joint_angle_contact_diagnostics import ContactDiagnosticWriter, ContactPai
 
 class JointAngleNavigationEnv(SpiderNavigationEnv):
     def __init__(self, cfg, render_mode=None, **kwargs):
-        if cfg.environment_preset == "curriculum" and cfg.behavior_profile not in ("revised_v7", "revised_v8", "revised_v9"):
-            raise ValueError("Mixed-course curriculum requires revised_v7, revised_v8 or revised_v9 distal-support behavior")
+        if cfg.environment_preset == "curriculum" and cfg.behavior_profile not in ("revised_v7", "revised_v8", "revised_v9", "revised_v10"):
+            raise ValueError("Mixed-course curriculum requires a distal-support behavior profile (v7, v8, v9 or v10)")
         if getattr(cfg, "contact_diagnostics_pairs", False) and not getattr(cfg, "contact_diagnostics_path", None):
             raise ValueError("Contact-pair diagnostics require a JSONL output path")
         cfg.robot = cfg.robot.copy()
-        if cfg.behavior_profile not in ("revised_v8", "revised_v9") and getattr(cfg, "non_distal_collision_offsets", None) is not None:
+        if cfg.behavior_profile not in ("revised_v8", "revised_v9", "revised_v10") and getattr(cfg, "non_distal_collision_offsets", None) is not None:
             # Explicit historical comparisons keep their original reset, rather
             # than silently borrowing the new profile's tilted distal stance.
             cfg.robot.init_state.pos = (0.0, 0.0, 0.1375)
@@ -76,6 +76,24 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             [self._contacts.body_names.index(f"leg_{leg}_{part}") for part in ("hip", "femur")]
             for leg in range(len(self._feet))
         ]
+        self._strict_contact_cache = None
+        self._external_force_history = None
+        self._self_force_history = None
+        self._self_contact_load_history = None
+        self._self_contact_last_capture = -1
+        if cfg.behavior_profile == "revised_v10":
+            if cfg.contact_force_contract != "external_normal_forces_self_filtered_v1":
+                raise ValueError("v10 requires explicitly self-filtered external contact forces")
+            self._self_contact_sensor_ids = [self._contacts.body_names.index(name)
+                                             for name in self._self_contact_sources]
+            self._external_force_history = torch.zeros_like(self._contacts.data.net_forces_w_history)
+            self._self_force_history = torch.zeros_like(self._external_force_history)
+            self._self_contact_load_history = torch.zeros_like(self._external_force_history[..., 0])
+            if (cfg.failure_penalty >= -cfg.dense_cost_limit_per_s * cfg.episode_length_s
+                    or cfg.self_contact_force_reference_n <= 0):
+                raise ValueError("v10 failure penalty must exceed the full-episode dense cost budget")
+            if not math.isfinite(cfg.progress_slip_sigma_mps) or cfg.progress_slip_sigma_mps <= 0:
+                raise ValueError("v10 progress slip scale must be finite and positive")
         self._sole_offset = torch.tensor(cfg.sole_offset, device=self.device).expand(self.num_envs, len(self._feet), 3)
         support_offsets = cfg.foot_support_offsets
         if support_offsets is None:
@@ -84,7 +102,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             self._foot_support_offsets = torch.tensor(support_offsets, device=self.device).unsqueeze(0).expand(self.num_envs, -1, -1, -1)
         self._distal_foot_support_offsets = None
         self._proximal_foot_offsets = None
-        if cfg.behavior_profile in ("revised_v7", "revised_v8", "revised_v9"):
+        if cfg.behavior_profile in ("revised_v7", "revised_v8", "revised_v9", "revised_v10"):
             for setting, attribute in (("distal_foot_support_offsets", "_distal_foot_support_offsets"),
                                        ("proximal_foot_offsets", "_proximal_foot_offsets")):
                 values = getattr(cfg, setting)
@@ -98,7 +116,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
                 setattr(self, attribute, offsets.unsqueeze(0).expand(self.num_envs, -1, -1, -1))
             if cfg.knee_ground_clearance_m <= 0:
                 raise ValueError("knee_ground_clearance_m must be positive")
-        if cfg.behavior_profile in ("revised_v8", "revised_v9"):
+        if cfg.behavior_profile in ("revised_v8", "revised_v9", "revised_v10"):
             geometry = cfg.non_distal_collision_offsets
             required = {"base"} | {f"leg_{leg}_{part}" for leg in range(len(self._feet))
                                    for part in ("hip", "femur", "tibia")}
@@ -125,7 +143,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
                     or not math.isfinite(cfg.non_distal_penetration_tolerance_m)
                     or cfg.non_distal_penetration_tolerance_m < 0):
                 raise ValueError("Strict collider clearance must be positive and penetration tolerance nonnegative")
-            if cfg.behavior_profile == "revised_v9":
+            if cfg.behavior_profile in ("revised_v9", "revised_v10"):
                 contact_slop = cfg.non_distal_contact_height_tolerance_m
                 if (not math.isfinite(contact_slop) or contact_slop < 0
                         or contact_slop >= cfg.non_distal_ground_clearance_m):
@@ -151,6 +169,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             "progress", "speed", "upright", "joint_limit", "joint_velocity", "torque", "power",
             "target_acceleration", "body_contact", "foot_slip", "angular_velocity", "stillness",
             "goal", "failure", "debris_impact", "knee_clearance", "non_distal_support", "non_distal_clearance",
+            "self_contact",
         )}
         self.step_metrics = {}
         self._diagnostic_writer = None
@@ -201,6 +220,22 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             history_length=self.cfg.decimation,
         ))
         self.scene.sensors["robot_contacts"] = self._contacts
+        self._self_contact_sensors = []
+        if self.cfg.behavior_profile == "revised_v10":
+            self._self_contact_sources = ["base"] + [
+                f"leg_{leg}_{part}" for leg in range(self.cfg.action_space // 3)
+                for part in ("hip", "femur", "tibia")
+            ]
+            robot_targets = [f"/World/envs/env_.*/Robot/{name}" for name in self._self_contact_sources]
+            # One source body per filtered sensor, as required by Isaac Lab.
+            # Filter only robot bodies: GPU plane filtering is not needed.
+            for name in self._self_contact_sources:
+                sensor = ContactSensor(ContactSensorCfg(
+                    prim_path=f"/World/envs/env_.*/Robot/{name}", update_period=0.0,
+                    history_length=0, filter_prim_paths_expr=robot_targets,
+                ))
+                self.scene.sensors[f"self_contact_{name}"] = sensor
+                self._self_contact_sensors.append(sensor)
         self._contact_pair_sensors = []
         if getattr(self.cfg, "contact_diagnostics_pairs", False):
             self._contact_pair_sources = ["base"] + [
@@ -248,6 +283,12 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         if self._scenario is not None:
             self._scenario.begin_step()
         self.extras["log"] = {}
+        self._strict_contact_cache = None
+        self._self_contact_last_capture = -1
+        if self._external_force_history is not None:
+            self._external_force_history.zero_()
+            self._self_force_history.zero_()
+            self._self_contact_load_history.zero_()
         self._contact_diagnostic_state = None
         self._contact_diagnostic_substep = 0
         self._contact_diagnostic_last_capture = -1
@@ -271,9 +312,50 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         # DirectRLEnv updates sensors after sim.step. At the next action hook,
         # capture that completed substep; _get_dones captures the final one.
         if self._contact_diagnostic_substep > 0:
+            self._capture_external_contacts()
             self._capture_contact_diagnostics()
         super()._apply_action()
         self._contact_diagnostic_substep += 1
+
+    def _capture_external_contacts(self):
+        """Separate self and external normal forces at the SAME physics substep.
+
+        Subtract vectors before taking norms or history maxima. Cancelling
+        already reduced magnitudes can incorrectly erase real ground loads.
+        Required control sensors fail loudly; diagnostic limits do not stop them.
+        """
+        if self._external_force_history is None:
+            return
+        substep = self._contact_diagnostic_substep - 1
+        if substep < 0 or substep == self._self_contact_last_capture:
+            return
+        if substep >= self.cfg.decimation:
+            raise RuntimeError("External contact history exceeded physics decimation")
+        external, internal, loads = [], [], []
+        for sensor in self._self_contact_sensors:
+            data = sensor.data
+            matrix = data.force_matrix_w
+            if (matrix is None or matrix.ndim != 4 or matrix.shape[0] != self.num_envs
+                    or matrix.shape[1] != 1 or matrix.shape[2] < 1 or matrix.shape[3] != 3):
+                raise RuntimeError("v10 self-contact force matrix is unavailable or malformed")
+            self_force = matrix[:, 0].sum(dim=1)
+            external.append(data.net_forces_w[:, 0] - self_force)
+            internal.append(self_force)
+            # Sum pair magnitudes before reducing, so opposite self contacts on
+            # the same link still carry a cost. Each pair is counted twice.
+            loads.append(torch.linalg.vector_norm(matrix[:, 0], dim=-1).sum(dim=1))
+        history_slot = self.cfg.decimation - 1 - substep  # newest sample first
+        ids = self._self_contact_sensor_ids
+        self._external_force_history[:, history_slot, ids] = torch.stack(external, dim=1)
+        self._self_force_history[:, history_slot, ids] = torch.stack(internal, dim=1)
+        self._self_contact_load_history[:, history_slot, ids] = torch.stack(loads, dim=1)
+        self._strict_contact_cache = None
+        self._self_contact_last_capture = substep
+
+    def _contact_force_history(self):
+        if self._external_force_history is not None:
+            return self._external_force_history
+        return self._contacts.data.net_forces_w_history
 
     def _capture_contact_diagnostics(self):
         index = self._contact_diagnostic_substep - 1
@@ -294,14 +376,14 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             self._contact_diagnostic_error = str(error)
 
     def _contact_state(self):
-        if self.cfg.behavior_profile in ("revised_v4", "revised_v5", "revised_v6", "revised_v7", "revised_v7_com", "revised_v8", "revised_v9"):
+        if self.cfg.behavior_profile in ("revised_v4", "revised_v5", "revised_v6", "revised_v7", "revised_v7_com", "revised_v8", "revised_v9", "revised_v10"):
             if self._toe_button_offsets is None or self._foot_support_offsets is None:
                 raise ValueError("Toe-button profiles require CAD toe-button and foot-support geometry")
             points, surfaces = self._foot_support_geometry()
             button_points = self._toe_button_world_positions()
             button_surfaces = self._surface_heights(button_points)
             pressed, body = toe_button_contact_state(
-                self._contacts.data.net_forces_w_history,
+                self._contact_force_history(),
                 sensor_feet=self._sensor_feet, sensor_body=self._sensor_body,
                 foot_positions_w=points, foot_surface_heights=surfaces,
                 button_positions_w=button_points, button_surface_heights=button_surfaces,
@@ -316,14 +398,14 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             if self.cfg.behavior_profile == "revised_v7":
                 _, distal_body, _ = self._distal_contact_state()
                 body |= distal_body
-            if self.cfg.behavior_profile in ("revised_v8", "revised_v9"):
+            if self.cfg.behavior_profile in ("revised_v8", "revised_v9", "revised_v10"):
                 support, body, _, _, _ = self._strict_contact_state()
                 return self._toe_button_pressed & support, body
             return self._toe_button_pressed, body
         if self.cfg.behavior_profile != "legacy_v2" and self.cfg.foot_support_offsets is not None:
             points, surfaces = self._foot_support_geometry()
             return foot_contact_state(
-                self._contacts.data.net_forces_w_history,
+                self._contact_force_history(),
                 sensor_feet=self._sensor_feet, sensor_body=self._sensor_body,
                 foot_positions_w=points, surface_heights=surfaces,
                 force_threshold=self.cfg.contact_threshold,
@@ -334,7 +416,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         surface = (self.scene.env_origins[:, 2:3].expand(-1, len(self._feet))
                    if self._scenario is None else self._scenario.surface_heights(soles))
         return sole_contact_state(
-            self._contacts.data.net_forces_w_history,
+            self._contact_force_history(),
             sensor_feet=self._sensor_feet, sensor_body=self._sensor_body,
             sole_positions_w=soles, surface_heights=surface,
             force_threshold=self.cfg.contact_threshold,
@@ -354,14 +436,14 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         distal, distal_surfaces = self._foot_support_geometry(self._distal_foot_support_offsets)
         proximal, proximal_surfaces = self._foot_support_geometry(self._proximal_foot_offsets)
         return distal_foot_contact_state(
-            self._contacts.data.net_forces_w_history,
+            self._contact_force_history(),
             sensor_feet=self._sensor_feet, sensor_body=self._sensor_body,
             distal_foot_positions_w=distal, distal_surface_heights=distal_surfaces,
             proximal_foot_positions_w=proximal, proximal_surface_heights=proximal_surfaces,
             force_threshold=self.cfg.contact_threshold,
             height_tolerance=self.cfg.distal_contact_height_tolerance,
             proximal_height_tolerance=(self.cfg.non_distal_contact_height_tolerance_m
-                                       if self.cfg.behavior_profile == "revised_v9"
+                                       if self.cfg.behavior_profile in ("revised_v9", "revised_v10")
                                        else self.cfg.proximal_contact_height_tolerance),
         )
 
@@ -373,9 +455,11 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
 
     def _strict_contact_state(self):
         """Reject loaded non-foot links, servo housings and non-distal foot patches."""
+        if self.cfg.behavior_profile == "revised_v10" and self._strict_contact_cache is not None:
+            return self._strict_contact_cache
         support, body, _ = self._distal_contact_state()
         loaded, invalid, nonfoot = strict_leg_contact_state(
-            self._contacts.data.net_forces_w_history,
+            self._contact_force_history(),
             sensor_feet=self._sensor_feet, sensor_leg_nonfeet=self._sensor_leg_nonfeet,
             sensor_body=self._sensor_body, distal_supported=support,
             force_threshold=self.cfg.contact_threshold,
@@ -395,13 +479,13 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         proximal_gaps = (proximal[..., 2] - proximal_surfaces).amin(-1)
         tibia_geometry = [indices[-1] for indices in self._non_distal_leg_geometry]
         gaps[:, tibia_geometry] = torch.minimum(gaps[:, tibia_geometry], proximal_gaps)
-        forces = self._contacts.data.net_forces_w_history[:, :, self._non_distal_sensors]
+        forces = self._contact_force_history()[:, :, self._non_distal_sensors]
         body_loaded = torch.linalg.vector_norm(forces, dim=-1).amax(1) > self.cfg.contact_threshold
         # A tibia sensor also reports its foot's load. Geometry separates the
         # servo housing from the allowed distal foot; deep penetration fails
         # even if net contact forces cancel or have not yet crossed threshold.
         contact_tolerance = (self.cfg.non_distal_contact_height_tolerance_m
-                             if self.cfg.behavior_profile == "revised_v9"
+                             if self.cfg.behavior_profile in ("revised_v9", "revised_v10")
                              else self.cfg.proximal_contact_height_tolerance)
         unsafe = ((gaps <= contact_tolerance) & body_loaded) | (
             gaps < -self.cfg.non_distal_penetration_tolerance_m
@@ -416,11 +500,14 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         # mask above already makes any unknown geometry a terminal failure.
         gaps = torch.where(torch.isfinite(gaps), gaps,
                            torch.full_like(gaps, -self.cfg.non_distal_ground_clearance_m))
-        return support, body, invalid, loaded, gaps
+        state = support, body, invalid, loaded, gaps
+        if self.cfg.behavior_profile == "revised_v10":
+            self._strict_contact_cache = state
+        return state
 
     def _fallen(self):
         fallen = super()._fallen()
-        if self.cfg.behavior_profile in ("revised_v8", "revised_v9") and hasattr(self, "_strict_contact_failure"):
+        if self.cfg.behavior_profile in ("revised_v8", "revised_v9", "revised_v10") and hasattr(self, "_strict_contact_failure"):
             fallen = fallen | self._strict_contact_failure
         return fallen
 
@@ -472,12 +559,13 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         return {"policy": observation}
 
     def _get_dones(self):
+        self._capture_external_contacts()
         self._capture_contact_diagnostics()
         if self._scenario is not None:
             self._scenario.collect_impacts()
         distance, _, _ = self._goal_data()
         feet, body_contact = self._contact_state()
-        if self.cfg.behavior_profile in ("revised_v8", "revised_v9"):
+        if self.cfg.behavior_profile in ("revised_v8", "revised_v9", "revised_v10"):
             self._strict_contact_failure |= body_contact
         goal_surface = (self._target_positions_w[:, 2] - 0.015 if self._scenario is not None
                         else self.scene.env_origins[:, 2])
@@ -502,8 +590,9 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         distance, direction_w, _ = self._goal_data()
         net_progress = self._previous_goal_distance - distance
         legacy = self.cfg.behavior_profile == "legacy_v2"
+        budgeted = self.cfg.behavior_profile == "revised_v10"
         progress = (signed_progress(self._previous_goal_distance, distance, self.cfg.target_speed * self.step_dt)
-                    if legacy else uncapped_signed_progress(self._previous_goal_distance, distance))
+                    if legacy or budgeted else uncapped_signed_progress(self._previous_goal_distance, distance))
         instantaneous_forward = (data.root_lin_vel_w[:, :2] * direction_w[:, :2]).sum(-1)
         # A transition's actual distance reduction cannot be faked by velocity
         # sampled at one phase of a zero-displacement oscillation.
@@ -515,7 +604,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             self._effort_limits, self._servo_velocity_limits,
         )
         feet, body_contact = self._contact_state()
-        strict = self.cfg.behavior_profile in ("revised_v8", "revised_v9")
+        strict = self.cfg.behavior_profile in ("revised_v8", "revised_v9", "revised_v10")
         strict_state = self._strict_contact_state() if strict else None
         if self._diagnostic_writer is not None:
             self._contact_diagnostic_state = strict_state
@@ -536,7 +625,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
                 # Use the closest hull witness already selected for velocity,
                 # while observations and goal gates retain the button bits.
                 slip_feet, _ = sole_contact_state(
-                    self._contacts.data.net_forces_w_history,
+                    self._contact_force_history(),
                     sensor_feet=self._sensor_feet, sensor_body=self._sensor_body,
                     sole_positions_w=support, surface_heights=support_height,
                     force_threshold=self.cfg.contact_threshold,
@@ -553,6 +642,15 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         if self._scenario is not None:
             velocity = velocity - self._scenario.floor_velocity[:, None, :]
         slip = (velocity[..., :2].square().sum(-1) * slip_feet).sum(-1) / slip_feet.sum(-1).clamp_min(1)
+        ungated_progress = progress
+        progress_slip_gate = torch.ones_like(progress)
+        if budgeted:
+            # Reward displacement on supported, low-slip feet. Moving the
+            # entire planted robot by skating cannot retain full progress
+            # credit. Negative progress stays intact, so a round trip still
+            # cannot earn net positive displacement reward.
+            progress_slip_gate = torch.exp(-slip / self.cfg.progress_slip_sigma_mps ** 2)
+            progress = progress.clamp_min(0) * progress_slip_gate + progress.clamp_max(0)
         acceleration = ((self._target_velocity - self._previous_target_velocity) / self.cfg.target_rate_limit).square().mean(-1)
         failed = self._fallen() | self._out_of_bounds
         knee_below_body_fraction = torch.zeros_like(self._goal_hold_time)
@@ -564,9 +662,9 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         mean_knee_ground_clearance = torch.zeros_like(self._goal_hold_time)
         knee_ground_clearance_violation = torch.zeros_like(self._goal_hold_time)
         non_distal_clearance_rate = torch.zeros_like(self._goal_hold_time)
-        if self.cfg.behavior_profile in ("revised_v7", "revised_v8", "revised_v9"):
+        if self.cfg.behavior_profile in ("revised_v7", "revised_v8", "revised_v9", "revised_v10"):
             distal_support, _, non_distal_loaded = self._distal_contact_state()
-            force_history = self._contacts.data.net_forces_w_history[:, :, self._sensor_feet]
+            force_history = self._contact_force_history()[:, :, self._sensor_feet]
             loaded = torch.linalg.vector_norm(force_history, dim=-1).amax(dim=1) > self.cfg.contact_threshold
             loaded_count = loaded.sum(-1).clamp_min(1)
             distal_support_fraction = distal_support.sum(-1) / loaded_count
@@ -627,6 +725,20 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             "non_distal_support": non_distal_support_rate,
             "non_distal_clearance": non_distal_clearance_rate,
         }
+        raw_cost_rate = -torch.stack(tuple(rates.values())).sum(0)
+        self_contact_force = torch.zeros_like(self._goal_hold_time)
+        if budgeted:
+            # Each internal pair appears on both source bodies. Use the mean
+            # over physics substeps, retaining pair magnitudes before summing.
+            self_contact_force = 0.5 * self._self_contact_load_history.sum(-1).mean(1)
+            rates["self_contact"] = self.cfg.self_contact_cost_scale * (
+                self_contact_force / self.cfg.self_contact_force_reference_n
+            )
+            raw_cost_rate = raw_cost_rate - rates["self_contact"]
+            rates = budgeted_dense_costs(
+                rates, cost_limit_per_s=self.cfg.dense_cost_limit_per_s,
+                reference_cost_rate=self.cfg.dense_cost_reference_rate,
+            )
         terms = {name: rate * self.step_dt for name, rate in rates.items()}
         terms.update(
             progress=self.cfg.progress_reward_scale * progress,
@@ -660,7 +772,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             "knees_below_body_fraction": knee_below_body_fraction,
             "approach_low_knee_time_fraction": approach_low_knee_fraction,
         }
-        if self.cfg.behavior_profile in ("revised_v7", "revised_v8", "revised_v9"):
+        if self.cfg.behavior_profile in ("revised_v7", "revised_v8", "revised_v9", "revised_v10"):
             self.step_metrics.update(
                 distal_support_fraction=distal_support_fraction,
                 non_distal_support_fraction=non_distal_support_fraction,
@@ -672,6 +784,16 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
                 non_distal_collision_fraction=collision.float(),
                 strict_contact_failure=self._strict_contact_failure.float(),
                 min_non_distal_clearance_m=gaps.amin(-1),
+            )
+        if budgeted:
+            self.step_metrics.update(
+                self_contact_force_n=self_contact_force,
+                self_contact_fraction=(self._self_contact_load_history.amax(dim=(1, 2))
+                                       > self.cfg.contact_threshold).float(),
+                raw_dense_cost_per_s=raw_cost_rate,
+                dense_cost_per_s=-torch.stack(tuple(rates.values())).sum(0),
+                progress_slip_gate=progress_slip_gate,
+                ungated_reward_progress_m=ungated_progress,
             )
         self.extras["log"].update({f"Metrics/{name}": value.mean() for name, value in self.step_metrics.items()})
         return torch.stack(tuple(terms.values())).sum(0)
@@ -687,7 +809,7 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
             return
         data = self._robot.data
         strict_state = self._contact_diagnostic_state
-        if self.cfg.behavior_profile in ("revised_v8", "revised_v9") and strict_state is None:
+        if self.cfg.behavior_profile in ("revised_v8", "revised_v9", "revised_v10") and strict_state is None:
             strict_state = self._strict_contact_state()
         base_fallen = super()._fallen()
         records = []
@@ -756,6 +878,17 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
                 ))
                 record["support"] = {"distal_supported": host(support), "invalid_legs": host(invalid),
                                      "loaded_legs": host(loaded)}
+            if self._external_force_history is not None:
+                record["contact_force_contract"] = self.cfg.contact_force_contract
+                record["external_contact_force_history"] = {
+                    "body_names": list(self._contacts.body_names),
+                    "force_w_n": host(self._external_force_history),
+                }
+                record["self_contact_force_history"] = {
+                    "body_names": list(self._contacts.body_names),
+                    "force_w_n": host(self._self_force_history),
+                    "pair_force_magnitude_sum_n": host(self._self_contact_load_history),
+                }
             records.append(record)
         writer.record_batch(records)
 
@@ -794,6 +927,11 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         step_log = {name: value for name, value in self.extras.get("log", {}).items()
                     if name.startswith("Metrics/")}
         super()._reset_idx(env_ids)
+        self._strict_contact_cache = None
+        if self._external_force_history is not None:
+            self._external_force_history[env_ids] = 0.0
+            self._self_force_history[env_ids] = 0.0
+            self._self_contact_load_history[env_ids] = 0.0
         self.extras["log"].update(step_log)
         if self._diagnostic_writer is not None:
             self.extras["log"].update({
