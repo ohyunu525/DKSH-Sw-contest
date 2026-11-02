@@ -94,9 +94,9 @@ class JointAngleEntrypointTests(unittest.TestCase):
         for mode in ("train", "evaluate", "play"):
             with self.subTest(mode=mode):
                 namespace = self.runner_arguments([f"--mode={mode}"])
-                self.assertEqual(namespace["args"].behavior_profile, "revised_v11")
+                self.assertEqual(namespace["args"].behavior_profile, "revised_v12")
                 self.assertEqual(namespace["checkpoint_compatibility"]["expected_reward_contract"],
-                                 "centered_speed_signed_progress_independent_costs_v1")
+                                 "centered_speed_distal_slip_time_integral_v1")
                 self.assertEqual(namespace["checkpoint_compatibility"]["expected_contact_contract"],
                                  "cad6_external_distal_substep_v1")
                 self.assertEqual(namespace["checkpoint_compatibility"]["expected_control_frequency_hz"], 10)
@@ -127,6 +127,32 @@ class JointAngleEntrypointTests(unittest.TestCase):
         current = self.runner_arguments(["--mode=train", "--min_noise_std=.10"])
         self.assertEqual(current["args"].min_noise_std, .10)
 
+    def test_stance_slip_override_requires_training_finite_positive_value_and_supported_profile(self):
+        for profile in ("revised_v11", "revised_v12"):
+            accepted = self.runner_arguments(["--mode=train", f"--behavior_profile={profile}",
+                                               "--stance_slip_cost_coefficient=.6"])
+            self.assertEqual(accepted["args"].stance_slip_cost_coefficient, .6)
+        for arguments in (["--mode=evaluate"], ["--mode=play"],
+                          ["--mode=train", "--behavior_profile=revised_v10"],
+                          ["--mode=train", "--behavior_profile=legacy_v2"]):
+            with self.subTest(arguments=arguments), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                self.runner_arguments([*arguments, "--stance_slip_cost_coefficient=.6"])
+        for value in ("0", "-1", "nan", "inf", "-inf"):
+            with self.subTest(value=value), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                self.runner_arguments(["--mode=train", f"--stance_slip_cost_coefficient={value}"])
+
+    def test_v11_transfer_to_v12_preserves_explicit_10hz_compatibility(self):
+        with TemporaryDirectory() as root:
+            path = self.create_checkpoint(root, "revised_v11")
+            args = ["--mode=train", f"--checkpoint={path}"]
+            with self.assertRaisesRegex(ValueError, "allow_behavior_transfer"):
+                self.runner_arguments(args)
+            transferred = self.runner_arguments([*args, "--allow_behavior_transfer"])
+            self.assertEqual(transferred["args"].behavior_profile, "revised_v12")
+            self.assertEqual(transferred["saved_metadata"]["behavior_profile"], "revised_v11")
+            historical = self.runner_arguments(["--mode=play", f"--checkpoint={path}", "--behavior_profile=revised_v11"])
+            self.assertEqual(historical["checkpoint_compatibility"]["expected_control_frequency_hz"], 10)
+
     def create_checkpoint(self, root, profile, *, task="Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2", saved_profile=None):
         spec = importlib.util.spec_from_file_location("entrypoint_checkpoint_fixture", SCRIPTS / "joint_angle_checkpoint.py")
         checkpoint = importlib.util.module_from_spec(spec)
@@ -143,9 +169,11 @@ class JointAngleEntrypointTests(unittest.TestCase):
                     **checkpoint.SCHEMA_CONTRACTS, **checkpoint.BEHAVIOR_PROFILES[profile],
                     "behavior_profile": saved_profile or profile,
                     "target_rate_limit_rad_s": 1.5, "target_smoothing": 0.35,
-                    "control_frequency_hz": 10 if profile == "revised_v11" else 50, "exploration_std_cap": 0.03}
-        if profile in ("revised_v10", "revised_v11"):
+                    "control_frequency_hz": 10 if profile in ("revised_v11", "revised_v12") else 50, "exploration_std_cap": 0.03}
+        if profile in ("revised_v10", "revised_v11", "revised_v12"):
             metadata["contact_force_contract"] = checkpoint.SELF_FILTERED_CONTACT_FORCE_CONTRACT
+        if profile == "revised_v12":
+            metadata["stance_slip_measurement_contract"] = checkpoint.expected_stance_slip_measurement_contract(profile)
         (path.parent / "run_metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
         return path
 
@@ -177,12 +205,12 @@ class JointAngleEntrypointTests(unittest.TestCase):
 
     def test_strict_cad6_checkpoint_replays_with_default_guards(self):
         with TemporaryDirectory() as root:
-            path = self.create_checkpoint(root, "revised_v11")
+            path = self.create_checkpoint(root, "revised_v12")
             for mode in ("evaluate", "play"):
                 with self.subTest(mode=mode):
                     selected = self.runner_arguments([f"--mode={mode}", f"--checkpoint={path}"])
-                    self.assertEqual(selected["args"].behavior_profile, "revised_v11")
-                    self.assertEqual(selected["saved_metadata"]["behavior_profile"], "revised_v11")
+                    self.assertEqual(selected["args"].behavior_profile, "revised_v12")
+                    self.assertEqual(selected["saved_metadata"]["behavior_profile"], "revised_v12")
 
     def test_other_robots_preserve_saved_evaluation_profile_inference(self):
         task = "Isaac-DKSH-Spider-JointAngles-v2"
@@ -204,7 +232,7 @@ class JointAngleEntrypointTests(unittest.TestCase):
                                  "cad6_toe_button_hysteresis_v1")
 
     def test_distal_support_rejects_tasks_without_onshape_cad6_geometry_before_simulator(self):
-        for profile in ("revised_v7", "revised_v8", "revised_v9", "revised_v10", "revised_v11"):
+        for profile in ("revised_v7", "revised_v8", "revised_v9", "revised_v10", "revised_v11", "revised_v12"):
             with self.subTest(profile=profile), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as result:
                 self.runner_arguments(["--mode=train", "--task=Isaac-DKSH-Spider-CAD6-JointAngles-v2",
                                        f"--behavior_profile={profile}"])
@@ -221,10 +249,10 @@ class JointAngleEntrypointTests(unittest.TestCase):
     def test_curriculum_defaults_strict_support_and_disjoint_frozen_evaluation(self):
         train = self.runner_arguments(["--mode=train", "--environment=curriculum", "--difficulty=0"])["args"]
         self.assertEqual((train.behavior_profile, train.course_seed, train.course_split, train.flat_fraction),
-                         ("revised_v11", 42, "train", 0.25))
+                         ("revised_v12", 42, "train", 0.25))
         evaluation = self.runner_arguments(["--mode=evaluate", "--environment=curriculum"])["args"]
         self.assertEqual((evaluation.course_seed, evaluation.course_split), (73, "holdout"))
-        self.assertEqual(evaluation.behavior_profile, "revised_v11")
+        self.assertEqual(evaluation.behavior_profile, "revised_v12")
         for profile in ("revised_v7", "revised_v8"):
             historical = self.runner_arguments(["--mode=train", "--environment=curriculum",
                                                 f"--behavior_profile={profile}"])["args"]

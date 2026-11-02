@@ -162,7 +162,7 @@ def make_env(actions=18, support_offsets=None, *, behavior_profile="revised_v3",
     # out of these tensor tests; no duplicate copy of the reward implementation.
     cfg_tree = ast.parse((FOLDER / "joint_angle_env_cfg.py").read_text(encoding="utf-8"))
     classes = [next(node for node in cfg_tree.body if isinstance(node, ast.ClassDef))]
-    if behavior_profile in ("revised_v5", "revised_v6", "revised_v7", "revised_v7_com", "revised_v8", "revised_v9", "revised_v10", "revised_v11"):
+    if behavior_profile in ("revised_v5", "revised_v6", "revised_v7", "revised_v7_com", "revised_v8", "revised_v9", "revised_v10", "revised_v11", "revised_v12"):
         classes.append(next(node for node in cfg_tree.body
                             if isinstance(node, ast.ClassDef) and node.name == "MG996RHipCad6JointAngleEnvCfg"))
     settings = {}
@@ -175,12 +175,12 @@ def make_env(actions=18, support_offsets=None, *, behavior_profile="revised_v3",
                     pass
     settings.update(
         action_space=actions, environment_preset=environment_preset,
-        decimation=20 if behavior_profile == "revised_v11" else 4, seed=42,
+        decimation=20 if behavior_profile in ("revised_v11", "revised_v12") else 4, seed=42,
         robot=NS(copy=lambda: NS(spawn=NS(usd_path="test", articulation_props=NS(enabled_self_collisions=False)))),
         minimum_base_height=0.06, robot_height=0.24, max_distance_from_origin=5.5,
         joint_angle_ranges={"hip": (-1.4, 1.4), "femur": (-1.1, 1.4), "tibia": (-0.4, 1.4)},
         servo_velocity_limit=10.0, goal_reward=30,
-        failure_penalty=-100 if behavior_profile in ("revised_v10", "revised_v11") else -10,
+        failure_penalty=-100 if behavior_profile in ("revised_v10", "revised_v11", "revised_v12") else -10,
         debris_impact_penalty=-2,
         foot_support_offsets=support_offsets,
         behavior_profile=behavior_profile, toe_button_offsets=toe_button_offsets,
@@ -1332,6 +1332,7 @@ class V11LearningIntegrationTests(unittest.TestCase):
     def capture_step(self, env):
         env._self_contact_last_capture = -1
         env._stance_slip_sum.zero_()
+        env._stance_slip_speed_sum.zero_()
         env._stance_slip_samples = 0
         for substep in range(env.cfg.decimation):
             env._contact_diagnostic_substep = substep + 1

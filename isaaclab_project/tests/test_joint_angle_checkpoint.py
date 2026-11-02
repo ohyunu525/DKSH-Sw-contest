@@ -62,9 +62,11 @@ class CheckpointTests(unittest.TestCase):
             **CHECKPOINT.SCHEMA_CONTRACTS,
             **({**CHECKPOINT.BEHAVIOR_PROFILES[profile], "behavior_profile": profile} if profile else {}),
             **({"contact_force_contract": CHECKPOINT.SELF_FILTERED_CONTACT_FORCE_CONTRACT}
-               if profile in ("revised_v10", "revised_v11") else {}),
+               if profile in ("revised_v10", "revised_v11", "revised_v12") else {}),
+            **({"stance_slip_measurement_contract": CHECKPOINT.expected_stance_slip_measurement_contract(profile)}
+               if profile == "revised_v12" else {}),
             "target_rate_limit_rad_s": 1.5, "target_smoothing": 0.35,
-            "control_frequency_hz": 10 if profile == "revised_v11" else 50,
+            "control_frequency_hz": 10 if profile in ("revised_v11", "revised_v12") else 50,
             "exploration_std_cap": 0.0211844041781,
         }), encoding="utf-8")
         return path
@@ -258,10 +260,12 @@ class CheckpointTests(unittest.TestCase):
                     self.assertEqual(contracts["reward_contract"], reward)
                     self.assertEqual(contracts["contact_contract"], "cad6_toe_button_hysteresis_v1")
                     metadata = original | contracts | {"behavior_profile": profile}
-                    if profile in ("revised_v10", "revised_v11"):
+                    if profile in ("revised_v10", "revised_v11", "revised_v12"):
                         metadata["contact_force_contract"] = CHECKPOINT.SELF_FILTERED_CONTACT_FORCE_CONTRACT
-                    if profile == "revised_v11":
+                    if profile in ("revised_v11", "revised_v12"):
                         metadata["control_frequency_hz"] = 10
+                    if profile == "revised_v12":
+                        metadata["stance_slip_measurement_contract"] = CHECKPOINT.expected_stance_slip_measurement_contract(profile)
                     metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
                     saved = CHECKPOINT.validate_checkpoint(path, TASK, "flat")
                     self.assertEqual(CHECKPOINT.behavior_profile_from_metadata(saved), profile)
@@ -287,10 +291,12 @@ class CheckpointTests(unittest.TestCase):
             for profile, contracts in CHECKPOINT.BEHAVIOR_PROFILES.items():
                 with self.subTest(profile=profile):
                     metadata = original | contracts | {"behavior_profile": profile}
-                    if profile in ("revised_v10", "revised_v11"):
+                    if profile in ("revised_v10", "revised_v11", "revised_v12"):
                         metadata["contact_force_contract"] = CHECKPOINT.SELF_FILTERED_CONTACT_FORCE_CONTRACT
-                    if profile == "revised_v11":
+                    if profile in ("revised_v11", "revised_v12"):
                         metadata["control_frequency_hz"] = 10
+                    if profile == "revised_v12":
+                        metadata["stance_slip_measurement_contract"] = CHECKPOINT.expected_stance_slip_measurement_contract(profile)
                     metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
                     saved = CHECKPOINT.validate_checkpoint(path, TASK, "flat")
                     self.assertEqual(CHECKPOINT.behavior_profile_from_metadata(saved), profile)
@@ -429,6 +435,32 @@ class CheckpointTests(unittest.TestCase):
             self.assertEqual((saved["control_frequency_hz"], saved["observations"], saved["actions"]), (10, 140, 18))
             with self.assertRaisesRegex(ValueError, "control frequency"):
                 CHECKPOINT.validate_checkpoint(path, TASK, "flat", expected_control_frequency_hz=50)
+
+    def test_v12_requires_explicit_v11_transfer_and_its_distal_time_integral_measurement(self):
+        current = CHECKPOINT.BEHAVIOR_PROFILES["revised_v12"]
+        compatibility = {"expected_reward_contract": current["reward_contract"],
+                         "expected_contact_contract": current["contact_contract"],
+                         "expected_control_frequency_hz": 10}
+        with TemporaryDirectory() as root:
+            path = self.create_checkpoint(root, "flat", profile="revised_v11")
+            with self.assertRaisesRegex(ValueError, "allow_behavior_transfer"):
+                CHECKPOINT.validate_checkpoint(path, TASK, "flat", **compatibility)
+            saved = CHECKPOINT.validate_checkpoint(path, TASK, "flat", allow_behavior_transfer=True, **compatibility)
+            self.assertEqual(saved["behavior_profile"], "revised_v11")
+            self.assertEqual(CHECKPOINT.expected_stance_slip_measurement_contract("revised_v11"), "full_foot_hull_time_rms_v1")
+            path = self.create_checkpoint(root, "flat", profile="revised_v12")
+            metadata_path = path.parent / "run_metadata.json"
+            original = json.loads(metadata_path.read_text(encoding="utf-8"))
+            CHECKPOINT.validate_checkpoint(path, TASK, "flat", **compatibility)
+            for measurement in (None, "full_foot_hull_time_rms_v1"):
+                altered = original.copy()
+                if measurement is None:
+                    altered.pop("stance_slip_measurement_contract")
+                else:
+                    altered["stance_slip_measurement_contract"] = measurement
+                metadata_path.write_text(json.dumps(altered), encoding="utf-8")
+                with self.subTest(measurement=measurement), self.assertRaisesRegex(ValueError, "stance slip measurement contract"):
+                    CHECKPOINT.validate_checkpoint(path, TASK, "flat", allow_behavior_transfer=True, **compatibility)
 
 
 if __name__ == "__main__":

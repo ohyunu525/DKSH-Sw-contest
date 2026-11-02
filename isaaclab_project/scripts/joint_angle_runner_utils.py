@@ -16,6 +16,29 @@ COURSE_CONTRACT = "mixed_randomized_courses_v1"
 COURSE_FAMILIES = ("flat", "rough", "stairs", "narrow")
 
 
+def validate_stance_slip_cost_coefficient(value, behavior_profile):
+    if behavior_profile not in ("revised_v11", "revised_v12"):
+        raise ValueError("Stance slip cost overrides require revised_v11 or revised_v12")
+    if (isinstance(value, bool) or not isinstance(value, (int, float))
+            or not math.isfinite(value) or value <= 0):
+        raise ValueError("Stance slip cost coefficient must be finite and positive")
+    return float(value)
+
+
+def resolve_stance_slip_cost_coefficient(cfg, source_metadata=None, override=None):
+    """Keep checkpoint reward settings during resume and deterministic replay."""
+    if cfg.behavior_profile not in ("revised_v11", "revised_v12"):
+        if override is not None:
+            validate_stance_slip_cost_coefficient(override, cfg.behavior_profile)
+        return getattr(cfg, "stance_slip_cost_coefficient", None)
+    value = override
+    if value is None:
+        value = getattr(cfg, "stance_slip_cost_coefficient", 6.0)
+        if source_metadata and source_metadata.get("behavior_profile") in ("revised_v11", "revised_v12"):
+            value = source_metadata.get("stance_slip_cost_coefficient", value)
+    return validate_stance_slip_cost_coefficient(value, cfg.behavior_profile)
+
+
 def add_course_args(parser):
     """Direct-runner options; None defaults distinguish explicit fixed-course overrides."""
     parser.add_argument("--course_seed", type=int, default=None)
@@ -40,8 +63,8 @@ def resolve_course_args(args):
         return args
     if "MG996R-Hip-CAD6" not in args.task:
         raise ValueError("curriculum requires the MG996R-Hip-CAD6 direct-angle task and distal-support behavior")
-    if args.behavior_profile not in (None, "revised_v7", "revised_v8", "revised_v9", "revised_v10", "revised_v11"):
-        raise ValueError("curriculum requires revised_v7 through revised_v11 distal-support behavior")
+    if args.behavior_profile not in (None, "revised_v7", "revised_v8", "revised_v9", "revised_v10", "revised_v11", "revised_v12"):
+        raise ValueError("curriculum requires revised_v7 through revised_v12 distal-support behavior")
     if args.freeze_curriculum and args.mode != "train":
         raise ValueError("freeze_curriculum is training-only; evaluation is always frozen")
     split = "train" if args.mode == "train" else "holdout"

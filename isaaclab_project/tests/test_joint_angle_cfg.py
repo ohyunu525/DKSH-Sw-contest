@@ -127,18 +127,18 @@ class JointAngleConfigurationTests(unittest.TestCase):
                 self.assertEqual(cfg.joint_reset_noise, 0)
                 self.assertGreaterEqual(cfg.goal_min_distance, 0.25 if name == "MG996RHipCad6JointAngleEnvCfg" else 0.5)
                 self.assertLess(cfg.speed_cost_scale, 0)
-                expected_profile = "revised_v11" if name == "MG996RHipCad6JointAngleEnvCfg" else "revised_v3"
+                expected_profile = "revised_v12" if name == "MG996RHipCad6JointAngleEnvCfg" else "revised_v3"
                 self.assertEqual(cfg.behavior_profile, expected_profile)
-                expected_reward = ("centered_speed_signed_progress_independent_costs_v1" if expected_profile == "revised_v11"
+                expected_reward = ("centered_speed_distal_slip_time_integral_v1" if expected_profile == "revised_v12"
                                    else "signed_progress_huber_speed_v3")
                 self.assertEqual(cfg.reward_contract, expected_reward)
-                expected_contact = ("cad6_external_distal_substep_v1" if expected_profile == "revised_v11"
+                expected_contact = ("cad6_external_distal_substep_v1" if expected_profile == "revised_v12"
                                     else "support_surface_foot_geometry_v3")
                 self.assertEqual(cfg.contact_contract, expected_contact)
-                expected_force = ("external_normal_forces_self_filtered_v1" if expected_profile == "revised_v11"
+                expected_force = ("external_normal_forces_self_filtered_v1" if expected_profile == "revised_v12"
                                   else "net_normal_forces_v1")
                 self.assertEqual(cfg.contact_force_contract, expected_force)
-                expected_noise = (0.12, 0.04, 0.25) if expected_profile == "revised_v11" else (0.08, 0.03, 0.30)
+                expected_noise = (0.12, 0.04, 0.25) if expected_profile == "revised_v12" else (0.08, 0.03, 0.30)
                 self.assertEqual((cfg.exploration_initial_std, cfg.exploration_min_std, cfg.exploration_max_std), expected_noise)
                 speed = cfg.servo_velocity_limit
                 self.assertLess(cfg.target_rate_limit, min(speed) if isinstance(speed, tuple) else speed)
@@ -215,7 +215,7 @@ class JointAngleConfigurationTests(unittest.TestCase):
                          (SERVO.MG996R_NO_LOAD_SPEED_RAD_S, SERVO.RC920DMG_NO_LOAD_SPEED_RAD_S_5V,
                           SERVO.RC920DMG_NO_LOAD_SPEED_RAD_S_5V) * 6)
 
-    def test_v11_holds_policy_decisions_at_ten_hz_with_fifty_hz_target_filter(self):
+    def test_v12_holds_policy_decisions_at_ten_hz_with_fifty_hz_target_filter(self):
         module, _ = load_cfg()
         cfg = module.MG996RHipCad6JointAngleEnvCfg()
         self.assertEqual(cfg.sim.dt, 0.005)
@@ -233,7 +233,7 @@ class JointAngleConfigurationTests(unittest.TestCase):
         self.assertEqual(cfg.actor_output_init_std, 0.001)
         self.assertEqual((cfg.failure_penalty, cfg.goal_reward), (-100.0, 5.0))
 
-    def test_v11_defaults_do_not_change_generic_policy_clock_or_exploration(self):
+    def test_v12_defaults_do_not_change_generic_policy_clock_or_exploration(self):
         module, _ = load_cfg()
         mixed = module.MG996RHipCad6JointAngleEnvCfg()
         mixed.sim.render_interval = 99

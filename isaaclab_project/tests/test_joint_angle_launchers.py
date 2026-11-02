@@ -61,6 +61,27 @@ class JointAngleLauncherTests(unittest.TestCase):
         self.assertNotIn("--seed=", result.stdout)  # Python's evaluation default is 73.
         self.assertNotIn("--behavior_profile=", result.stdout)  # Python owns the strict v8 CAD6 default.
 
+    def test_slip_cost_override_is_forwarded_only_when_explicit(self):
+        for script in ("run_cad6.ps1", "run_isaaclab.ps1"):
+            task_options = [] if script == "run_cad6.ps1" else ["-RobotModel", "cad6", "-ServoModel", "mg996r_hip"]
+            with self.subTest(script=script):
+                defaults = self.launch(script, "-Mode", "train", *task_options)
+                self.assertEqual(defaults.returncode, 0, defaults.stderr)
+                self.assertNotIn("--stance_slip_cost_coefficient=", defaults.stdout)
+                reduced = self.launch(script, "-Mode", "train", *task_options,
+                                      "-StanceSlipCostCoefficient", "0.6")
+                self.assertEqual(reduced.returncode, 0, reduced.stderr)
+                self.assertIn("--stance_slip_cost_coefficient=0.6", reduced.stdout)
+
+    def test_slip_cost_override_rejects_ignored_modes_and_invalid_values(self):
+        for arguments in (("-Mode", "evaluate", "-StanceSlipCostCoefficient", "0.6"),
+                          ("-Mode", "train", "-BehaviorProfile", "revised_v10", "-StanceSlipCostCoefficient", "0.6"),
+                          ("-Mode", "train", "-StanceSlipCostCoefficient", "0")):
+            with self.subTest(arguments=arguments):
+                result = self.launch("run_cad6.ps1", *arguments)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn("STUB_ARGS", result.stdout)
+
     def test_contact_diagnostics_are_forwarded_for_check_and_training(self):
         for mode in ("check", "train"):
             with self.subTest(mode=mode):
@@ -124,7 +145,7 @@ class JointAngleLauncherTests(unittest.TestCase):
 
     def test_strict_support_and_previous_toe_profiles_are_forwarded(self):
         for script in ("run_cad6.ps1", "run_isaaclab.ps1"):
-            for profile in ("revised_v4", "revised_v5", "revised_v6", "revised_v7", "revised_v7_com", "revised_v8", "revised_v9", "revised_v10", "revised_v11"):
+            for profile in ("revised_v4", "revised_v5", "revised_v6", "revised_v7", "revised_v7_com", "revised_v8", "revised_v9", "revised_v10", "revised_v11", "revised_v12"):
                 with self.subTest(script=script, profile=profile):
                     result = self.launch(script, "-Mode", "evaluate", "-BehaviorProfile", profile)
                     self.assertEqual(result.returncode, 0, result.stderr)
@@ -132,7 +153,7 @@ class JointAngleLauncherTests(unittest.TestCase):
 
     def test_curriculum_accepts_explicit_strict_and_historical_distal_profiles(self):
         for script in ("run_cad6.ps1", "run_isaaclab.ps1"):
-            for profile in ("revised_v7", "revised_v8", "revised_v9", "revised_v10", "revised_v11"):
+            for profile in ("revised_v7", "revised_v8", "revised_v9", "revised_v10", "revised_v11", "revised_v12"):
                 arguments = ["-Mode", "evaluate", "-Environment", "curriculum", "-BehaviorProfile", profile]
                 if script == "run_isaaclab.ps1":
                     arguments += ["-RobotModel", "cad6", "-ServoModel", "mg996r_hip"]

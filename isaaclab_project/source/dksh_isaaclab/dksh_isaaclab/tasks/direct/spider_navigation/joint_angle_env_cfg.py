@@ -34,6 +34,7 @@ STRICT_SUPPORT_REWARD_CONTRACT = "signed_progress_huber_speed_strict_support_v1"
 STRICT_CONTACT_SUPPORT_REWARD_CONTRACT = "signed_progress_huber_speed_strict_support_v2"
 CAPPED_PROGRESS_BUDGETED_COSTS_REWARD_CONTRACT = "capped_progress_budgeted_costs_v1"
 CENTERED_SPEED_INDEPENDENT_COSTS_REWARD_CONTRACT = "centered_speed_signed_progress_independent_costs_v1"
+DISTAL_SLIP_TIME_INTEGRAL_REWARD_CONTRACT = "centered_speed_distal_slip_time_integral_v1"
 # Fixed-foot origins in main's normalized Onshape URDF, in policy leg order.
 ONSHAPE_SOLE_OFFSETS = (
     (0.137, 0.010, -0.01922),
@@ -199,8 +200,8 @@ def _mg996r_hip_cad6_robot():
 class MG996RHipCad6JointAngleEnvCfg(Cad6JointAngleEnvCfg):
     """Six MG996R hip servos and twelve provisional RC920DMG leg servos."""
     robot = _mg996r_hip_cad6_robot()
-    behavior_profile = "revised_v11"
-    reward_contract = CENTERED_SPEED_INDEPENDENT_COSTS_REWARD_CONTRACT
+    behavior_profile = "revised_v12"
+    reward_contract = DISTAL_SLIP_TIME_INTEGRAL_REWARD_CONTRACT
     contact_contract = "cad6_external_distal_substep_v1"
     contact_force_contract = "external_normal_forces_self_filtered_v1"
     # Each policy choice is held for 100 ms; the target filter still advances

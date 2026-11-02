@@ -47,7 +47,7 @@ class CourseArgumentsTests(unittest.TestCase):
         self.assertEqual((cfg.course_split, cfg.course_seed), ("holdout", 73))
 
     def test_strict_distal_profile_is_allowed_for_curriculum(self):
-        for profile in ("revised_v7", "revised_v8", "revised_v9", "revised_v10", "revised_v11"):
+        for profile in ("revised_v7", "revised_v8", "revised_v9", "revised_v10", "revised_v11", "revised_v12"):
             with self.subTest(profile=profile):
                 self.assertEqual(self.arguments(profile=profile).behavior_profile, profile)
 
@@ -223,6 +223,7 @@ class CourseEvaluationTests(unittest.TestCase):
                                 num_envs=4, output="holdout.json", headless=True),
                      "app": NS(is_running=lambda: True), "ACTION_SEMANTICS": "absolute_joint_angles_v2",
                      "CONTACT_FORCE_CONTRACT": "net_normal_forces_v1",
+                     "expected_stance_slip_measurement_contract": lambda profile: "historical_support_witness_v1",
                      "behavior_profile_from_metadata": lambda metadata: "revised_v7"}
         exec(compile(ast.Module(body=functions, type_ignores=[]), str(source), "exec"), namespace)
         source_metadata = {"reward_contract": cfg.reward_contract, "contact_contract": cfg.contact_contract}

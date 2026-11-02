@@ -12,8 +12,9 @@ param(
     [double]$InitialNoiseStd,
     [double]$MinNoiseStd,
     [double]$MaxNoiseStd,
+    [double]$StanceSlipCostCoefficient,
     [switch]$ResetExplorationStd,
-    [ValidateSet('legacy_v2', 'revised_v3', 'revised_v4', 'revised_v5', 'revised_v6', 'revised_v7', 'revised_v7_com', 'revised_v8', 'revised_v9', 'revised_v10', 'revised_v11')][string]$BehaviorProfile,
+    [ValidateSet('legacy_v2', 'revised_v3', 'revised_v4', 'revised_v5', 'revised_v6', 'revised_v7', 'revised_v7_com', 'revised_v8', 'revised_v9', 'revised_v10', 'revised_v11', 'revised_v12')][string]$BehaviorProfile,
     [switch]$AllowBehaviorTransfer,
     [switch]$ContactDiagnostics,
     [string]$ContactDiagnosticsOutput = '',
@@ -33,7 +34,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$directTrainingKeys = @('InitialNoiseStd', 'MinNoiseStd', 'MaxNoiseStd', 'ResetExplorationStd', 'AllowBehaviorTransfer')
+$directTrainingKeys = @('InitialNoiseStd', 'MinNoiseStd', 'MaxNoiseStd', 'ResetExplorationStd', 'AllowBehaviorTransfer', 'StanceSlipCostCoefficient')
 $contactKeys = @('ContactDiagnostics', 'ContactDiagnosticsOutput', 'ContactDiagnosticsMaxRecords', 'ContactDiagnosticsPerStep')
 $courseKeys = @('CourseSeed', 'CourseSplit', 'FlatFraction', 'CurriculumWindow', 'CurriculumMinEpisodes',
                 'CurriculumPromoteThreshold', 'CurriculumDemoteThreshold', 'CurriculumStep', 'FreezeCurriculum')
@@ -42,7 +43,7 @@ if (@($courseKeys | Where-Object { $PSBoundParameters.ContainsKey($_) }).Count -
     throw 'Course options require -Environment curriculum and train, evaluate or play mode.'
 }
 if (@($directTrainingKeys | Where-Object { $PSBoundParameters.ContainsKey($_) }).Count -gt 0 -and $Mode -ne 'train') {
-    throw 'Noise std overrides, exploration reset and behavior transfer require -Mode train.'
+    throw 'Noise std overrides, exploration reset, behavior transfer and slip-cost overrides require -Mode train.'
 }
 if ($PSBoundParameters.ContainsKey('BehaviorProfile') -and $Mode -eq 'check') {
     throw 'BehaviorProfile requires train, evaluate or play mode.'

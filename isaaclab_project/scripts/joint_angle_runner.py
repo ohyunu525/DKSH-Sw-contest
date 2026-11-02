@@ -17,11 +17,13 @@ from joint_angle_checkpoint import (
     ACTION_SEMANTICS, BEHAVIOR_PROFILES, CONTACT_FORCE_CONTRACT, EXPLORATION_PROFILE, SCHEMA_CONTRACTS,
     SELF_FILTERED_CONTACT_FORCE_CONTRACT,
     behavior_profile_from_metadata, expected_cad_asset_sha256,
+    expected_stance_slip_measurement_contract,
     require_v2_task, resolve_checkpoint, validate_checkpoint, validate_control_contract,
 )
 from joint_angle_runner_utils import (
     EvaluationAccumulator, PolicyStdConstraint, configure_evaluation, effective_seed, validate_exploration_bounds,
     initialize_absolute_actor_output,
+    resolve_stance_slip_cost_coefficient, validate_stance_slip_cost_coefficient,
     add_course_args, resolve_course_args, apply_course_cfg, course_configuration,
     CurriculumCheckpointState, heldout_course_report,
 )
@@ -41,10 +43,12 @@ parser.add_argument("--allow_provisional_cad", action="store_true")
 parser.add_argument("--initial_noise_std", type=float, default=None)
 parser.add_argument("--min_noise_std", type=float, default=None)
 parser.add_argument("--max_noise_std", type=float, default=None)
+parser.add_argument("--stance_slip_cost_coefficient", type=float, default=None,
+                    help="Training-only v11/v12 stance-slip coefficient; resume/replay otherwise inherit checkpoint metadata")
 parser.add_argument("--reset_exploration_std", action="store_true",
                     help="On resume, reset only policy std and its optimizer state before collecting rollouts")
 parser.add_argument("--behavior_profile", choices=tuple(BEHAVIOR_PROFILES), default=None,
-                    help="MG996R CAD6 defaults revised_v11 in every mode; historical profiles require an explicit choice")
+                    help="MG996R CAD6 defaults revised_v12 in every mode; historical profiles require an explicit choice")
 parser.add_argument("--allow_behavior_transfer", action="store_true",
                     help="Explicitly allow training a known v2 reward/contact profile with another profile")
 add_environment_args(parser)
@@ -64,12 +68,16 @@ try:
     # Replaying an old checkpoint must not silently disable the strict default.
     # Other robots retain their saved evaluation profile for compatibility.
     if args.mode == "train" or "MG996R-Hip-CAD6" in args.task:
-        default_profile = "revised_v11" if "MG996R-Hip-CAD6" in args.task else "revised_v3"
+        default_profile = "revised_v12" if "MG996R-Hip-CAD6" in args.task else "revised_v3"
         args.behavior_profile = args.behavior_profile or default_profile
-    if args.behavior_profile in ("revised_v4", "revised_v5", "revised_v6", "revised_v7", "revised_v7_com", "revised_v8", "revised_v9", "revised_v10", "revised_v11") and "MG996R-Hip-CAD6" not in args.task:
+    if args.behavior_profile in ("revised_v4", "revised_v5", "revised_v6", "revised_v7", "revised_v7_com", "revised_v8", "revised_v9", "revised_v10", "revised_v11", "revised_v12") and "MG996R-Hip-CAD6" not in args.task:
         raise ValueError(f"{args.behavior_profile} contacts require the MG996R CAD6 toe geometry")
+    if args.stance_slip_cost_coefficient is not None:
+        if args.mode != "train":
+            raise ValueError("Stance slip cost overrides are training-only options")
+        validate_stance_slip_cost_coefficient(args.stance_slip_cost_coefficient, args.behavior_profile)
     if args.mode == "train":
-        default_noise = (0.12, 0.04, 0.25) if args.behavior_profile == "revised_v11" else (0.08, 0.03, 0.30)
+        default_noise = (0.12, 0.04, 0.25) if args.behavior_profile in ("revised_v11", "revised_v12") else (0.08, 0.03, 0.30)
         validate_exploration_bounds(args.initial_noise_std if args.initial_noise_std is not None else default_noise[0],
                                     args.min_noise_std if args.min_noise_std is not None else default_noise[1],
                                     args.max_noise_std if args.max_noise_std is not None else default_noise[2])
@@ -82,13 +90,13 @@ except ValueError as error:
     parser.error(str(error))
 checkpoint_compatibility = ({"expected_reward_contract": BEHAVIOR_PROFILES[args.behavior_profile]["reward_contract"],
                              "expected_contact_contract": BEHAVIOR_PROFILES[args.behavior_profile]["contact_contract"],
-                             "expected_control_frequency_hz": 10 if args.behavior_profile == "revised_v11" else 50,
+                             "expected_control_frequency_hz": 10 if args.behavior_profile in ("revised_v11", "revised_v12") else 50,
                              "allow_behavior_transfer": args.allow_behavior_transfer}
                              if args.behavior_profile is not None else {})
 if args.checkpoint:
     saved_metadata = validate_checkpoint(args.checkpoint, args.task, args.environment, **checkpoint_compatibility)
-    if args.environment == "curriculum" and args.mode != "train" and behavior_profile_from_metadata(saved_metadata) not in ("revised_v7", "revised_v8", "revised_v9", "revised_v10", "revised_v11"):
-        parser.error("curriculum evaluation requires a revised_v7 through revised_v11 distal-support checkpoint")
+    if args.environment == "curriculum" and args.mode != "train" and behavior_profile_from_metadata(saved_metadata) not in ("revised_v7", "revised_v8", "revised_v9", "revised_v10", "revised_v11", "revised_v12"):
+        parser.error("curriculum evaluation requires a revised_v7 through revised_v12 distal-support checkpoint")
 cad_report = None
 if args.mode == "train" and expected_cad_asset_sha256(args.task) is not None:
     cad_report = assert_cad_ready(allow_provisional=args.allow_provisional_cad)
@@ -125,7 +133,7 @@ def toe_button_sensor_metadata(cfg):
         "physical_switch_stroke_modelled": False,
         "signal_source": "upward tibia ContactSensor force plus CAD distal-toe witness proximity",
         "observation_gate": ("button_and_valid_distal_support_without_non_distal_leg_contact"
-                             if getattr(cfg, "behavior_profile", None) in ("revised_v8", "revised_v9", "revised_v10", "revised_v11") else "button_only"),
+                             if getattr(cfg, "behavior_profile", None) in ("revised_v8", "revised_v9", "revised_v10", "revised_v11", "revised_v12") else "button_only"),
     }
 
 
@@ -137,7 +145,7 @@ def train(env, runner, cfg, agent, log, checkpoint, source_metadata=None):
     base = env.unwrapped
     from dksh_isaaclab.tasks.direct.spider_navigation.joint_angle_control import exploration_std
     saturation_probability = cfg.exploration_reference_saturation_probability
-    filter_interval = cfg.target_filter_interval_s if cfg.behavior_profile == "revised_v11" else base.step_dt
+    filter_interval = cfg.target_filter_interval_s if cfg.behavior_profile in ("revised_v11", "revised_v12") else base.step_dt
     saturation_reference = exploration_std(base._angle_limits, dt=filter_interval, rate_limit=cfg.target_rate_limit,
                                             smoothing=cfg.target_smoothing, saturation_probability=saturation_probability)
     source_bounds = ({"initial": source_metadata.get("exploration_initial_std"),
@@ -158,6 +166,7 @@ def train(env, runner, cfg, agent, log, checkpoint, source_metadata=None):
         "source_reward_contract": source_metadata.get("reward_contract") if source_metadata else None,
         "source_contact_contract": source_metadata.get("contact_contract") if source_metadata else None,
         "contact_force_contract": cfg.contact_force_contract,
+        "stance_slip_measurement_contract": expected_stance_slip_measurement_contract(cfg.behavior_profile),
         "source_contact_force_contract": (source_metadata.get("contact_force_contract", CONTACT_FORCE_CONTRACT)
                                           if source_metadata else None),
         "behavior_transfer_requested": args.allow_behavior_transfer,
@@ -173,6 +182,7 @@ def train(env, runner, cfg, agent, log, checkpoint, source_metadata=None):
             "unsupported_filter_targets": getattr(base, "_contact_pair_unsupported_targets", []),
         },
         "environment": args.environment, "difficulty": args.difficulty,
+        "episode_length_s": cfg.episode_length_s,
         "seed": cfg.seed, "actions": cfg.action_space, "observations": cfg.observation_space,
         "environments": base.num_envs,
         "course_training": course_configuration(cfg, args.environment),
@@ -187,7 +197,7 @@ def train(env, runner, cfg, agent, log, checkpoint, source_metadata=None):
         "speed_reward_slope": getattr(cfg, "speed_reward_slope", None),
         "stance_slip_cost_coefficient": getattr(cfg, "stance_slip_cost_coefficient", None),
         "independent_cost_limit_per_s": getattr(cfg, "independent_cost_limit_per_s", None),
-        "actor_output_init_std": cfg.actor_output_init_std if cfg.behavior_profile == "revised_v11" else 0.0,
+        "actor_output_init_std": cfg.actor_output_init_std if cfg.behavior_profile in ("revised_v11", "revised_v12") else 0.0,
         "speed_cost_scale": cfg.speed_cost_scale,
         "self_contact_cost_scale": getattr(cfg, "self_contact_cost_scale", None),
         "self_contact_force_reference_n": getattr(cfg, "self_contact_force_reference_n", None),
@@ -228,7 +238,7 @@ def train(env, runner, cfg, agent, log, checkpoint, source_metadata=None):
         "control_frequency_hz": 1.0 / base.step_dt,
         "exploration_profile": EXPLORATION_PROFILE,
         "exploration_temporal_profile": ("absolute_action_hold_100ms_inner_filter_20ms_v1"
-                                         if cfg.behavior_profile == "revised_v11" else "independent_policy_step_sampling_v1"),
+                                         if cfg.behavior_profile in ("revised_v11", "revised_v12") else "independent_policy_step_sampling_v1"),
         "exploration_initial_std": cfg.exploration_initial_std,
         "exploration_min_std": cfg.exploration_min_std,
         "exploration_max_std": cfg.exploration_max_std,
@@ -258,7 +268,7 @@ def train(env, runner, cfg, agent, log, checkpoint, source_metadata=None):
             initial = normalize_angles(base._robot.data.default_joint_pos[:, base._joint_ids], base._angle_limits)[0]
             initialize_absolute_actor_output(
                 runner.alg.policy.actor, initial,
-                weight_std=cfg.actor_output_init_std if cfg.behavior_profile == "revised_v11" else 0.0,
+                weight_std=cfg.actor_output_init_std if cfg.behavior_profile in ("revised_v11", "revised_v12") else 0.0,
             )
         if args.environment == "curriculum":
             course_state_hook = CurriculumCheckpointState(runner, base._scenario, metadata["course_training"])
@@ -269,7 +279,7 @@ def train(env, runner, cfg, agent, log, checkpoint, source_metadata=None):
         metadata["learning_rate_before"] = float(runner.alg.optimizer.param_groups[0]["lr"])
         metadata["optimizer_learning_rates_before"] = [float(group["lr"]) for group in runner.alg.optimizer.param_groups]
         reset_learning_rate = bool(checkpoint and args.allow_behavior_transfer
-                                   and metadata["behavior_transfer_applied"] and cfg.behavior_profile in ("revised_v10", "revised_v11"))
+                                   and metadata["behavior_transfer_applied"] and cfg.behavior_profile in ("revised_v10", "revised_v11", "revised_v12"))
         if reset_learning_rate:
             runner.alg.learning_rate = agent.algorithm.learning_rate
             for group in runner.alg.optimizer.param_groups:
@@ -358,15 +368,16 @@ def evaluate_or_play(env, runner, cfg, checkpoint, source_metadata):
             "behavior_profile": cfg.behavior_profile,
             "reward_contract": cfg.reward_contract, "contact_contract": cfg.contact_contract,
             "contact_force_contract": cfg.contact_force_contract,
+            "stance_slip_measurement_contract": expected_stance_slip_measurement_contract(cfg.behavior_profile),
             "progress_slip_sigma_mps": getattr(cfg, "progress_slip_sigma_mps", None),
             "target_filter_interval_s": getattr(cfg, "target_filter_interval_s", None),
             "speed_reward_slope": getattr(cfg, "speed_reward_slope", None),
             "stance_slip_cost_coefficient": getattr(cfg, "stance_slip_cost_coefficient", None),
             "independent_cost_limit_per_s": getattr(cfg, "independent_cost_limit_per_s", None),
-            "actor_output_init_std": cfg.actor_output_init_std if cfg.behavior_profile == "revised_v11" else 0.0,
+            "actor_output_init_std": cfg.actor_output_init_std if cfg.behavior_profile in ("revised_v11", "revised_v12") else 0.0,
             "control_frequency_hz": 1.0 / base.step_dt,
             "exploration_temporal_profile": ("absolute_action_hold_100ms_inner_filter_20ms_v1"
-                                             if cfg.behavior_profile == "revised_v11" else "independent_policy_step_sampling_v1"),
+                                             if cfg.behavior_profile in ("revised_v11", "revised_v12") else "independent_policy_step_sampling_v1"),
             "source_behavior_profile": behavior_profile_from_metadata(source_metadata),
             "source_reward_contract": source_metadata["reward_contract"],
             "source_contact_contract": source_metadata["contact_contract"],
@@ -377,13 +388,13 @@ def evaluate_or_play(env, runner, cfg, checkpoint, source_metadata):
             "goal_radius_m": cfg.goal_radius, "episode_length_s": cfg.episode_length_s,
             **accumulator.report(target_speed=cfg.target_speed,
                                  minimum_speed_fraction=cfg.evaluation_min_speed_fraction, dt=base.step_dt,
-                                 require_strict_contact=cfg.behavior_profile in ("revised_v8", "revised_v9", "revised_v10", "revised_v11")),
+                                 require_strict_contact=cfg.behavior_profile in ("revised_v8", "revised_v9", "revised_v10", "revised_v11", "revised_v12")),
         }
         if args.environment == "curriculum":
             report["course_evaluation"] = course_configuration(cfg, args.environment)
             report.update(heldout_course_report(accumulator.completed, target_speed=cfg.target_speed,
                                                minimum_speed_fraction=cfg.evaluation_min_speed_fraction,
-                                               require_strict_contact=cfg.behavior_profile in ("revised_v8", "revised_v9", "revised_v10", "revised_v11")))
+                                               require_strict_contact=cfg.behavior_profile in ("revised_v8", "revised_v9", "revised_v10", "revised_v11", "revised_v12")))
         if args.output:
             write_json(args.output, report)
         print(json.dumps(report, indent=2, allow_nan=False), flush=True)
@@ -398,7 +409,7 @@ def main():
     cfg = parse_env_cfg(args.task, device=args.device, num_envs=args.num_envs, use_fabric=not args.disable_fabric)
     apply_environment_cfg(cfg, args.environment, args.difficulty, args.seed)
     apply_course_cfg(cfg, args)
-    if "MG996R-Hip-CAD6" in args.task and args.behavior_profile != "revised_v11":
+    if "MG996R-Hip-CAD6" in args.task and args.behavior_profile not in ("revised_v11", "revised_v12"):
         # Historical profiles keep their original decision and episode timing.
         cfg.decimation = 4
         cfg.sim.render_interval = 4
@@ -429,20 +440,24 @@ def main():
                                                     if source_metadata else "revised_v3")
     for name, value in BEHAVIOR_PROFILES[cfg.behavior_profile].items():
         setattr(cfg, name, value)
-    cfg.contact_force_contract = (SELF_FILTERED_CONTACT_FORCE_CONTRACT if cfg.behavior_profile in ("revised_v10", "revised_v11")
+    if cfg.behavior_profile in ("revised_v11", "revised_v12"):
+        cfg.stance_slip_cost_coefficient = resolve_stance_slip_cost_coefficient(
+            cfg, source_metadata, override=args.stance_slip_cost_coefficient,
+        )
+    cfg.contact_force_contract = (SELF_FILTERED_CONTACT_FORCE_CONTRACT if cfg.behavior_profile in ("revised_v10", "revised_v11", "revised_v12")
                                   else CONTACT_FORCE_CONTRACT)
-    if cfg.behavior_profile in ("revised_v10", "revised_v11"):
+    if cfg.behavior_profile in ("revised_v10", "revised_v11", "revised_v12"):
         agent.algorithm.schedule = "fixed"
         agent.algorithm.learning_rate = 1.5e-4
-    if cfg.behavior_profile == "revised_v11":
+    if cfg.behavior_profile in ("revised_v11", "revised_v12"):
         agent.algorithm.gamma = 0.9995 ** 5
         agent.algorithm.lam = 0.98 ** 5
         agent.num_steps_per_env = 32
     elif "MG996R-Hip-CAD6" in args.task:
         agent.algorithm.gamma, agent.algorithm.lam = 0.9995, 0.98
         agent.num_steps_per_env = 128
-    if args.environment == "curriculum" and cfg.behavior_profile not in ("revised_v7", "revised_v8", "revised_v9", "revised_v10", "revised_v11"):
-        raise ValueError("curriculum requires revised_v7 through revised_v11 distal-support behavior")
+    if args.environment == "curriculum" and cfg.behavior_profile not in ("revised_v7", "revised_v8", "revised_v9", "revised_v10", "revised_v11", "revised_v12"):
+        raise ValueError("curriculum requires revised_v7 through revised_v12 distal-support behavior")
     agent.policy.init_noise_std = cfg.exploration_initial_std
     log = root / datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f") if args.mode == "train" else None
     if log:

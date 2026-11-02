@@ -25,8 +25,9 @@ param(
     [double]$InitialNoiseStd,
     [double]$MinNoiseStd,
     [double]$MaxNoiseStd,
+    [double]$StanceSlipCostCoefficient,
     [switch]$ResetExplorationStd,
-    [ValidateSet('legacy_v2', 'revised_v3', 'revised_v4', 'revised_v5', 'revised_v6', 'revised_v7', 'revised_v7_com', 'revised_v8', 'revised_v9', 'revised_v10', 'revised_v11')][string]$BehaviorProfile,
+    [ValidateSet('legacy_v2', 'revised_v3', 'revised_v4', 'revised_v5', 'revised_v6', 'revised_v7', 'revised_v7_com', 'revised_v8', 'revised_v9', 'revised_v10', 'revised_v11', 'revised_v12')][string]$BehaviorProfile,
     [switch]$AllowBehaviorTransfer,
     [switch]$ContactDiagnostics,
     [string]$ContactDiagnosticsOutput = '',
@@ -48,6 +49,18 @@ param(
 $projectRoot = $PSScriptRoot
 $noiseKeys = @('InitialNoiseStd', 'MinNoiseStd', 'MaxNoiseStd', 'ResetExplorationStd', 'AllowBehaviorTransfer')
 $noiseOptionsSpecified = @($noiseKeys | Where-Object { $PSBoundParameters.ContainsKey($_) }).Count -gt 0
+$slipOverrideSpecified = $PSBoundParameters.ContainsKey('StanceSlipCostCoefficient')
+if ($slipOverrideSpecified) {
+    if ($ControlMode -ne 'direct' -or $Mode -ne 'train' -or $RobotModel -ne 'cad6' -or $ServoModel -ne 'mg996r_hip') {
+        throw 'Stance slip-cost override requires the mixed-servo CAD6 direct-angle training task.'
+    }
+    if ($PSBoundParameters.ContainsKey('BehaviorProfile') -and $BehaviorProfile -notin @('revised_v11', 'revised_v12')) {
+        throw 'Stance slip-cost override requires revised_v11 or revised_v12.'
+    }
+    if ([double]::IsNaN($StanceSlipCostCoefficient) -or [double]::IsInfinity($StanceSlipCostCoefficient) -or $StanceSlipCostCoefficient -le 0) {
+        throw 'StanceSlipCostCoefficient must be finite and positive.'
+    }
+}
 $contactKeys = @('ContactDiagnostics', 'ContactDiagnosticsOutput', 'ContactDiagnosticsMaxRecords', 'ContactDiagnosticsPerStep')
 $contactOptionsSpecified = @($contactKeys | Where-Object { $PSBoundParameters.ContainsKey($_) }).Count -gt 0
 if ($contactOptionsSpecified -and ($ControlMode -ne 'direct' -or $Mode -notin @('smoke', 'train', 'evaluate', 'play'))) {
@@ -71,8 +84,8 @@ if ($Environment -eq 'curriculum' -and ($ControlMode -ne 'direct' -or $RobotMode
     throw 'Curriculum requires the mixed-servo CAD6 direct-angle task.'
 }
 if ($Environment -eq 'curriculum') {
-    if ($PSBoundParameters.ContainsKey('BehaviorProfile') -and $BehaviorProfile -notin @('revised_v7', 'revised_v8', 'revised_v9', 'revised_v10', 'revised_v11')) {
-        throw 'Curriculum requires revised_v7 through revised_v11 distal-support behavior.'
+    if ($PSBoundParameters.ContainsKey('BehaviorProfile') -and $BehaviorProfile -notin @('revised_v7', 'revised_v8', 'revised_v9', 'revised_v10', 'revised_v11', 'revised_v12')) {
+        throw 'Curriculum requires revised_v7 through revised_v12 distal-support behavior.'
     }
     $flatShare = if ($PSBoundParameters.ContainsKey('FlatFraction')) { $FlatFraction } else { 0.25 }
     $windowSize = if ($PSBoundParameters.ContainsKey('CurriculumWindow')) { $CurriculumWindow } else { 20 }
@@ -100,7 +113,7 @@ if ($PSBoundParameters.ContainsKey('BehaviorProfile') -and ($ControlMode -ne 'di
 }
 if ($ControlMode -eq 'direct' -and $Mode -eq 'train') {
     $currentCad6 = $RobotModel -eq 'cad6' -and $ServoModel -eq 'mg996r_hip' -and
-        (-not $PSBoundParameters.ContainsKey('BehaviorProfile') -or $BehaviorProfile -eq 'revised_v11')
+        (-not $PSBoundParameters.ContainsKey('BehaviorProfile') -or $BehaviorProfile -in @('revised_v11', 'revised_v12'))
     $defaultInitialStd = if ($currentCad6) { 0.12 } else { 0.08 }
     $defaultMinimumStd = if ($currentCad6) { 0.04 } else { 0.03 }
     $defaultMaximumStd = if ($currentCad6) { 0.25 } else { 0.30 }
@@ -172,6 +185,10 @@ try {
         }
         if ($ResetExplorationStd) { $arguments += '--reset_exploration_std' }
         if ($PSBoundParameters.ContainsKey('BehaviorProfile')) { $arguments += "--behavior_profile=$BehaviorProfile" }
+        if ($slipOverrideSpecified) {
+            $coefficientText = $StanceSlipCostCoefficient.ToString([Globalization.CultureInfo]::InvariantCulture)
+            $arguments += "--stance_slip_cost_coefficient=$coefficientText"
+        }
         if ($AllowBehaviorTransfer) { $arguments += '--allow_behavior_transfer' }
         foreach ($pair in @(@('CourseSeed', 'course_seed'), @('CourseSplit', 'course_split'),
                              @('FlatFraction', 'flat_fraction'), @('CurriculumWindow', 'curriculum_window'),

@@ -45,6 +45,8 @@ BEHAVIOR_PROFILES = {
                     "contact_contract": "cad6_external_distal_self_filtered_v1"},
     "revised_v11": {"reward_contract": "centered_speed_signed_progress_independent_costs_v1",
                     "contact_contract": "cad6_external_distal_substep_v1"},
+    "revised_v12": {"reward_contract": "centered_speed_distal_slip_time_integral_v1",
+                    "contact_contract": "cad6_external_distal_substep_v1"},
 }
 CONTROL_CONTRACT = "absolute_targets_rate_limited_observed_velocity_v2"
 SCHEMA_CONTRACTS = {
@@ -54,6 +56,14 @@ SCHEMA_CONTRACTS = {
     "contact_contract": CONTACT_CONTRACT,
     "control_contract": CONTROL_CONTRACT,
 }
+
+
+def expected_stance_slip_measurement_contract(profile):
+    if profile == "revised_v12":
+        return "distal_support_patch_time_mean_rms_v1"
+    if profile == "revised_v11":
+        return "full_foot_hull_time_rms_v1"
+    return "historical_support_witness_v1"
 
 
 def require_v2_task(task):
@@ -118,10 +128,14 @@ def validate_checkpoint(path, task, environment, *, expected_reward_contract=Non
         if metadata.get(name) != expected_contract:
             raise ValueError(f"Checkpoint {name.replace('_', ' ')} differs from v2; retrain the policy")
     profile = behavior_profile_from_metadata(metadata)
-    expected_force_contract = (SELF_FILTERED_CONTACT_FORCE_CONTRACT if profile in ("revised_v10", "revised_v11")
+    expected_force_contract = (SELF_FILTERED_CONTACT_FORCE_CONTRACT if profile in ("revised_v10", "revised_v11", "revised_v12")
                                else CONTACT_FORCE_CONTRACT)
     if metadata.get("contact_force_contract", CONTACT_FORCE_CONTRACT) != expected_force_contract:
         raise ValueError("Checkpoint contact force contract disagrees with its behavior profile")
+    expected_slip = expected_stance_slip_measurement_contract(profile)
+    default_slip = None if profile == "revised_v12" else expected_slip
+    if metadata.get("stance_slip_measurement_contract", default_slip) != expected_slip:
+        raise ValueError("Checkpoint stance slip measurement contract disagrees with its behavior profile")
     for name, expected_contract in (("reward_contract", expected_reward_contract),
                                     ("contact_contract", expected_contact_contract)):
         known = {contracts[name] for contracts in BEHAVIOR_PROFILES.values()}

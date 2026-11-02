@@ -25,6 +25,76 @@ CHECKPOINT = importlib.util.module_from_spec(CHECKPOINT_SPEC)
 CHECKPOINT_SPEC.loader.exec_module(CHECKPOINT)
 
 
+class StanceSlipCoefficientTests(unittest.TestCase):
+    def test_baseline_saved_value_and_explicit_override_precedence(self):
+        for profile in ("revised_v11", "revised_v12"):
+            cfg = NS(behavior_profile=profile, stance_slip_cost_coefficient=6.0)
+            self.assertEqual(UTILS.resolve_stance_slip_cost_coefficient(cfg), 6.0)
+            saved = {"behavior_profile": "revised_v11", "stance_slip_cost_coefficient": .6}
+            self.assertEqual(UTILS.resolve_stance_slip_cost_coefficient(cfg, saved), .6)
+            self.assertEqual(UTILS.resolve_stance_slip_cost_coefficient(cfg, saved, override=.3), .3)
+            self.assertEqual(UTILS.resolve_stance_slip_cost_coefficient(cfg, {"behavior_profile": profile}), 6.0)
+            self.assertEqual(UTILS.resolve_stance_slip_cost_coefficient(
+                cfg, {"behavior_profile": "revised_v10", "stance_slip_cost_coefficient": .6}), 6.0)
+            self.assertEqual(cfg.stance_slip_cost_coefficient, 6.0)
+            self.assertEqual(saved["stance_slip_cost_coefficient"], .6)
+
+    def test_invalid_override_or_saved_coefficient_is_rejected(self):
+        cfg = NS(behavior_profile="revised_v12", stance_slip_cost_coefficient=6.0)
+        for value in (0, -1, float("nan"), float("inf"), -float("inf"), True, "0.6", None):
+            saved = {"behavior_profile": "revised_v12", "stance_slip_cost_coefficient": value}
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "finite and positive"):
+                UTILS.resolve_stance_slip_cost_coefficient(cfg, saved)
+            if value is not None:
+                with self.subTest(override=value), self.assertRaisesRegex(ValueError, "finite and positive"):
+                    UTILS.resolve_stance_slip_cost_coefficient(cfg, override=value)
+            self.assertEqual(UTILS.resolve_stance_slip_cost_coefficient(cfg, saved, override=.6), .6)
+
+    def test_historical_profiles_are_untouched_and_cannot_override(self):
+        for cfg in (NS(behavior_profile="revised_v10"),
+                    NS(behavior_profile="legacy_v2", stance_slip_cost_coefficient=3.0)):
+            original = vars(cfg).copy()
+            self.assertEqual(UTILS.resolve_stance_slip_cost_coefficient(cfg), original.get("stance_slip_cost_coefficient"))
+            self.assertEqual(vars(cfg), original)
+            with self.assertRaisesRegex(ValueError, "require revised_v11 or revised_v12"):
+                UTILS.resolve_stance_slip_cost_coefficient(cfg, override=.6)
+
+    def test_actual_runner_applies_saved_or_explicit_coefficient_before_environment_creation(self):
+        source = Path(__file__).resolve().parents[1] / "scripts/joint_angle_runner.py"
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        main = ast.Module(body=[node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "main"], type_ignores=[])
+        for mode, override, expected in (("train", None, .6), ("evaluate", None, .6),
+                                         ("play", None, .6), ("train", .3, .3)):
+            with self.subTest(mode=mode, override=override), TemporaryDirectory() as directory:
+                cfg = NS(behavior_profile="revised_v12", sim=NS(device="cpu"), seed=42,
+                         exploration_initial_std=.12, exploration_min_std=.04, exploration_max_std=.25,
+                         stance_slip_cost_coefficient=6.0)
+                agent = NS(algorithm=NS(), policy=NS(), clip_actions=1.0)
+                args = NS(task="Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2", behavior_profile="revised_v12",
+                          device="cpu", num_envs=4, disable_fabric=False, environment="flat", difficulty=.5,
+                          seed=42, initial_noise_std=None, min_noise_std=None, max_noise_std=None,
+                          stance_slip_cost_coefficient=override, mode=mode, max_iterations=1, checkpoint="model.pt")
+                make = Mock(side_effect=RuntimeError("stop before creating a simulator"))
+                namespace = {"Path": Path, "datetime": __import__("datetime").datetime, "args": args,
+                             "__file__": str(Path(directory) / "project/scripts/joint_angle_runner.py"),
+                             "parse_env_cfg": Mock(return_value=cfg), "apply_environment_cfg": Mock(),
+                             "apply_course_cfg": Mock(), "validate_exploration_bounds": UTILS.validate_exploration_bounds,
+                             "configure_evaluation": Mock(), "load_cfg_from_registry": Mock(return_value=agent),
+                             "experiment_name": Mock(return_value="test"), "resolve_checkpoint": Mock(return_value=Path("model.pt")),
+                             "checkpoint_compatibility": {}, "validate_checkpoint": Mock(return_value={
+                                 "behavior_profile": "revised_v12", "stance_slip_cost_coefficient": .6}),
+                             "BEHAVIOR_PROFILES": CHECKPOINT.BEHAVIOR_PROFILES,
+                             "SELF_FILTERED_CONTACT_FORCE_CONTRACT": CHECKPOINT.SELF_FILTERED_CONTACT_FORCE_CONTRACT,
+                             "CONTACT_FORCE_CONTRACT": CHECKPOINT.CONTACT_FORCE_CONTRACT,
+                             "resolve_stance_slip_cost_coefficient": UTILS.resolve_stance_slip_cost_coefficient,
+                             "apply_contact_diagnostics_cfg": Mock(return_value=None),
+                             "gym": NS(make=make), "RslRlVecEnvWrapper": Mock()}
+                exec(compile(main, str(source), "exec"), namespace)
+                with self.assertRaisesRegex(RuntimeError, "stop before creating a simulator"):
+                    namespace["main"]()
+                self.assertEqual(make.call_args.kwargs["cfg"].stance_slip_cost_coefficient, expected)
+
+
 class StdConstraintTests(unittest.TestCase):
     def test_absolute_actor_starts_near_stance_with_observation_dependent_outputs(self):
         actor = torch.nn.Sequential(torch.nn.Linear(4, 18))
@@ -375,7 +445,8 @@ class ResumeIntegrationTests(unittest.TestCase):
                          knee_ground_clearance_m=0.03, knee_ground_clearance_cost_scale=-5.0,
                          non_distal_support_cost_scale=-15.0,
                          non_distal_ground_clearance_m=0.008, non_distal_contact_height_tolerance_m=0.001,
-                         contact_force_contract=CHECKPOINT.CONTACT_FORCE_CONTRACT, enable_self_collisions=True)
+                         contact_force_contract=CHECKPOINT.CONTACT_FORCE_CONTRACT, enable_self_collisions=True,
+                         episode_length_s=240.0)
                 args = NS(task="Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2", environment="flat", difficulty=0.5,
                           max_iterations=1, reset_exploration_std=reset, allow_behavior_transfer=False)
                 log = root / "resumed"
@@ -397,6 +468,7 @@ class ResumeIntegrationTests(unittest.TestCase):
                              "ACTION_SEMANTICS": CHECKPOINT.ACTION_SEMANTICS, "SCHEMA_CONTRACTS": CHECKPOINT.SCHEMA_CONTRACTS,
                              "BEHAVIOR_PROFILES": CHECKPOINT.BEHAVIOR_PROFILES, "EXPLORATION_PROFILE": CHECKPOINT.EXPLORATION_PROFILE,
                              "CONTACT_FORCE_CONTRACT": CHECKPOINT.CONTACT_FORCE_CONTRACT,
+                             "expected_stance_slip_measurement_contract": CHECKPOINT.expected_stance_slip_measurement_contract,
                              "behavior_profile_from_metadata": CHECKPOINT.behavior_profile_from_metadata,
                              "expected_cad_asset_sha256": CHECKPOINT.expected_cad_asset_sha256,
                              "cad_report": None, "dump_yaml": Mock(),
@@ -411,6 +483,7 @@ class ResumeIntegrationTests(unittest.TestCase):
                     namespace["train"](NS(unwrapped=base), runner, cfg, NS(algorithm=NS(schedule="adaptive")), log, checkpoint, parent_metadata)
                 metadata = json.loads((log / "run_metadata.json").read_text(encoding="utf-8"))
                 self.assertEqual(metadata["status"], "completed")
+                self.assertEqual(metadata["episode_length_s"], 240.0)
                 self.assertAlmostEqual(metadata["exploration_std_before"][0], 0.01, places=6)
                 self.assertAlmostEqual(metadata["exploration_std_after"][0], 0.08 if reset else 0.03, places=6)
                 self.assertEqual(metadata["exploration_std_reset_applied"], reset)

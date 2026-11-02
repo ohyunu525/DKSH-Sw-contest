@@ -15,7 +15,7 @@ target = lower + (clamp(action, -1, 1) + 1) / 2 * (upper - lower)
 ```
 
 혼합 CAD6는 50 Hz에서 목표각 변화 1.5 rad/s, 필터 계수 0.35를 적용한다.
-현재 v11 정책의 의사결정은 10 Hz다. 선택한 18개 절대 목표각을 100 ms 유지하면서,
+현재 v12 및 이전 v11 정책의 의사결정은 10 Hz다. 선택한 18개 절대 목표각을 100 ms 유지하면서,
 200 Hz 물리 시뮬레이션 안에서 목표각 필터만 20 ms마다 갱신한다. PPO는 실제 선택한
 절대각 행동 하나를 전이 하나로 저장한다. 샘플 뒤에 별도 상관 잡음을 더하지 않는다.
 출력 범위를 좁히지 않으므로 같은 출력을 유지하면 선택한 절대각까지 움직인다.
@@ -59,7 +59,7 @@ env.joint_angle_targets_rad는 실제 적용 목표각을 반환한다. 초기 �
 ## 새로 학습하고 평가하기
 
 평지 정책을 유지하며 무작위 장애물로 전이하는 `-Environment curriculum` 실행법은
-[혼합 코스 커리큘럼 안내](terrain_curriculum.md)를 참고한다. 새 실행은 v11의 외부 접촉력 분리와 독립 비용 계약을 사용한다.
+[혼합 코스 커리큘럼 안내](terrain_curriculum.md)를 참고한다. 새 실행은 v12의 말단 지지점·시간 적분 미끄럼 계약을 사용한다.
 
 Isaac 실행은 [개발 컴퓨터 기준](../../DEVELOPMENT_REQUIREMENTS.md)의 GPU 장비에서 수행한다.
 잠정 CAD·서보 가정은 [혼합 서보 문서](mg996r_hip_correction.md)를 따른다.
@@ -101,13 +101,13 @@ Isaac 실행은 [개발 컴퓨터 기준](../../DEVELOPMENT_REQUIREMENTS.md)의 
 작업 ID·CAD 해시·관절 순서·한계·모터·제어·관측·보상·접촉 계약을 검사한다.
 
 출력 18개와 관측 140개는 v2 그대로지만 정책 주기는 프로파일에 따라 다르다. 기존 혼합 CAD6
-가중치의 명시적 전이는 같은 50 Hz 제어 주기를 사용하는 v3~v10 사이에서만 허용한다.
+가중치의 명시적 전이는 같은 제어 주기 안에서 허용한다. v3~v10은 50 Hz, v11·v12는 10 Hz다.
 `legacy_v2`는 수정 전 보상·단일 발끝 접촉을 재현하는 비교 설정이며 MG90S 모드가 아니다.
-MG996R-Hip CAD6는 학습·평가·재생 모두 `revised_v11`을 기본으로 요구한다. 구형 체크포인트를
+MG996R-Hip CAD6는 학습·평가·재생 모두 `revised_v12`를 기본으로 요구한다. 구형 체크포인트를
 지정해도 COM/v7 계약으로 조용히 되돌아가지 않는다. 구형 정책의 비교 재생은
-`-BehaviorProfile revised_v10`, `revised_v9`, `revised_v8`, `revised_v7_com` 또는 해당 저장 계약을 명시해야 하며, v11 수정 검증으로 간주하지 않는다.
-v11과 이전 모델은 의사결정 주기가 10 Hz와 50 Hz로 다르다. `-AllowBehaviorTransfer`도 이
-제어 주기 불일치를 허용하지 않으므로 v11은 체크포인트 없이 새로 학습한다.
+`-BehaviorProfile revised_v11`, `revised_v10`, `revised_v9`, `revised_v8`, `revised_v7_com` 또는 해당 저장 계약을 명시해야 하며, v12 수정 검증으로 간주하지 않는다.
+v11·v12는 10 Hz이고 v10 이전 모델은 50 Hz다. `-AllowBehaviorTransfer`도 제어 주기 불일치를
+허용하지 않는다. v11에서 v12로는 같은 제어 주기에서 보상 계약이 바뀌므로 명시적 전이를 허용한다.
 다른 JointAngles 작업은 `revised_v3` 학습 및 저장된 평가 계약을 유지한다.
 
 `revised_v4`는 CAD 발마다 가상 버튼 접촉 비트 1개를 계산한다. 발끝 지점 근접도와 tibia의
@@ -195,7 +195,7 @@ v9 및 이전 계약은 `net_normal_forces_v1` 합력 의미로 보존한다. �
 `progress_slip_sigma_mps`는 학습 metadata와 평가 결과에 함께 남긴다.
 v10 도입 당시에는 변경 후 검증을 실행하지 않았으며, 해당 수정만으로 보행 성공을 입증하지 않는다.
 
-현재 `revised_v11`은 정지 자세에 머무는 문제를 다루기 위해 보상과 탐색의 시간 구조를 바꾼다.
+이전 `revised_v11`은 정지 자세에 머무는 문제를 다루기 위해 보상과 탐색의 시간 구조를 바꾼다.
 목표 속도는 `0.05 m/s`, 목표 거리는 `0.25~0.75 m`, 학습 에피소드는 `30초`다.
 정책의 샘플을 100 ms 유지하고 내부 필터를 20 ms마다 적용해, 매 20 ms 잡음의 방향이 바뀌던
 탐색보다 같은 방향의 관절 움직임이 이어지게 한다. 출력은 여전히 18개 절대 목표각이며
@@ -228,6 +228,62 @@ actor 초기화 표준편차와 `absolute_action_hold_100ms_inner_filter_20ms_v1
 CPU 검증 범위는 보상 수학·목표각 적용·체크포인트 호환성·실행기 전달이다. GPU에서 실제로
 걷거나 미끄럼 없이 목표에 도달하는지는 별도 학습·평가가 필요하다.
 
+현재 `revised_v12`는 속도·탐색 계수를 더 바꾸기 전에 실제 미끄럼 측정의 두 오류를 수정한다.
+v11은 말단 지지를 인정해 놓고 미끄럼 속도는 전체 발 hull에서 고른 다른 점으로 계산할 수 있었다.
+말단 지지점이 정지하고 링크가 초당 1 rad 회전하는 CPU 반례에서, 약 103.42 mm 떨어진
+기존 지점은 `0.10342 m/s`로 움직인다. 이 때문에 실제 지지점 미끄럼이 0이어도
+초당 약 `-0.6205`의 미끄럼 비용이 생겼다. v12는 허용된 말단 지지 패치에서 같은 속도를 계산한다.
+
+시간 집계도 `sqrt(시간 평균(지지발 속도 제곱))`에서
+`시간 평균(sqrt(각 물리 프레임의 지지발 속도 제곱 평균))`으로 바꾼다. 20개 물리 프레임 중
+한 프레임에만 `0.02 m/s` 미끄럼이 있고 나머지 프레임은 0이면, v11의 속도값은
+`0.004472 m/s`, 계수 6을 곱한 비용은 초당 `-0.02683`이다. v12의 시간 평균 속도는
+`0.001 m/s`, 비용은 초당 `-0.006`으로 실제 접촉 시간에 비례한다. 비용과 속도의 단위를 구분해야 한다.
+
+v12 보상 계약은 `centered_speed_distal_slip_time_integral_v1`이다. 접촉 계약
+`cad6_external_distal_substep_v1`과 외부 접촉력 계약은 v11과 같다. 새 metadata의
+`stance_slip_measurement_contract`는 `distal_support_patch_time_mean_rms_v1`이며,
+v11은 `full_foot_hull_time_rms_v1`, 그 이전은 `historical_support_witness_v1`로 구분한다.
+출력·관측·10 Hz 정책·50 Hz 필터·목표 속도·탐색 범위·episode·학습률·보상 계수는 v11과 같다.
+명시적 v11 비교는 기존 측정 의미를 유지하며, v12 결과로 다시 표시하지 않는다.
+
+이 반례들은 실제 환경 메서드를 호출하는 CPU 테스트에서 재현한 계산 오류다. 현재 저장소에는
+v11의 최신 실학습 로그가 없으므로 이번에 보고된 성능 저하의 단독 원인이라고 확정하지 않는다.
+GPU에서 v12가 성공적으로 걷는다는 증거도 아니며 새 학습과 독립 평가가 필요하다.
+
+### 미끄럼 비용을 10분의 1로 비교하기
+
+v12의 기준 계수는 `6.0`이다. `-StanceSlipCostCoefficient 0.6`을 지정하면 같은 미끄럼의
+비용을 10분의 1로 줄여 학습한다. 속도·진행 보상과 접촉 실패 판정은 그대로다.
+미끄러지는 전진도 높은 보상을 받을 수 있으므로, 속도와 함께 실제 발 들기·말단 지지율·
+`mean_stance_slip_speed_mps`를 비교한다. 낮은 벌점 자체가 보행 성공을 뜻하지는 않는다.
+
+```powershell
+.\run_cad6.ps1 -Mode train -Environment flat -NumEnvs 32 -MaxIterations 300 -BehaviorProfile revised_v12 -StanceSlipCostCoefficient 0.6 -AllowProvisionalCad
+```
+
+이 옵션은 v11/v12 학습에서만 사용하며 유한한 양수여야 한다. 명시한 값은 새 실행의
+metadata에 저장된다. 체크포인트 재개·평가·재생 시에는 저장된 계수를 이어받고,
+학습에서 옵션을 다시 지정하면 그 값을 우선한다. 체크포인트 없는 기본 학습은 `6.0`을 유지한다.
+
+### 학습 로그를 먼저 확인하기
+
+아래 분석기는 모델이나 시뮬레이터를 실행하지 않고 지정한 실행 폴더의 metadata·설정과
+TensorBoard scalar를 읽는다. TensorBoard가 설치된 Python 환경에서 실행한다.
+
+```powershell
+python .\isaaclab_project\scripts\analyze_joint_angle_training.py --run 'logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2/<run>' --window 100 --expected-profile revised_v12 --output 'logs/training_diagnosis_v12.json'
+```
+
+`--run`을 생략하면 기본 로그 폴더에서 최신 로컬 실행을 선택하고, `--log-root`로 검색 대상을
+바꿀 수 있다. 프로파일이 기대한 v12와 다르면 경고한다. 원격 장비의 최신 로그가 이 컴퓨터에
+없으면 원격 결과를 대신 분석한 것으로 해석하지 않는다. train/eval 기록의 `episode_length_s`도
+실제 적용된 에피소드 길이를 확인하는 데 쓴다.
+
+최근 창의 속도·성공·실패·episode 길이·std·목표각 속도 포화와 보상 항별 평균을 함께 비교한다.
+이 값들은 학습 중 기록된 scalar 표본이며 독립 정책 평가가 아니다. 이미 평균된 종료 기록을
+합쳐 완료 에피소드 수로 해석하지 않는다. 실제 계약과 비용 지배 항목을 확인한 뒤 설정을 바꾼다.
+
 학습 실행은 reset 전에 실패 상태를 `<새 run>/contact_failures.jsonl`에 기록한다.
 기본값은 실행 전체 최대 64건, 제어 스텝당 최대 4건으로 제한하며, 실패가 없으면 파일은 생성하지 않는다.
 일반 기록은 링크 합력과 상태를 보존한다. 실제 접촉 상대를 구분하려면 `-ContactDiagnostics`를 사용한다.
@@ -252,18 +308,21 @@ GPU에서는 plane 지면의 상대별 접촉 필터가 지원되지 않으므�
 이 경우 지면 힘이 0이라고 해석하거나, 기록되지 않은 힘을 자동으로 지면 접촉에 배정하지 않는다.
 필터가 없는 기존 링크 합력·지면 여유 검사는 유지하며, 진단을 위해 바닥 형상이나 보상을 바꾸지 않는다.
 기존 50 Hz의 4환경·200스텝 PASS와 리셋 0회는 초기 자세 근처의 약 4초 검사를 통과했다는 뜻이다.
-현재 10 Hz v11의 200스텝은 20초이며, 두 기록의 스텝 수만 같다고 같은 시간을 검사한 것은 아니다.
+현재 10 Hz v11/v12의 200스텝은 20초이며, 두 기록의 스텝 수만 같다고 같은 시간을 검사한 것은 아니다.
 실패 파일이 없는 것은 정상이며, 기존 학습의 짧은 실패가 재현되거나 해결됐다는 뜻은 아니다.
 이 진단 옵션은 기존 실패 판정·보상·관절 명령을 변경하지 않는다.
 
 ```powershell
-# A 등급 NVIDIA 장비에서 새 v11 정책을 가중치 초기화부터 학습
-.\run_cad6.ps1 -Mode train -Environment flat -NumEnvs 32 -MaxIterations 4000 -BehaviorProfile revised_v11 -AllowProvisionalCad
+# A 등급 NVIDIA 장비에서 새 v12 정책을 가중치 초기화부터 학습
+.\run_cad6.ps1 -Mode train -Environment flat -NumEnvs 32 -MaxIterations 4000 -BehaviorProfile revised_v12 -AllowProvisionalCad
+
+# 같은 10 Hz v11 정책에서 보상 수정만 명시적으로 전이
+.\run_cad6.ps1 -Mode train -Environment flat -NumEnvs 32 -MaxIterations 4000 -Checkpoint '<v11 model_N.pt>' -BehaviorProfile revised_v12 -AllowBehaviorTransfer -AllowProvisionalCad
 
 # 이전 v10 정책은 저장된 50 Hz 계약으로 명시적으로 비교 재생
 .\run_cad6.ps1 -Mode play -Environment flat -NumEnvs 1 -Checkpoint '<v10 model_N.pt>' -BehaviorProfile revised_v10
 
-# 새 v11 계약으로 평가 (구형 모델은 기본 실행에서 거절)
+# 새 v12 계약으로 평가 (구형 모델은 기본 실행에서 거절)
 .\run_cad6.ps1 -Mode evaluate -Environment flat -NumEnvs 4 -Steps 12000 -Seed 73 -Checkpoint '<새 model_N.pt>' -Output 'logs/distal_support_flat.json'
 ```
 
