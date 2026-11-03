@@ -186,6 +186,30 @@ Unity 프로젝트는 `DKSH SW Project`에 유지됩니다. Unity의 FBX는 외�
 Isaac Sim 4.5는 변환 파일을 정상 기록한 뒤 종료 코드 1을 반환할 수 있습니다. 재생성 스크립트는
 필수 USD 4개가 실제로 생성됐는지 검사하며, 이 경우 경고를 표시하고 성공으로 처리합니다.
 
+## CAD6 GA + PPO 보행 학습
+
+GA는 평지에서 tripod의 주기, 보폭 상한, 발 들기 높이, 지지 비율을 탐색합니다.
+탐색에 쓰지 않은 리셋 시드에서도 금지 접촉과 낙상 없이 목표 속도의 20% 이상 전진한
+후보를 JSON으로 저장합니다. PPO는 이 보행의 18개 기준 목표각에 관절별로 최대 0.15 rad를
+더하거나 뺍니다. 보행 위상과 기준 목표각을 관측하며, CAD6 v12의 접촉 판정과 목표각 필터를 사용합니다.
+
+```powershell
+$gait = 'outputs/cad6_ga_tripod.json'
+.\run_cad6_hybrid.ps1 -Mode search -Profile $gait -NumEnvs 4 -AllowProvisionalCad
+.\run_cad6_hybrid.ps1 -Mode train -Profile $gait -NumEnvs 4 -MaxIterations 2000 -AllowProvisionalCad
+
+# 학습 완료 메시지에 출력된 model_*.pt 경로를 지정합니다.
+$policy = '<hybrid model_*.pt>'
+.\run_cad6_hybrid.ps1 -Mode evaluate -Profile $gait -Seed 211 -Output 'outputs/cad6_ga_eval.json'
+.\run_cad6_hybrid.ps1 -Mode evaluate -Checkpoint $policy -Seed 211 -Output 'outputs/cad6_hybrid_eval.json'
+.\run_cad6_hybrid.ps1 -Mode play -Checkpoint $policy -NumEnvs 1
+```
+
+평가 보고서에는 순진행 속도, 낙상, 지지발 미끄럼과 금지 접촉이 기록됩니다. 직접각 PPO와
+비교할 때는 `run_cad6.ps1 -Mode evaluate`에도 같은 지형, 시드, 환경 수와 스텝 수를 지정합니다.
+하이브리드 체크포인트에는 기준 보행과 CAD·제어 계약이 저장됩니다. 학습을 재개하거나
+다른 지형에 전이하려면 `-Mode train -Checkpoint $policy`를 사용합니다.
+
 ## 기존 v0 검증 기록
 
 - 물리 주기 200 Hz, 정책 제어 주기 50 Hz

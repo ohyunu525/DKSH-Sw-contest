@@ -26,9 +26,14 @@ LEG_TRAVEL_GAIN = FOOT_VERTICAL_GAIN_M_PER_RAD / 0.1000
 SWING_JOINT_GAIN = 8.0
 WAVE_OFFSETS = (0, 3, 1, 4, 2, 5)
 TRIPOD_OFFSETS = (0, 3, 0, 3, 0, 3)
+GAIT_PROFILE_KEYS = ("period", "stride_limit", "lift", "duty")
+GAIT_PROFILE_BOUNDS = ((1.0, 3.0), (0.025, 0.08), (0.005, 0.02), (0.55, 0.75))
+DEFAULT_GAIT_PROFILE = (2.0, 0.05, 0.012, 0.65)
 
 
-def _phase_terms(phase: torch.Tensor, offsets: tuple[int, ...], duty: float) -> tuple[torch.Tensor, torch.Tensor]:
+def _phase_terms(
+    phase: torch.Tensor, offsets: tuple[int, ...], duty: float | torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor]:
     offset = torch.tensor(offsets, device=phase.device, dtype=phase.dtype) / 6
     cycle = (phase[:, None] + offset).remainder(1)
     swing = ((cycle - duty) / (1 - duty)).clamp(0, 1)
@@ -39,22 +44,27 @@ def _phase_terms(phase: torch.Tensor, offsets: tuple[int, ...], duty: float) -> 
 def joint_positions_for_twist(
     phase: torch.Tensor,
     command: torch.Tensor,
-    period: float,
-    lift: float,
-    stride_limit: float,
+    period: float | torch.Tensor,
+    lift: float | torch.Tensor,
+    stride_limit: float | torch.Tensor,
     *,
     offsets: tuple[int, ...] = WAVE_OFFSETS,
-    duty: float = 5 / 6,
+    duty: float | torch.Tensor = 5 / 6,
 ) -> torch.Tensor:
     """Return normalized ``[hip, femur, tibia]`` targets for each Onshape leg.
 
     Hip displacement is the tangential projection of the desired foot travel.
     Positive femur and tibia offsets raise the exported foot point. They do
     not guarantee that all attached tibia collision shapes leave the floor.
+    Gait parameters may be scalars or vectors with one value per environment.
     """
 
     if command.ndim != 2 or command.shape[1] != 3:
         raise ValueError("command must have shape [num_envs, 3]")
+    period, lift, stride_limit, duty = (
+        torch.as_tensor(value, device=phase.device, dtype=phase.dtype).reshape(-1, 1)
+        for value in (period, lift, stride_limit, duty)
+    )
     angles = math.pi / 6 + torch.arange(6, device=phase.device, dtype=phase.dtype) * (math.pi / 3)
     radial = torch.stack((torch.cos(angles), torch.sin(angles)), dim=-1)
     tangent = torch.stack((-torch.sin(angles), torch.cos(angles)), dim=-1)
@@ -65,7 +75,7 @@ def joint_positions_for_twist(
         (vx[:, None] - yaw_rate[:, None] * rest[:, 1], vy[:, None] + yaw_rate[:, None] * rest[:, 0]),
         dim=-1,
     )
-    displacement = foot_velocity * (period * duty)
+    displacement = foot_velocity * (period * duty)[..., None]
     scale = (stride_limit / displacement.norm(dim=-1).clamp_min(1e-12)).clamp(max=1.0)
     displacement = displacement * scale[..., None]
     # A planted foot travels opposite to the desired body command.  Hip yaw

@@ -23,6 +23,8 @@ from .joint_angle_contact_diagnostics import ContactDiagnosticWriter, ContactPai
 
 
 class JointAngleNavigationEnv(SpiderNavigationEnv):
+    _extra_policy_observations = 0
+
     def __init__(self, cfg, render_mode=None, **kwargs):
         if cfg.environment_preset == "curriculum" and cfg.behavior_profile not in ("revised_v7", "revised_v8", "revised_v9", "revised_v10", "revised_v11", "revised_v12"):
             raise ValueError("Mixed-course curriculum requires revised_v7 or a newer distal-support behavior profile")
@@ -228,7 +230,10 @@ class JointAngleNavigationEnv(SpiderNavigationEnv):
         return self._processed_actions[:, self._joint_ids]
 
     def _configure_gym_env_spaces(self):
-        self.cfg.observation_space = observation_size(self.cfg.action_space, self.cfg.environment_preset)
+        self.cfg.observation_space = (
+            observation_size(self.cfg.action_space, self.cfg.environment_preset)
+            + self._extra_policy_observations
+        )
         self.cfg.state_space = 0
         super()._configure_gym_env_spaces()
 

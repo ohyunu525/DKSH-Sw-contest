@@ -278,7 +278,7 @@ class JointAngleConfigurationTests(unittest.TestCase):
             "Isaac-DKSH-Spider-JointAngles-v2", "Isaac-DKSH-Spider-CAD8-JointAngles-v2",
             "Isaac-DKSH-Spider-CAD6-JointAngles-v2", "Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2",
             "Isaac-DKSH-Spider-Navigation-Direct-v0", "Isaac-DKSH-Spider-CAD8-Navigation-Direct-v0",
-            "Isaac-DKSH-Spider-CAD6-Navigation-Direct-v0",
+            "Isaac-DKSH-Spider-CAD6-Navigation-Direct-v0", "Isaac-DKSH-Spider-CAD6-Tripod-Residual-Direct-v0",
         })
 
 
