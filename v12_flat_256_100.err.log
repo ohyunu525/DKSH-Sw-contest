@@ -1,0 +1,5 @@
+C:\Users\COM\Documents\GitHub\DKSH-Sw-contest\run_cad6.ps1 : 'NumEnvs' 매개 변수에 대한 인수의 유효성을 검사할 수 없습
+니다. 256 인수가 허용된 최대 범위 128보다 큽니다. 128보다 작거나 같은 인수를 지정한 후 명령을 다시 시도하십시오.
+    + CategoryInfo          : InvalidData: (:) [run_cad6.ps1], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : ParameterArgumentValidationError,run_cad6.ps1
+ 

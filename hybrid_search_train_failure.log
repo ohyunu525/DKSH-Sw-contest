@@ -1,0 +1,10 @@
+﻿CAD6 hybrid search did not complete (native exit code 1). Verify Isaac Sim and Isaac Lab are installed with .\setup_isa
+aclab.ps1.
+위치 C:\Users\COM\Documents\GitHub\DKSH-Sw-contest\run_cad6_hybrid.ps1:49 문자:9
++         throw "CAD6 hybrid $Mode did not complete (native exit code $ ...
++         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (CAD6 hybrid sea...p_isaaclab.ps1.:String) [], RuntimeException
+    + FullyQualifiedErrorId : CAD6 hybrid search did not complete (native exit code 1). Verify Isaac Sim and Isaac Lab 
+    are installed with .\setup_isaaclab.ps1.
+ 
+
