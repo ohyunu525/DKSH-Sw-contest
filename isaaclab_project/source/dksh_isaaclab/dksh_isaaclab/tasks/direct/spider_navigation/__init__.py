@@ -2,6 +2,16 @@
 
 import gymnasium as gym
 
+gym.register(
+    id="Upgraded-CAD6-PMTG-v0",
+    entry_point=f"{__name__}.Upgraded_cad6_env:UpgradedCad6Env",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.Upgraded_cad6_env:UpgradedCad6EnvCfg",
+        "rsl_rl_cfg_entry_point": f"{__name__}.Upgraded_cad6_env:UpgradedCad6PPORunnerCfg",
+    },
+)
+
 # v2 includes filter velocity and terrain heights and uses signed progress.
 # Separate IDs prevent reuse of incompatible v1 policies or v0 gait residuals.
 for robot, prefix, config in (
