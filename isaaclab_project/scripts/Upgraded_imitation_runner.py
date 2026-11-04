@@ -1,4 +1,4 @@
-"""Inspect HexapodRobot.zip, collect CAD demonstrations, clone, evaluate and refine with PPO."""
+"""Inspect both HexapodRobot archives, collect original-Gait CAD demonstrations, clone and refine."""
 
 from __future__ import annotations
 
@@ -15,53 +15,79 @@ from zipfile import ZipFile
 
 from environment_cli import add_environment_args, apply_environment_cfg
 from Upgraded_imitation_learning import (Upgraded_atomic, Upgraded_bc, Upgraded_json, Upgraded_load_bc,
-                                         Upgraded_path, UpgradedDemonstrations)
+                                         Upgraded_path, Upgraded_transfer_bc_actor, UpgradedDemonstrations,
+                                         UPGRADED_HIDDEN)
 
 
 UPGRADED_ROOT = Path(__file__).resolve().parents[2]
 UPGRADED_TASK = 'Upgraded-CAD6-Imitation-v0'
 
 
-def Upgraded_inspect_archive(path):
+def Upgraded_gait_port_identity():
+    """Read reviewed provenance constants without importing an Isaac task package."""
+    source = (UPGRADED_ROOT / 'isaaclab_project/source/dksh_isaaclab/dksh_isaaclab/tasks/direct/'
+              'spider_navigation/Upgraded_original_gait.py')
+    wanted = {'UPGRADED_GAIT_SOURCE_SHA256', 'UPGRADED_GAIT_PORT'}
+    values = {}
+    for node in ast.parse(source.read_text(encoding='utf-8')).body:
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id in wanted:
+                    values[target.id] = ast.literal_eval(node.value)
+    if values.keys() != wanted or not all(isinstance(v, str) for v in values.values()):
+        raise ValueError('Reviewed Gait port is missing its source identity')
+    return dict(port=values['UPGRADED_GAIT_PORT'], source_sha256=values['UPGRADED_GAIT_SOURCE_SHA256'])
+
+
+def Upgraded_inspect_archive(path, supplement=None):
     """Read source/AST only. Never import hardware modules or extract ZIP members."""
-    path = Path(path)
-    members, imports = {}, set()
-    with ZipFile(path) as archive:
-        for entry in archive.infolist():
-            if Path(entry.filename).name.lower() == 'claude.md' or not entry.filename.endswith('.py'):
-                continue
-            if entry.file_size > 2_000_000 or len(members) >= 100:
-                raise ValueError('Unexpected archive size')
-            data = archive.read(entry)
-            tree = ast.parse(data.decode('utf-8-sig'))
-            names = []
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ImportFrom) and node.module:
-                    imports.add(node.module.split('.')[0])
-                elif isinstance(node, ast.Import):
-                    imports.update(n.name.split('.')[0] for n in node.names)
-                if isinstance(node, ast.ClassDef):
-                    names.append(node.name)
-            members[entry.filename] = dict(sha256=hashlib.sha256(data).hexdigest(), classes=names)
-    if not all(name in members for name in ('hexapod_sdk.py', 'hexapod_stair.py', 'hexapod_stair_seq.py')):
-        raise ValueError('The archive does not contain the expected HexapodRobot reference sources')
+    paths = [Path(path)] + ([Path(supplement)] if supplement is not None else [])
+    members, imports, archives = {}, set(), []
+    for source in paths:
+        archives.append(dict(name=source.name, sha256=hashlib.sha256(source.read_bytes()).hexdigest()))
+        with ZipFile(source) as archive:
+            for entry in archive.infolist():
+                name = Path(entry.filename).name
+                if name.lower() == 'claude.md' or not name.endswith('.py'):
+                    continue
+                if entry.file_size > 2_000_000 or len(members) >= 100:
+                    raise ValueError('Unexpected archive size')
+                if name in members:
+                    raise ValueError(f'Ambiguous duplicate Python module in reference archives: {name}')
+                data = archive.read(entry)
+                tree = ast.parse(data.decode('utf-8-sig'))
+                names = []
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.ImportFrom) and node.module:
+                        imports.add(node.module.split('.')[0])
+                    elif isinstance(node, ast.Import):
+                        imports.update(n.name.split('.')[0] for n in node.names)
+                    if isinstance(node, ast.ClassDef):
+                        names.append(node.name)
+                members[name] = dict(archive=source.name, sha256=hashlib.sha256(data).hexdigest(), classes=names)
+    if not any(name in members for name in ('hexapod_sdk.py', 'hexapod_body.py', 'hexapod_joy_walk.py')):
+        raise ValueError('The archives do not contain the expected HexapodRobot reference sources')
     available = {Path(n).stem for n in members}
-    return dict(archive_sha256=hashlib.sha256(path.read_bytes()).hexdigest(), members=members,
+    identity = Upgraded_gait_port_identity()
+    return dict(archive_sha256=archives[0]['sha256'], archives=archives, members=members,
                 missing_local_modules=sorted(n + '.py' for n in imports if n.startswith('hexapod_') and n not in available),
-                adapter='Upgraded_single_foot_cad_reference_v1', original_code_executed=False,
-                original_firmware_angles_imported=False)
+                adapter='Upgraded_original_gait_cad_reference_v2', original_code_executed=False,
+                original_firmware_angles_imported=False, reviewed_gait_port=identity,
+                reviewed_gait_source_matches=(members.get('hexapod_joy_walk.py', {}).get('sha256')
+                                             == identity['source_sha256']))
 
 
 def Upgraded_contract(base, archive):
     folder = UPGRADED_ROOT / 'isaaclab_project/source/dksh_isaaclab/dksh_isaaclab/tasks/direct/spider_navigation'
-    names = ('Upgraded_hexapod_reference.py', 'Upgraded_imitation_env.py', 'Upgraded_cad6_control.py',
+    names = ('Upgraded_original_gait.py', 'Upgraded_gait_reference.py', 'Upgraded_imitation_env.py', 'Upgraded_cad6_control.py',
              'Upgraded_cad6_env.py', 'payload_mass.py', 'spider_navigation_env_cfg.py',
              'joint_angle_env.py', 'joint_angle_env_cfg.py', 'spider_navigation_env.py',
              'joint_angle_control.py', 'joint_angle_contact.py', 'joint_angle_foot_geometry.py',
              'joint_angle_non_distal_geometry.py', 'robot_actuators.py', 'servo_specs.py')
     cfg = base.cfg
     urdf = UPGRADED_ROOT / 'isaaclab_project/assets/spiderbot_variants/onshape_20260928/robot.training.urdf'
-    return dict(task=UPGRADED_TASK, archive_sha256=archive['archive_sha256'], adapter=archive['adapter'],
+    return dict(task=UPGRADED_TASK, reference_archives=archive['archives'], adapter=archive['adapter'],
+                reviewed_gait_port=archive['reviewed_gait_port'],
                 source_sha256={n: hashlib.sha256((folder / n).read_text(encoding='utf-8').encode()).hexdigest() for n in names},
                 urdf_sha256=hashlib.sha256(urdf.read_bytes()).hexdigest(),
                 usd_sha256=hashlib.sha256(Path(cfg.robot.spawn.usd_path).read_bytes()).hexdigest(),
@@ -84,6 +110,7 @@ def Upgraded_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--mode', required=True, choices=('inspect', 'collect', 'bc', 'evaluate', 'train'))
     parser.add_argument('--archive', type=Path, default=UPGRADED_ROOT / 'HexapodRobot.zip')
+    parser.add_argument('--supplement_archive', type=Path, default=UPGRADED_ROOT / 'HexapodRobot2.zip')
     parser.add_argument('--dataset', type=Path)
     parser.add_argument('--checkpoint', type=Path)
     parser.add_argument('--output', type=Path)
@@ -111,7 +138,7 @@ def Upgraded_args(argv=None):
     args.seed = 42 if args.seed is None else args.seed
     args.device = args.device or ('cpu' if args.mode in ('inspect', 'bc') else 'cuda:0')
     identity = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
-    defaults = {'inspect': 'Upgraded_archive_report.json', 'collect': f'Upgraded_demonstrations_{identity}',
+    defaults = {'inspect': f'Upgraded_gait_archive_report_{identity}.json', 'collect': f'Upgraded_demonstrations_{identity}',
                 'bc': f'Upgraded_bc_{identity}.pt', 'evaluate': f'Upgraded_imitation_evaluation_{identity}.json',
                 'train': f'Upgraded_imitation_ppo_{identity}'}
     args.output = Upgraded_path(args.output or UPGRADED_ROOT / 'outputs' / defaults[args.mode])
@@ -119,7 +146,7 @@ def Upgraded_args(argv=None):
         parser.error('BC output must be an Upgraded*.pt file')
     if args.mode in ('inspect', 'evaluate') and args.output.suffix != '.json':
         parser.error('Report output must be an Upgraded*.json file')
-    if args.mode != 'inspect' and args.output.exists():
+    if args.output.exists():
         parser.error('Output already exists; choose a new Upgraded output path')
     if args.checkpoint and args.output == args.checkpoint.resolve():
         parser.error('Checkpoint and output must differ')
@@ -219,8 +246,11 @@ def Upgraded_simulation(args, app, archive):
 
         agent = load_cfg_from_registry(UPGRADED_TASK, 'rsl_rl_cfg_entry_point')
         agent.device, agent.seed = cfg.sim.device, cfg.seed
+        agent.max_iterations = args.max_iterations
         agent.empirical_normalization = False
         agent.policy.activation = 'elu'
+        agent.policy.actor_hidden_dims = list(UPGRADED_HIDDEN)
+        agent.clip_actions = 1.0
         env = RslRlVecEnvWrapper(raw, clip_actions=agent.clip_actions)
 
         class UpgradedRunner(OnPolicyRunner):
@@ -235,7 +265,8 @@ def Upgraded_simulation(args, app, archive):
         runner = UpgradedRunner(env, agent.to_dict(), log_dir=str(args.output) if args.mode == 'train' else None,
                                device=agent.device)
         if is_bc:
-            runner.alg.policy.actor.load_state_dict(actor.state_dict(), strict=True)
+            observations, _ = env.get_observations()
+            transfer_error = Upgraded_transfer_bc_actor(actor, runner.alg.policy.actor, observations)
         else:
             runner.load(str(args.checkpoint), load_optimizer=args.mode == 'train')
             runner.current_learning_iteration += 1
@@ -244,6 +275,9 @@ def Upgraded_simulation(args, app, archive):
             return
         metadata = dict(Upgraded_contract=contract, source_checkpoint=str(args.checkpoint), source_kind='BC' if is_bc else 'PPO',
                         seed=args.seed, environment=args.environment, difficulty=args.difficulty, status='running')
+        if is_bc:
+            metadata['bc_transfer_max_error'] = transfer_error
+            metadata['initial_checkpoint'] = str(args.output / 'Upgraded_model_bc_initial.pt')
         Upgraded_json(args.output / 'Upgraded_run_metadata.json', metadata)
         from isaaclab.utils.io import dump_yaml
         dump_yaml(str(args.output / 'Upgraded_env.yaml'), cfg)
@@ -251,6 +285,8 @@ def Upgraded_simulation(args, app, archive):
         constraint = PolicyStdConstraint(runner.alg.policy, runner.alg.optimizer, initial=0.06,
                                          minimum=0.02, maximum=0.15, initialize=is_bc)
         try:
+            if is_bc:
+                runner.save(str(args.output / 'model_bc_initial.pt'))
             runner.learn(num_learning_iterations=args.max_iterations, init_at_random_ep_len=False)
             metadata['status'] = 'completed'
             metadata['final_checkpoint'] = str(args.output / f'Upgraded_model_{runner.current_learning_iteration}.pt')
@@ -276,12 +312,17 @@ def Upgraded_main(argv=None):
                                  seed=args.seed, device=args.device, maximum_samples=args.maximum_samples)
             print(f'Upgraded_BC_COMPLETE {report["checkpoint"]}', flush=True)
         else:
-            archive = Upgraded_inspect_archive(args.archive)
+            archive = Upgraded_inspect_archive(args.archive, args.supplement_archive)
             if args.mode == 'inspect':
                 Upgraded_json(args.output, archive)
                 print(json.dumps(archive, ensure_ascii=False, indent=2), flush=True)
                 print(f'Upgraded_INSPECT_COMPLETE {args.output}', flush=True)
             else:
+                required = {'hexapod_sdk.py', 'hexapod_body.py', 'hexapod_joy_walk.py'}
+                if archive['missing_local_modules'] or not required.issubset(archive['members']):
+                    raise ValueError('Original Gait requires both HexapodRobot.zip and HexapodRobot2.zip; run inspect first')
+                if not archive['reviewed_gait_source_matches']:
+                    raise ValueError('The supplied Gait source differs from the reviewed Torch port; inspect reports both hashes')
                 from cad_readiness import assert_cad_ready
                 assert_cad_ready(allow_provisional=args.allow_provisional_cad)
                 from isaaclab.app import AppLauncher

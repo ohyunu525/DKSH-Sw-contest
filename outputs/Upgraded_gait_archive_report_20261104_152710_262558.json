@@ -1,0 +1,87 @@
+{
+  "archive_sha256": "24de6f14cc0ef3d9be63553ed7a630642d49ccf4f66b7326c13d6c9d8bf185dd",
+  "archives": [
+    {
+      "name": "HexapodRobot.zip",
+      "sha256": "24de6f14cc0ef3d9be63553ed7a630642d49ccf4f66b7326c13d6c9d8bf185dd"
+    },
+    {
+      "name": "HexapodRobot2.zip",
+      "sha256": "4c62dda69d060e0d4883bb81aa610325d1d34e67c4a8c153574b792744bd5457"
+    }
+  ],
+  "members": {
+    "hexapod_sdk.py": {
+      "archive": "HexapodRobot.zip",
+      "sha256": "240903510ebf516786304a3a6fec223d562e7a760dbf0f251077a1b6885032eb",
+      "classes": [
+        "Link",
+        "Hexapod"
+      ]
+    },
+    "hexapod_stair.py": {
+      "archive": "HexapodRobot.zip",
+      "sha256": "e94905dd03069eb4de5eb9f5a01822b1dddc00ac0cd1aa46672a3905f2729d68",
+      "classes": [
+        "Profile",
+        "Map",
+        "Plan",
+        "Frozen",
+        "_StopSender",
+        "StairClimber"
+      ]
+    },
+    "hexapod_stair_crawl.py": {
+      "archive": "HexapodRobot.zip",
+      "sha256": "94c44f0d3f71a6e0ef4b422a5863d9ad34e3669d04d69a26c479a78ba22a4645",
+      "classes": [
+        "Crawl"
+      ]
+    },
+    "hexapod_stair_seq.py": {
+      "archive": "HexapodRobot.zip",
+      "sha256": "6908266bd4d91a94a488a6524cab39641f3d730bad8924491335094a724cfb49",
+      "classes": [
+        "KeyStop",
+        "Seq"
+      ]
+    },
+    "hexapod_stair_sim.py": {
+      "archive": "HexapodRobot.zip",
+      "sha256": "db8a82483282c05d0f8ef43a66ddad2ebd2998cf84f6969ad43e04bcf178e6ac",
+      "classes": [
+        "VClock",
+        "Stairs",
+        "World",
+        "SimLink"
+      ]
+    },
+    "hexapod_body.py": {
+      "archive": "HexapodRobot2.zip",
+      "sha256": "a665369f5e6a52c65001da61d431474eb7e2a6abd891dfd4662570a704d35a19",
+      "classes": [
+        "Body"
+      ]
+    },
+    "hexapod_joy_walk.py": {
+      "archive": "HexapodRobot2.zip",
+      "sha256": "948b1a00a98724c1ae61230c54fe5d1bc5fb700f84df90e4521e66c890924c32",
+      "classes": [
+        "SdkSender",
+        "Gait",
+        "Leveler",
+        "Grounder",
+        "Joystick"
+      ]
+    }
+  },
+  "missing_local_modules": [],
+  "adapter": "Upgraded_original_gait_cad_reference_v2",
+  "original_code_executed": false,
+  "original_firmware_angles_imported": false,
+  "reviewed_gait_port": {
+    "port": "Upgraded_original_Gait_CAD_SI_tensor_v1",
+    "source_sha256": "948b1a00a98724c1ae61230c54fe5d1bc5fb700f84df90e4521e66c890924c32"
+  },
+  "reviewed_gait_source_matches": true
+}

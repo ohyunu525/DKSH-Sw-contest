@@ -3,6 +3,7 @@
 import ast
 from copy import deepcopy
 import json
+import math
 from pathlib import Path
 import sys
 import tempfile
@@ -21,6 +22,22 @@ import Upgraded_imitation_learning as LEARNING
 import Upgraded_imitation_runner as RUNNER
 
 REFERENCE = FIXTURE.load_helper('Upgraded_hexapod_reference')
+ORIGINAL = FIXTURE.load_helper('Upgraded_original_gait')
+
+
+def Upgraded_load_gait_adapter():
+    path = FIXTURE.FOLDER / 'Upgraded_gait_reference.py'
+    tree = ast.parse(path.read_text(encoding='utf-8'))
+    definition = next(n for n in tree.body if isinstance(n, ast.ClassDef))
+    namespace = dict(torch=torch, math=math, F=torch.nn.functional,
+                     UpgradedOriginalGait=ORIGINAL.UpgradedOriginalGait,
+                     bounded_angle_targets=FIXTURE.CONTROL.bounded_angle_targets,
+                     normalize_angles=FIXTURE.CONTROL.normalize_angles)
+    exec(compile(ast.Module(body=[definition], type_ignores=[]), str(path), 'exec'), namespace)
+    return namespace['UpgradedGaitReference']
+
+
+GAIT_REFERENCE = Upgraded_load_gait_adapter()
 
 
 def Upgraded_home(count=2):
@@ -38,7 +55,7 @@ def Upgraded_fixture():
     namespace = dict(torch=torch, DirectRLEnv=FIXTURE.Parent, JointAngleNavigationEnv=FIXTURE.Environment,
                      normalize_angles=FIXTURE.CONTROL.normalize_angles,
                      UpgradedCad6Kinematics=CAD.CONTROL.UpgradedCad6Kinematics,
-                     UpgradedCrawlReference=REFERENCE.UpgradedCrawlReference)
+                     UpgradedGaitReference=GAIT_REFERENCE)
     exec(compile(ast.Module(body=[definition], type_ignores=[]), str(path), 'exec'), namespace)
     base = FIXTURE.StrictContactEnvironmentTests().strict_env(behavior_profile='revised_v12')
     settings = vars(base.cfg).copy()
@@ -48,6 +65,20 @@ def Upgraded_fixture():
                     non_distal_collision_offsets=CAD.COLLISION.ONSHAPE_NON_DISTAL_COLLISION_OFFSETS,
                     proximal_foot_offsets=CAD.FOOT.ONSHAPE_PROXIMAL_FOOT_OFFSETS,
                     robot=SimpleNamespace(copy=lambda: deepcopy(base.cfg.robot)))
+    configuration = next(n for n in tree.body if isinstance(n, ast.ClassDef)
+                         and n.name == 'UpgradedImitationEnvCfg')
+    for assignment in configuration.body:
+        if not isinstance(assignment, ast.Assign):
+            continue
+        try:
+            value = assignment.value
+            if isinstance(value, ast.Call) and isinstance(value.func, ast.Name) and value.func.id == 'dict':
+                parsed = {item.arg: ast.literal_eval(item.value) for item in value.keywords}
+            else:
+                parsed = ast.literal_eval(value)
+            settings[assignment.targets[0].id] = parsed
+        except (ValueError, TypeError, AttributeError):
+            pass
     original = FIXTURE.Robot
 
     def robot(count, legs):
@@ -80,6 +111,21 @@ class UpgradedImitationTests(unittest.TestCase):
         self.assertEqual(set(report['missing_local_modules']), {'hexapod_body.py', 'hexapod_joy_walk.py'})
         self.assertFalse(report['original_code_executed'])
         self.assertEqual(len(report['members']), 5)
+        self.assertNotIn('hexapod_sdk', sys.modules)
+
+    def test_supplement_resolves_the_original_gait_sources(self):
+        report = RUNNER.Upgraded_inspect_archive(RUNNER.UPGRADED_ROOT / 'HexapodRobot.zip',
+                                                RUNNER.UPGRADED_ROOT / 'HexapodRobot2.zip')
+        self.assertEqual(report['missing_local_modules'], [])
+        self.assertEqual(len(report['members']), 7)
+        self.assertEqual(len(report['archives']), 2)
+        self.assertEqual(len({entry['sha256'] for entry in report['archives']}), 2)
+        self.assertIn('Gait', report['members']['hexapod_joy_walk.py']['classes'])
+        self.assertTrue(report['reviewed_gait_source_matches'])
+        self.assertEqual(report['reviewed_gait_port']['source_sha256'],
+                         ORIGINAL.UPGRADED_GAIT_SOURCE_SHA256)
+        self.assertFalse(report['original_code_executed'])
+        self.assertNotIn('hexapod_joy_walk', sys.modules)
         self.assertNotIn('hexapod_sdk', sys.modules)
 
     def test_single_foot_sequence_and_cad_ik(self):
@@ -130,11 +176,123 @@ class UpgradedImitationTests(unittest.TestCase):
                               home.new_tensor([[0, 0, -1]]).expand(2, -1), .02)
         self.assertTrue((reference.fault == 3).all())
 
+    def original_reference(self, count=3):
+        kinematics, neutral, home = Upgraded_home(count)
+        neutral, valid, _ = kinematics.inverse(home, neutral)
+        self.assertTrue(valid.all())
+        limits = kinematics.limits.expand(count, -1, -1, -1)
+        reference = GAIT_REFERENCE(home, kinematics, neutral, limits)
+        return reference, kinematics, neutral, limits
+
+    def test_original_tripod_tracks_cad_with_the_actual_target_filter(self):
+        reference, kinematics, applied, limits = self.original_reference()
+        command = applied.new_tensor([[0.015, 0, 0], [0, 0.015, 0], [0, 0, 0.10]])
+        gravity = applied.new_tensor([[0, 0, -1]]).expand(3, -1)
+        saw_probe = torch.zeros(3, dtype=torch.bool)
+        saw_swing = torch.zeros(3, 6, dtype=torch.bool)
+        saw_slowdown = False
+        for step in range(400):
+            contacts = kinematics.forward(applied)[0][..., 2] <= reference.home[..., 2] + 0.0003
+            previous = reference.angles.clone()
+            previous_phase = reference.core.phase.clone()
+            was_probing = (reference.stage == reference.PROBE) | (reference.stage == reference.RECENTER)
+            q = reference.advance(contacts, command, gravity, 0.02, applied)
+            self.assertFalse(reference.failed.any(), f'step={step}, faults={reference.fault.tolist()}')
+            self.assertLessEqual(float((q - previous).abs().max()), 0.030001)
+            torch.testing.assert_close(reference.core.phase[was_probing], previous_phase[was_probing])
+            old_applied = applied
+            applied = FIXTURE.CONTROL.bounded_angle_targets(
+                FIXTURE.CONTROL.normalize_angles(q, limits), applied, limits,
+                dt=0.02, rate_limit=1.5, smoothing=0.35)
+            self.assertLessEqual(float((applied - old_applied).abs().max()), 0.030001)
+            self.assertTrue(torch.isfinite(applied).all())
+            self.assertTrue((reference.core.in_swing.sum(-1) <= 3).all())
+            saw_probe |= reference.stage == reference.PROBE
+            saw_swing |= reference.core.in_swing
+            saw_slowdown |= bool((reference.scale < 1).any())
+        self.assertTrue(saw_probe.all())
+        self.assertTrue(saw_swing.all())
+        self.assertTrue(saw_slowdown)
+
+    def test_original_reference_faults_instead_of_ignoring_contact_feedback(self):
+        reference, _, applied, _ = self.original_reference(count=2)
+        command = applied.new_tensor([[0.015, 0, 0]]).expand(2, -1)
+        gravity = applied.new_tensor([[0, 0, -1]]).expand(2, -1)
+        contacts = torch.ones(2, 6, dtype=torch.bool)
+        for _ in range(180):
+            q = reference.advance(contacts, command, gravity, 0.02, applied)
+            applied = FIXTURE.CONTROL.bounded_angle_targets(
+                FIXTURE.CONTROL.normalize_angles(q, reference.limits), applied, reference.limits,
+                dt=0.02, rate_limit=1.5, smoothing=0.35)
+        self.assertTrue((reference.fault == 2).all(), reference.fault.tolist())
+        reference.reset(torch.tensor([0]))
+        held = reference.features()[1].clone()
+        for _ in range(310):
+            reference.advance(torch.zeros_like(contacts), command, gravity, 0.02, applied,
+                              mask=torch.tensor([True, False]))
+        self.assertEqual(int(reference.fault[0]), 1)
+        torch.testing.assert_close(reference.features()[1], held)
+
+    def test_original_probe_lowers_one_foot_and_keeps_phase_frozen(self):
+        reference, _, applied, _ = self.original_reference(count=2)
+        reference.stage[:] = reference.PROBE
+        reference.pending[:, 0::2] = True
+        reference.released[:, 0::2] = True
+        contacts = torch.ones(2, 6, dtype=torch.bool)
+        contacts[:, 0::2] = False
+        before = reference.position.clone()
+        phase = reference.core.phase.clone()
+        command = applied.new_tensor([[0.015, 0, 0]]).expand(2, -1)
+        gravity = applied.new_tensor([[0, 0, -1]]).expand(2, -1)
+        reference.advance(contacts, command, gravity, 0.02, applied)
+        moved = (reference.position[..., 2] - before[..., 2]).abs() > 1e-10
+        self.assertTrue((moved.sum(-1) == 1).all())
+        self.assertTrue(moved[:, 0].all())
+        torch.testing.assert_close(reference.core.phase, phase)
+        reference.core.position[..., 2] = reference.probe_origin - reference.settings['probe_depth'] - 0.001
+        reference.advance(contacts, command, gravity, 0.02, applied)
+        self.assertTrue((reference.fault == 5).all())
+
+    def test_original_recenter_removes_repeated_height_and_tilt_offsets(self):
+        reference, kinematics, applied, limits = self.original_reference(count=2)
+        contacts = torch.ones(2, 6, dtype=torch.bool)
+        command = applied.new_zeros((2, 3))
+        gravity = applied.new_tensor([[0, 0, -1]]).expand(2, -1)
+        untouched = reference.features()[1].clone()
+        for _ in range(3):
+            # Model the commanded plane after compliant stance/landing probes.
+            reference.position[0, :, 2] += 0.003 + 0.004 * reference.home[0, :, 0]
+            reference.core.ground[0] = reference.position[0, :, 2]
+            q, valid, _ = kinematics.inverse(reference.position, reference.angles, limits)
+            self.assertTrue(valid.all())
+            reference.angles[0] = q[0]
+            applied[0] = q[0]
+            reference.stage[0] = reference.RECENTER
+            reference.elapsed[0] = 0
+            phase = reference.core.phase.clone()
+            for step in range(100):
+                previous = reference.angles.clone()
+                q = reference.advance(contacts, command, gravity, 0.02, applied,
+                                      mask=torch.tensor([True, False]))
+                self.assertFalse(reference.failed.any())
+                self.assertLessEqual(float((q - previous).abs().max()), 0.030001)
+                applied = FIXTURE.CONTROL.bounded_angle_targets(
+                    FIXTURE.CONTROL.normalize_angles(q, limits), applied, limits,
+                    dt=0.02, rate_limit=1.5, smoothing=0.35)
+                torch.testing.assert_close(reference.core.phase, phase)
+                if reference.stage[0] == reference.WALK:
+                    break
+            self.assertLess(step, 99)
+            self.assertLessEqual(float(reference._plane_shift()[0].abs().max()),
+                                 reference.settings['recenter_deadband'] + 1e-9)
+            torch.testing.assert_close(reference.core.ground[0], reference.position[0, :, 2])
+            torch.testing.assert_close(reference.features()[1], untouched)
+
     def test_observation_timing_privilege_boundary_and_reset(self):
         env = Upgraded_fixture()
         first = env._get_observations()
-        self.assertEqual(first['policy'].shape, (2, 456))
-        self.assertEqual(first['critic'].shape, (2, 596))
+        self.assertEqual(first['policy'].shape, (2, env.frame_size * env.cfg.history_frames))
+        self.assertEqual(first['critic'].shape, (2, env.cfg.observation_space + 140))
         label = env.reference_actions.clone()
         clock = env._reference.elapsed.clone()
         env._robot.data.joint_pos += 0.01
@@ -224,6 +382,19 @@ class UpgradedImitationTests(unittest.TestCase):
                 LEARNING.Upgraded_atomic(p, fail)
             self.assertEqual(p.read_bytes(), b'previous')
             self.assertEqual(list(p.parent.iterdir()), [p])
+
+    def test_bc_actor_transfer_preserves_predictions_and_rejects_activation_drift(self):
+        source = LEARNING.Upgraded_actor(11)
+        target = LEARNING.Upgraded_actor(11)
+        observations = torch.randn(7, 11)
+        with torch.no_grad():
+            source[-1].weight.fill_(0.02)
+        error = LEARNING.Upgraded_transfer_bc_actor(source, target, observations)
+        self.assertLessEqual(error, 1e-6)
+        torch.testing.assert_close(source(observations), target(observations))
+        target[1] = torch.nn.Tanh()
+        with self.assertRaises((ValueError, RuntimeError)):
+            LEARNING.Upgraded_transfer_bc_actor(source, target, observations)
 
 
 if __name__ == '__main__':

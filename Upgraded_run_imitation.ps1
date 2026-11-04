@@ -9,6 +9,7 @@ param(
     [ValidateSet('flat', 'stairs', 'rough', 'narrow', 'vibrating', 'falling_debris', 'mixed')][string]$Environment = 'flat',
     [ValidateRange(0, 1)][double]$Difficulty = 0,
     [string]$Archive = 'HexapodRobot.zip',
+    [string]$SupplementArchive = 'HexapodRobot2.zip',
     [string]$Dataset = '',
     [string]$Checkpoint = '',
     [string]$Output = '',
@@ -19,7 +20,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $scriptPath = Join-Path $PSScriptRoot 'isaaclab_project\scripts\Upgraded_imitation_runner.py'
-$arguments = @($scriptPath, "--mode=$Mode", "--archive=$Archive", "--num_envs=$NumEnvs", "--steps=$Steps",
+$arguments = @($scriptPath, "--mode=$Mode", "--archive=$Archive", "--supplement_archive=$SupplementArchive", "--num_envs=$NumEnvs", "--steps=$Steps",
                "--epochs=$Epochs", "--max_iterations=$MaxIterations", "--seed=$Seed", "--environment=$Environment",
                "--difficulty=$($Difficulty.ToString([System.Globalization.CultureInfo]::InvariantCulture))")
 if ($Dataset) { $arguments += "--dataset=$Dataset" }

@@ -12,25 +12,28 @@ from .joint_angle_env import JointAngleNavigationEnv
 from .joint_angle_env_cfg import MG996RHipCad6JointAngleEnvCfg
 from .Upgraded_cad6_control import UpgradedCad6Kinematics
 from .Upgraded_cad6_env import UpgradedCad6PPORunnerCfg
-from .Upgraded_hexapod_reference import UpgradedCrawlReference
+from .Upgraded_gait_reference import UpgradedGaitReference
 
 
 @configclass
 class UpgradedImitationEnvCfg(MG996RHipCad6JointAngleEnvCfg):
     action_semantics = 'Upgraded_absolute_joint_angles_imitation_v1'
-    observation_contract = 'Upgraded_imu_commands_switches_phase_history_v1'
-    control_contract = 'Upgraded_single_foot_cad_reference_50hz_v1'
-    reward_contract = 'Upgraded_distal_v12_reference_abort_v1'
+    observation_contract = 'Upgraded_imu_commands_switches_original_gait_history_v2'
+    control_contract = 'Upgraded_original_gait_cad_reference_50hz_v2'
+    reward_contract = 'Upgraded_distal_v12_original_gait_abort_v2'
     decimation = 4
     sim = MG996RHipCad6JointAngleEnvCfg().sim.replace(render_interval=decimation)
     history_frames = 4
-    observation_space = 456
-    state_space = 596
-    reference_settings = dict(stride=0.03, lift=0.025, probe_speed=0.03, probe_depth=0.02,
-                              lift_time=0.5, transfer_time=0.6, shift_time=0.5, settle_time=0.2,
-                              debounce_time=0.06, timeout=6.0, support_margin=0.015)
+    observation_space = 784
+    state_space = 924
+    reference_settings = dict(period=2.4, duty=0.6, stride=0.03, lift=0.02,
+                              speed_max=0.03, accel=0.05, land_approach=0.004,
+                              probe_speed=0.02, probe_depth=0.025, settle_time=0.2,
+                              debounce_time=0.06, timeout=6.0, support_margin=0.01,
+                              tracking_tolerance=0.02, recenter_speed=0.01,
+                              recenter_deadband=0.0003, recenter_outlier=0.008)
     ik_clearance = 0.008
-    target_speed = 0.003
+    target_speed = 0.015
     goal_min_distance = 0.15
     goal_max_distance = 0.20
     goal_radius = 0.03
@@ -53,7 +56,7 @@ class UpgradedImitationPPORunnerCfg(UpgradedCad6PPORunnerCfg):
 
 
 class UpgradedImitationEnv(JointAngleNavigationEnv):
-    frame_size = 6 + 3 + 18 + 18 + 18 + 6 + UpgradedCrawlReference.feature_count + 32
+    frame_size = 6 + 3 + 18 + 18 + 18 + 6 + UpgradedGaitReference.feature_count + 32
 
     def _configure_gym_env_spaces(self):
         self.cfg.observation_space = self.frame_size * self.cfg.history_frames
@@ -72,8 +75,10 @@ class UpgradedImitationEnv(JointAngleNavigationEnv):
         neutral = self._robot.data.default_joint_pos[:, self._joint_ids].reshape(self.num_envs, 6, 3)
         home = self._kinematics.forward(neutral)[0]
         home[..., 2] = home[..., 2].amin(-1, keepdim=True)
-        self._reference = UpgradedCrawlReference(home, **cfg.reference_settings)
-        self._ik_seed = neutral.clone()
+        self._reference = UpgradedGaitReference(
+            home, self._kinematics, neutral, self._angle_limits.reshape(self.num_envs, 6, 3, 2),
+            clearance=cfg.ik_clearance, rate_limit=cfg.target_rate_limit,
+            smoothing=cfg.target_smoothing, **cfg.reference_settings)
         self.reference_actions = normalize_angles(neutral.flatten(1), self._angle_limits).clone()
         self._reference_valid = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
         self._valid_for_step = self._reference_valid.clone()
@@ -102,14 +107,10 @@ class UpgradedImitationEnv(JointAngleNavigationEnv):
             contacts, _ = self._contact_state()
             command = self._command()
             update = torch.ones_like(self._history_reset) if new_step else self._history_reset.clone()
-            targets = self._reference.advance(contacts, command, self._robot.data.projected_gravity_b,
-                                              self.step_dt, mask=update)
-            angles, valid, _ = self._kinematics.inverse(
-                targets, self._ik_seed, self._angle_limits.reshape(self.num_envs, 6, 3, 2),
-                clearance=self.cfg.ik_clearance)
-            self._reference.fail(update & ~valid.all(-1), 8)
-            self._reference_valid[update] = valid.all(-1)[update] & ~self._reference.failed[update]
-            self._ik_seed[update] = angles[update]
+            angles = self._reference.advance(
+                contacts, command, self._robot.data.projected_gravity_b, self.step_dt,
+                self.joint_angle_targets_rad.reshape(self.num_envs, 6, 3), mask=update)
+            self._reference_valid[update] = ~self._reference.failed[update]
             self.reference_actions[update] = normalize_angles(angles.flatten(1), self._angle_limits)[update]
             angular = self._robot.data.root_ang_vel_b.clone()
             gravity = self._robot.data.projected_gravity_b.clone()
@@ -138,6 +139,7 @@ class UpgradedImitationEnv(JointAngleNavigationEnv):
         self.step_metrics.update(
             Upgraded_reference_valid=self._valid_for_step.float().clone(),
             Upgraded_reference_fault=self._fault_for_step.clone(),
+            Upgraded_gait_phase_scale=self._reference.scale.clone(),
             Upgraded_tracking_error_max_rad=(self._robot.data.joint_pos[:, self._joint_ids]
                                              - self.joint_angle_targets_rad).abs().amax(-1),
             Upgraded_torque_abs_max_nm=self._robot.data.applied_torque[:, self._joint_ids].abs().amax(-1))
@@ -148,6 +150,5 @@ class UpgradedImitationEnv(JointAngleNavigationEnv):
         if hasattr(self, '_reference'):
             ids = self._robot._ALL_INDICES if env_ids is None else env_ids
             self._reference.reset(ids)
-            self._ik_seed[ids] = self._robot.data.default_joint_pos[ids][:, self._joint_ids].reshape(-1, 6, 3)
             self._reference_valid[ids] = True
             self._history_reset[ids] = True

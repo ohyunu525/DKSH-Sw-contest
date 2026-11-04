@@ -49,6 +49,29 @@ def Upgraded_actor(observations):
     return nn.Sequential(*layers, nn.Linear(width, 18))
 
 
+def Upgraded_transfer_bc_actor(source_actor, target_actor, observations):
+    """Transfer only the deterministic mean; verify BC and PPO action parity.
+
+    Strict tensor shapes alone cannot detect a different activation function.
+    Probe both the current observations and bounded synthetic observations before
+    allowing PPO updates. The critic and exploration distribution stay separate.
+    """
+    if observations.ndim != 2 or not torch.isfinite(observations).all():
+        raise ValueError('BC transfer requires finite batched actor observations')
+    target_actor.load_state_dict(source_actor.state_dict(), strict=True)
+    width = observations.shape[1]
+    probe = torch.cat((observations.detach()[:32], torch.zeros_like(observations[:1]),
+                       torch.linspace(-1, 1, width, device=observations.device,
+                                      dtype=observations.dtype)[None]), dim=0)
+    with torch.inference_mode():
+        expected, actual = source_actor(probe), target_actor(probe)
+        if (expected.shape != (len(probe), 18) or actual.shape != expected.shape
+                or not torch.isfinite(expected).all() or not torch.isfinite(actual).all()
+                or not torch.allclose(expected, actual, atol=1e-6, rtol=1e-6)):
+            raise ValueError('BC to PPO transfer changed actor outputs; verify architecture and observation scaling')
+        return float((expected - actual).abs().max())
+
+
 class UpgradedDemonstrations:
     """Only complete, progressing, strict-contact-clean episodes become labels.
 
