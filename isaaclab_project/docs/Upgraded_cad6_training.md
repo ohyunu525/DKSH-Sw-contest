@@ -1,5 +1,9 @@
 # Upgraded CAD6 학습
 
+`HexapodRobot.zip`을 참고한 시범 수집·BC·PPO 환경은
+[Upgraded 모방학습 안내](Upgraded_imitation_training.md)와 `Upgraded_run_imitation.ps1`을 사용한다.
+아래 PMTG 환경과 관측·행동 계약이 다르므로 체크포인트를 혼용하지 않는다.
+
 `Upgraded-CAD6-PMTG-v0`는 CAD 발끝 좌표와 역기구학을 사용하는 단일 PPO 정책이다.
 hip MG996R 6개와 femur/tibia RC920DMG 12개의 v12 물리·접촉 모델을 사용한다.
 

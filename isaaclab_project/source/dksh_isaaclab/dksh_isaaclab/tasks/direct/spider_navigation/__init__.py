@@ -3,6 +3,16 @@
 import gymnasium as gym
 
 gym.register(
+    id="Upgraded-CAD6-Imitation-v0",
+    entry_point=f"{__name__}.Upgraded_imitation_env:UpgradedImitationEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.Upgraded_imitation_env:UpgradedImitationEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{__name__}.Upgraded_imitation_env:UpgradedImitationPPORunnerCfg",
+    },
+)
+
+gym.register(
     id="Upgraded-CAD6-PMTG-v0",
     entry_point=f"{__name__}.Upgraded_cad6_env:UpgradedCad6Env",
     disable_env_checker=True,

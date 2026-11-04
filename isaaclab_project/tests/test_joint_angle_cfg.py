@@ -275,6 +275,7 @@ class JointAngleConfigurationTests(unittest.TestCase):
                  {"__name__": "spider_navigation"})
         task_ids = {item["id"] for item in registrations}
         self.assertEqual(task_ids, {
+            "Upgraded-CAD6-Imitation-v0",
             "Upgraded-CAD6-PMTG-v0",
             "Isaac-DKSH-Spider-JointAngles-v2", "Isaac-DKSH-Spider-CAD8-JointAngles-v2",
             "Isaac-DKSH-Spider-CAD6-JointAngles-v2", "Isaac-DKSH-MG996R-Hip-CAD6-JointAngles-v2",
