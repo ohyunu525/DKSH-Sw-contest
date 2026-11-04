@@ -30,7 +30,10 @@ logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2_obstacles/*/*
 !logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2_obstacles/*/params/
 logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2_obstacles/*/params/*
 !logs/rsl_rl/dksh_mg996r_hip_cad6_jointangles_v2_obstacles/*/params/*.yaml
-outputs/
+# Share Upgraded evaluation reports and their contact diagnostics.
+outputs/*
+!outputs/Upgraded_*.json
+!outputs/Upgraded_*_contacts.jsonl
 **/__pycache__/
 *.py[cod]
 *.egg-info/

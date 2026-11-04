@@ -1,0 +1,2090 @@
+{
+  "Upgraded_contract": {
+    "task": "Upgraded-CAD6-PMTG-v0",
+    "cad_sha256": "2b95a93302d88c274349598e2e79064f124f069c9136efd7d0bf5320f10b2663",
+    "source_sha256": {
+      "Upgraded_cad6_control.py": "5dc263849bc357533595c02a64d61262dab592372861ab101354e95a7683604f",
+      "Upgraded_cad6_env.py": "3ac9c9821cc7061b20cd88f2f08c6cf4604488cc41cef3aeb5bde7cdb859d0f9",
+      "joint_angle_env.py": "92fba8f324628eac67de2ecf9c73500cc3f7b09766b0992c9a095342cd1f378c",
+      "joint_angle_control.py": "d3173a2f624de1d6b34e3224fa75fea75f06a3409bfd97a676991847ade13be5",
+      "joint_angle_env_cfg.py": "cb287bc511e1da8f9559ae0a224e56b2e7267cdc5a39fcfa4d2cda249b684dbb",
+      "joint_angle_contact.py": "aca87a3ceb30a18ff048d8a7126d8a5fc73cbae753d5f685f6ee6af435544c34",
+      "joint_angle_foot_geometry.py": "5dd8feabcc0a9ddd2190acca3948b09fb026d304fc4b3e7e9c24da7ca6fe94c2",
+      "joint_angle_non_distal_geometry.py": "bdbeaa38e53256a87c0a34e71b403cd4d1c5f39c4c1671ccaaac18df25c8f146"
+    },
+    "usd_sha256": "f25701167346d16e2a31409990f50f0f43a3b80a4fad24a510f931e2c65d5128",
+    "action_semantics": "Upgraded_latched_foothold_xyz_v1",
+    "observation_contract": "Upgraded_imu_command_targets_trajectory_lidar_history_v1",
+    "control_contract": "Upgraded_cad_ik_50hz_foothold_10hz_v1",
+    "reward_contract": "Upgraded_distal_slip_v12_ik_rejection_v1",
+    "contact_contract": "cad6_external_distal_substep_v1",
+    "actuator_contract": "mg996r_4v8_rc920dmg_5v_v1",
+    "contact_force_contract": "external_normal_forces_self_filtered_v1",
+    "target_rate_limit": 1.5,
+    "target_smoothing": 0.35,
+    "target_filter_interval_s": 0.02,
+    "history_frames": 4,
+    "gait_period": 2.0,
+    "gait_duty": 0.65,
+    "gait_lift": 0.02,
+    "foothold_offset_limit": 0.015,
+    "ik_clearance": 0.008,
+    "target_speed": 0.03,
+    "imu_angular_noise": 0.01,
+    "imu_gravity_noise": 0.005,
+    "actor_observations": 744,
+    "critic_observations": 884,
+    "actions": 18,
+    "joint_names": [
+      "leg_0_hip_joint",
+      "leg_0_femur_joint",
+      "leg_0_tibia_joint",
+      "leg_1_hip_joint",
+      "leg_1_femur_joint",
+      "leg_1_tibia_joint",
+      "leg_2_hip_joint",
+      "leg_2_femur_joint",
+      "leg_2_tibia_joint",
+      "leg_3_hip_joint",
+      "leg_3_femur_joint",
+      "leg_3_tibia_joint",
+      "leg_4_hip_joint",
+      "leg_4_femur_joint",
+      "leg_4_tibia_joint",
+      "leg_5_hip_joint",
+      "leg_5_femur_joint",
+      "leg_5_tibia_joint"
+    ],
+    "angle_limits_rad": [
+      [
+        -1.5707963705062866,
+        1.5707963705062866
+      ],
+      [
+        -1.5707963705062866,
+        1.5707963705062866
+      ],
+      [
+        -1.5707963705062866,
+        1.5707963705062866
+      ],
+      [
+        -1.5707963705062866,
+        1.5707963705062866
+      ],
+      [
+        -1.5707963705062866,
+        1.5707963705062866
+      ],
+      [
+        -1.5707963705062866,
+        1.5707963705062866
+      ],
+      [
+        -1.5707963705062866,
+        1.5707963705062866
+      ],
+      [
+        -1.5707963705062866,
+        1.5707963705062866
+      ],
+      [
+        -1.5707963705062866,
+        1.5707963705062866
+      ],
+      [
+        -1.5707963705062866,
+        1.5707963705062866
+      ],
+      [
+        -1.5707963705062866,
+        1.5707963705062866
+      ],
+      [
+        -1.5707963705062866,
+        1.5707963705062866
+      ],
+      [
+        -1.5707963705062866,
+        1.5707963705062866
+      ],
+      [
+        -1.5707963705062866,
+        1.5707963705062866
+      ],
+      [
+        -1.5707963705062866,
+        1.5707963705062866
+      ],
+      [
+        -1.5707963705062866,
+        1.5707963705062866
+      ],
+      [
+        -1.5707963705062866,
+        1.5707963705062866
+      ],
+      [
+        -1.5707963705062866,
+        1.5707963705062866
+      ]
+    ],
+    "policy_dt": 0.1
+  },
+  "mode": "baseline",
+  "environment": "flat",
+  "seed": 211,
+  "steps": 1200,
+  "environments": 4,
+  "Upgraded_ik_rejection_fraction": 0.0,
+  "Upgraded_max_ik_error_m": 4.7706993910878737e-08,
+  "episodes": {
+    "episodes": 105,
+    "goal": 0,
+    "fallen": 105,
+    "out_of_bounds": 0,
+    "time_out": 0
+  },
+  "success_rate": 0.0,
+  "successful_environment_count": 0,
+  "completed_episode_records": [
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 3,
+      "outcome": "fallen",
+      "duration_s": 4.4,
+      "signed_progress_m": -0.015053153038024902,
+      "travel_distance_m": 0.099677055464781,
+      "mechanical_energy_j": 5.189780052378774,
+      "sustained_progress_speed_mps": -0.003421171145005659,
+      "body_contact_fraction": 0.022727272727272728,
+      "non_distal_support_fraction": 0.0037878789007663727,
+      "non_distal_collision_fraction": 0.022727272727272728,
+      "strict_contact_failure_fraction": 0.022727272727272728,
+      "foot_slip_m2_s2": 0.0017601062082390358,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 0,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.012957096099853516,
+      "travel_distance_m": 0.09797864162101177,
+      "mechanical_energy_j": 5.610400434583425,
+      "sustained_progress_speed_mps": -0.0028167600217072863,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016469622340121969,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 1,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.013592362403869629,
+      "travel_distance_m": 0.09742596663454606,
+      "mechanical_energy_j": 5.495203123986721,
+      "sustained_progress_speed_mps": -0.0029548613921455717,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0017006206114333704,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    },
+    {
+      "environment_index": 2,
+      "outcome": "fallen",
+      "duration_s": 4.6,
+      "signed_progress_m": -0.01348268985748291,
+      "travel_distance_m": 0.09752341750572668,
+      "mechanical_energy_j": 5.388436990603806,
+      "sustained_progress_speed_mps": -0.0029310195342354154,
+      "body_contact_fraction": 0.02173913043478261,
+      "non_distal_support_fraction": 0.003623188513776531,
+      "non_distal_collision_fraction": 0.02173913043478261,
+      "strict_contact_failure_fraction": 0.02173913043478261,
+      "foot_slip_m2_s2": 0.0016715492504910962,
+      "contact_diagnostic_coverage": {
+        "non_distal_support_fraction": 1.0,
+        "non_distal_collision_fraction": 1.0
+      }
+    }
+  ],
+  "incomplete_episode_count": 4,
+  "completed_progress_m": -1.4472709894180298,
+  "completed_duration_s": 477.6000000000004,
+  "sustained_progress_speed_mps": -0.0030302993915787865,
+  "minimum_sustained_progress_speed_mps": 0.015,
+  "forward_speed_mps": -0.0028268900711403452,
+  "signed_progress_m": -1.439351201057434,
+  "travel_distance_m": 10.316517510025733,
+  "mechanical_energy_j": 570.4859524246306,
+  "energy_per_progress_j_m": null,
+  "body_contact_fraction": 0.021875,
+  "joint_limit_cost": 0.0,
+  "max_target_rate_rad_s": 1.5,
+  "target_rate_saturation_fraction": 0.004375000167055987,
+  "torque_saturation_fraction": 0.007291666720993817,
+  "tracking_error_rad": 0.06959552776999772,
+  "mean_support_feet": 5.704791666666667,
+  "step_progress_speed_mps": -0.002998648335536321,
+  "target_excursion_rad": 0.0630156174628064,
+  "joint_excursion_rad": 0.06899558803648688,
+  "joint_velocity_rms_rad_s": 0.3340320844959933,
+  "mean_foot_clearance_m": 2.9702824299846497e-05,
+  "foot_slip_m2_s2": 0.0016870439413927821,
+  "distal_support_fraction": 0.9963541662320494,
+  "non_distal_support_fraction": 0.003645833441987634,
+  "non_distal_collision_fraction": 0.021875,
+  "strict_contact_failure_fraction": 0.021875,
+  "mean_knee_ground_clearance_m": 0.07250190703663975,
+  "knee_ground_clearance_violation_fraction": 0.007291666883975268,
+  "knees_below_body_fraction": 0.0,
+  "approach_low_knee_time_fraction": 0.0,
+  "min_non_distal_clearance_m": -6.157904863357544e-06,
+  "require_strict_contact": true,
+  "max_body_contact_fraction": 0.0,
+  "max_non_distal_support_fraction": 0.0,
+  "max_non_distal_collision_fraction": 0.0,
+  "locomotion_pass": false,
+  "failure_reasons": [
+    "fewer completed successful episodes than environments",
+    "not every environment completed a successful episode",
+    "completed-episode success rate below 0.8",
+    "falls or out-of-bounds episodes occurred",
+    "completed-episode sustained progress speed is below the minimum",
+    "strict contact failure occurred or its evidence is invalid",
+    "an evaluated episode exceeds body_contact_fraction limit 0",
+    "an evaluated episode exceeds non_distal_support_fraction limit 0",
+    "an evaluated episode exceeds non_distal_collision_fraction limit 0"
+  ]
+}
