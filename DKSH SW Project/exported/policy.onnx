@@ -1,0 +1,607 @@
+
+pytorch2.11.0+cu130:ß⁄
+í
+obs
+obs_normalizer._meansubnode_sub"SubJé
+	namespaceÄ: rsl_rl.models.rnn_model._OnnxRNNModel/obs_normalizer: rsl_rl.modules.normalization.EmpiricalNormalization/sub: aten.sub.TensorJï
+pkg.torch.onnx.class_hierarchys['rsl_rl.models.rnn_model._OnnxRNNModel', 'rsl_rl.modules.normalization.EmpiricalNormalization', 'aten.sub.Tensor']Jï
+pkg.torch.onnx.fx_node{%sub : [num_users=1] = call_function[target=torch.ops.aten.sub.Tensor](args = (%obs, %b_obs_normalizer__mean), kwargs = {})J;
+pkg.torch.onnx.name_scopes['', 'obs_normalizer', 'sub']J‚
+pkg.torch.onnx.stack_trace√File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\models\rnn_model.py", line 213, in forward
+    x = self.obs_normalizer(obs)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\modules\normalization.py", line 48, in forward
+    return (x - self._mean) / (self._std + self.eps)
+Ó
+sub
+adddivnode_div"DivJé
+	namespaceÄ: rsl_rl.models.rnn_model._OnnxRNNModel/obs_normalizer: rsl_rl.modules.normalization.EmpiricalNormalization/div: aten.div.TensorJï
+pkg.torch.onnx.class_hierarchys['rsl_rl.models.rnn_model._OnnxRNNModel', 'rsl_rl.modules.normalization.EmpiricalNormalization', 'aten.div.Tensor']JÇ
+pkg.torch.onnx.fx_nodeh%div : [num_users=1] = call_function[target=torch.ops.aten.div.Tensor](args = (%sub, %add), kwargs = {})J;
+pkg.torch.onnx.name_scopes['', 'obs_normalizer', 'div']J‚
+pkg.torch.onnx.stack_trace√File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\models\rnn_model.py", line 213, in forward
+    x = self.obs_normalizer(obs)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\modules\normalization.py", line 48, in forward
+    return (x - self._mean) / (self._std + self.eps)
+
+div
+val_1	unsqueezenode_unsqueeze"	UnsqueezeJV
+	namespaceI: rsl_rl.models.rnn_model._OnnxRNNModel/unsqueeze: aten.unsqueeze.defaultJe
+pkg.torch.onnx.class_hierarchyC['rsl_rl.models.rnn_model._OnnxRNNModel', 'aten.unsqueeze.default']Jå
+pkg.torch.onnx.fx_noder%unsqueeze : [num_users=1] = call_function[target=torch.ops.aten.unsqueeze.default](args = (%div, 0), kwargs = {})J/
+pkg.torch.onnx.name_scopes['', 'unsqueeze']Jº
+pkg.torch.onnx.stack_traceùFile "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\models\rnn_model.py", line 222, in forward
+    x, h = self.rnn(x.unsqueeze(0), h_in)
+ñ
+h_in
+val_1
+val_3
+val_1val_4node_Slice_4"SliceJf
+	namespaceY: rsl_rl.models.rnn_model._OnnxRNNModel/rnn: torch.nn.modules.rnn.GRU/gru: aten.gru.inputJy
+pkg.torch.onnx.class_hierarchyW['rsl_rl.models.rnn_model._OnnxRNNModel', 'torch.nn.modules.rnn.GRU', 'aten.gru.input']J˛
+pkg.torch.onnx.fx_node„%gru : [num_users=2] = call_function[target=torch.ops.aten.gru.input](args = (%unsqueeze, %h_in, [%p_rnn_weight_ih_l0, %p_rnn_weight_hh_l0, %p_rnn_bias_ih_l0, %p_rnn_bias_hh_l0], True, 1, 0.0, False, False, False), kwargs = {})J0
+pkg.torch.onnx.name_scopes['', 'rnn', 'gru']J∆
+pkg.torch.onnx.stack_traceßFile "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\models\rnn_model.py", line 222, in forward
+    x, h = self.rnn(x.unsqueeze(0), h_in)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\torch\nn\modules\rnn.py", line 1449, in forward
+    result = _VF.gru(
+¢
+rnn.weight_ih_l0
+val_1
+val_2
+val_1val_5node_Slice_5"SliceJf
+	namespaceY: rsl_rl.models.rnn_model._OnnxRNNModel/rnn: torch.nn.modules.rnn.GRU/gru: aten.gru.inputJy
+pkg.torch.onnx.class_hierarchyW['rsl_rl.models.rnn_model._OnnxRNNModel', 'torch.nn.modules.rnn.GRU', 'aten.gru.input']J˛
+pkg.torch.onnx.fx_node„%gru : [num_users=2] = call_function[target=torch.ops.aten.gru.input](args = (%unsqueeze, %h_in, [%p_rnn_weight_ih_l0, %p_rnn_weight_hh_l0, %p_rnn_bias_ih_l0, %p_rnn_bias_hh_l0], True, 1, 0.0, False, False, False), kwargs = {})J0
+pkg.torch.onnx.name_scopes['', 'rnn', 'gru']J∆
+pkg.torch.onnx.stack_traceßFile "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\models\rnn_model.py", line 222, in forward
+    x, h = self.rnn(x.unsqueeze(0), h_in)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\torch\nn\modules\rnn.py", line 1449, in forward
+    result = _VF.gru(
+¢
+rnn.weight_ih_l0
+val_2
+val_7
+val_1val_8node_Slice_8"SliceJf
+	namespaceY: rsl_rl.models.rnn_model._OnnxRNNModel/rnn: torch.nn.modules.rnn.GRU/gru: aten.gru.inputJy
+pkg.torch.onnx.class_hierarchyW['rsl_rl.models.rnn_model._OnnxRNNModel', 'torch.nn.modules.rnn.GRU', 'aten.gru.input']J˛
+pkg.torch.onnx.fx_node„%gru : [num_users=2] = call_function[target=torch.ops.aten.gru.input](args = (%unsqueeze, %h_in, [%p_rnn_weight_ih_l0, %p_rnn_weight_hh_l0, %p_rnn_bias_ih_l0, %p_rnn_bias_hh_l0], True, 1, 0.0, False, False, False), kwargs = {})J0
+pkg.torch.onnx.name_scopes['', 'rnn', 'gru']J∆
+pkg.torch.onnx.stack_traceßFile "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\models\rnn_model.py", line 222, in forward
+    x, h = self.rnn(x.unsqueeze(0), h_in)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\torch\nn\modules\rnn.py", line 1449, in forward
+    result = _VF.gru(
+•
+rnn.weight_ih_l0
+val_7
+val_11
+val_1val_12node_Slice_12"SliceJf
+	namespaceY: rsl_rl.models.rnn_model._OnnxRNNModel/rnn: torch.nn.modules.rnn.GRU/gru: aten.gru.inputJy
+pkg.torch.onnx.class_hierarchyW['rsl_rl.models.rnn_model._OnnxRNNModel', 'torch.nn.modules.rnn.GRU', 'aten.gru.input']J˛
+pkg.torch.onnx.fx_node„%gru : [num_users=2] = call_function[target=torch.ops.aten.gru.input](args = (%unsqueeze, %h_in, [%p_rnn_weight_ih_l0, %p_rnn_weight_hh_l0, %p_rnn_bias_ih_l0, %p_rnn_bias_hh_l0], True, 1, 0.0, False, False, False), kwargs = {})J0
+pkg.torch.onnx.name_scopes['', 'rnn', 'gru']J∆
+pkg.torch.onnx.stack_traceßFile "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\models\rnn_model.py", line 222, in forward
+    x, h = self.rnn(x.unsqueeze(0), h_in)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\torch\nn\modules\rnn.py", line 1449, in forward
+    result = _VF.gru(
+§
+rnn.weight_hh_l0
+val_1
+val_2
+val_1val_13node_Slice_13"SliceJf
+	namespaceY: rsl_rl.models.rnn_model._OnnxRNNModel/rnn: torch.nn.modules.rnn.GRU/gru: aten.gru.inputJy
+pkg.torch.onnx.class_hierarchyW['rsl_rl.models.rnn_model._OnnxRNNModel', 'torch.nn.modules.rnn.GRU', 'aten.gru.input']J˛
+pkg.torch.onnx.fx_node„%gru : [num_users=2] = call_function[target=torch.ops.aten.gru.input](args = (%unsqueeze, %h_in, [%p_rnn_weight_ih_l0, %p_rnn_weight_hh_l0, %p_rnn_bias_ih_l0, %p_rnn_bias_hh_l0], True, 1, 0.0, False, False, False), kwargs = {})J0
+pkg.torch.onnx.name_scopes['', 'rnn', 'gru']J∆
+pkg.torch.onnx.stack_traceßFile "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\models\rnn_model.py", line 222, in forward
+    x, h = self.rnn(x.unsqueeze(0), h_in)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\torch\nn\modules\rnn.py", line 1449, in forward
+    result = _VF.gru(
+§
+rnn.weight_hh_l0
+val_2
+val_7
+val_1val_15node_Slice_15"SliceJf
+	namespaceY: rsl_rl.models.rnn_model._OnnxRNNModel/rnn: torch.nn.modules.rnn.GRU/gru: aten.gru.inputJy
+pkg.torch.onnx.class_hierarchyW['rsl_rl.models.rnn_model._OnnxRNNModel', 'torch.nn.modules.rnn.GRU', 'aten.gru.input']J˛
+pkg.torch.onnx.fx_node„%gru : [num_users=2] = call_function[target=torch.ops.aten.gru.input](args = (%unsqueeze, %h_in, [%p_rnn_weight_ih_l0, %p_rnn_weight_hh_l0, %p_rnn_bias_ih_l0, %p_rnn_bias_hh_l0], True, 1, 0.0, False, False, False), kwargs = {})J0
+pkg.torch.onnx.name_scopes['', 'rnn', 'gru']J∆
+pkg.torch.onnx.stack_traceßFile "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\models\rnn_model.py", line 222, in forward
+    x, h = self.rnn(x.unsqueeze(0), h_in)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\torch\nn\modules\rnn.py", line 1449, in forward
+    result = _VF.gru(
+•
+rnn.weight_hh_l0
+val_7
+val_11
+val_1val_18node_Slice_18"SliceJf
+	namespaceY: rsl_rl.models.rnn_model._OnnxRNNModel/rnn: torch.nn.modules.rnn.GRU/gru: aten.gru.inputJy
+pkg.torch.onnx.class_hierarchyW['rsl_rl.models.rnn_model._OnnxRNNModel', 'torch.nn.modules.rnn.GRU', 'aten.gru.input']J˛
+pkg.torch.onnx.fx_node„%gru : [num_users=2] = call_function[target=torch.ops.aten.gru.input](args = (%unsqueeze, %h_in, [%p_rnn_weight_ih_l0, %p_rnn_weight_hh_l0, %p_rnn_bias_ih_l0, %p_rnn_bias_hh_l0], True, 1, 0.0, False, False, False), kwargs = {})J0
+pkg.torch.onnx.name_scopes['', 'rnn', 'gru']J∆
+pkg.torch.onnx.stack_traceßFile "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\models\rnn_model.py", line 222, in forward
+    x, h = self.rnn(x.unsqueeze(0), h_in)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\torch\nn\modules\rnn.py", line 1449, in forward
+    result = _VF.gru(
+¢
+val_8
+val_5
+val_12val_19node_Concat_19"Concat*
+axis †Jf
+	namespaceY: rsl_rl.models.rnn_model._OnnxRNNModel/rnn: torch.nn.modules.rnn.GRU/gru: aten.gru.inputJy
+pkg.torch.onnx.class_hierarchyW['rsl_rl.models.rnn_model._OnnxRNNModel', 'torch.nn.modules.rnn.GRU', 'aten.gru.input']J˛
+pkg.torch.onnx.fx_node„%gru : [num_users=2] = call_function[target=torch.ops.aten.gru.input](args = (%unsqueeze, %h_in, [%p_rnn_weight_ih_l0, %p_rnn_weight_hh_l0, %p_rnn_bias_ih_l0, %p_rnn_bias_hh_l0], True, 1, 0.0, False, False, False), kwargs = {})J0
+pkg.torch.onnx.name_scopes['', 'rnn', 'gru']J∆
+pkg.torch.onnx.stack_traceßFile "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\models\rnn_model.py", line 222, in forward
+    x, h = self.rnn(x.unsqueeze(0), h_in)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\torch\nn\modules\rnn.py", line 1449, in forward
+    result = _VF.gru(
+§
+val_15
+val_13
+val_18val_20node_Concat_20"Concat*
+axis †Jf
+	namespaceY: rsl_rl.models.rnn_model._OnnxRNNModel/rnn: torch.nn.modules.rnn.GRU/gru: aten.gru.inputJy
+pkg.torch.onnx.class_hierarchyW['rsl_rl.models.rnn_model._OnnxRNNModel', 'torch.nn.modules.rnn.GRU', 'aten.gru.input']J˛
+pkg.torch.onnx.fx_node„%gru : [num_users=2] = call_function[target=torch.ops.aten.gru.input](args = (%unsqueeze, %h_in, [%p_rnn_weight_ih_l0, %p_rnn_weight_hh_l0, %p_rnn_bias_ih_l0, %p_rnn_bias_hh_l0], True, 1, 0.0, False, False, False), kwargs = {})J0
+pkg.torch.onnx.name_scopes['', 'rnn', 'gru']J∆
+pkg.torch.onnx.stack_traceßFile "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\models\rnn_model.py", line 222, in forward
+    x, h = self.rnn(x.unsqueeze(0), h_in)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\torch\nn\modules\rnn.py", line 1449, in forward
+    result = _VF.gru(
+î
+val_19
+val_1val_21node_Unsqueeze_21"	UnsqueezeJf
+	namespaceY: rsl_rl.models.rnn_model._OnnxRNNModel/rnn: torch.nn.modules.rnn.GRU/gru: aten.gru.inputJy
+pkg.torch.onnx.class_hierarchyW['rsl_rl.models.rnn_model._OnnxRNNModel', 'torch.nn.modules.rnn.GRU', 'aten.gru.input']J˛
+pkg.torch.onnx.fx_node„%gru : [num_users=2] = call_function[target=torch.ops.aten.gru.input](args = (%unsqueeze, %h_in, [%p_rnn_weight_ih_l0, %p_rnn_weight_hh_l0, %p_rnn_bias_ih_l0, %p_rnn_bias_hh_l0], True, 1, 0.0, False, False, False), kwargs = {})J0
+pkg.torch.onnx.name_scopes['', 'rnn', 'gru']J∆
+pkg.torch.onnx.stack_traceßFile "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\models\rnn_model.py", line 222, in forward
+    x, h = self.rnn(x.unsqueeze(0), h_in)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\torch\nn\modules\rnn.py", line 1449, in forward
+    result = _VF.gru(
+î
+val_20
+val_1val_22node_Unsqueeze_22"	UnsqueezeJf
+	namespaceY: rsl_rl.models.rnn_model._OnnxRNNModel/rnn: torch.nn.modules.rnn.GRU/gru: aten.gru.inputJy
+pkg.torch.onnx.class_hierarchyW['rsl_rl.models.rnn_model._OnnxRNNModel', 'torch.nn.modules.rnn.GRU', 'aten.gru.input']J˛
+pkg.torch.onnx.fx_node„%gru : [num_users=2] = call_function[target=torch.ops.aten.gru.input](args = (%unsqueeze, %h_in, [%p_rnn_weight_ih_l0, %p_rnn_weight_hh_l0, %p_rnn_bias_ih_l0, %p_rnn_bias_hh_l0], True, 1, 0.0, False, False, False), kwargs = {})J0
+pkg.torch.onnx.name_scopes['', 'rnn', 'gru']J∆
+pkg.torch.onnx.stack_traceßFile "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\models\rnn_model.py", line 222, in forward
+    x, h = self.rnn(x.unsqueeze(0), h_in)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\torch\nn\modules\rnn.py", line 1449, in forward
+    result = _VF.gru(
+Ö
+	unsqueeze
+val_21
+val_22
+val_38
+ 
+val_4val_39h_outnode_gru__1"GRU*
+	direction"forward†*
+linear_before_reset†*
+layout †*
+hidden_sizeÄ†Jf
+	namespaceY: rsl_rl.models.rnn_model._OnnxRNNModel/rnn: torch.nn.modules.rnn.GRU/gru: aten.gru.inputJy
+pkg.torch.onnx.class_hierarchyW['rsl_rl.models.rnn_model._OnnxRNNModel', 'torch.nn.modules.rnn.GRU', 'aten.gru.input']J˛
+pkg.torch.onnx.fx_node„%gru : [num_users=2] = call_function[target=torch.ops.aten.gru.input](args = (%unsqueeze, %h_in, [%p_rnn_weight_ih_l0, %p_rnn_weight_hh_l0, %p_rnn_bias_ih_l0, %p_rnn_bias_hh_l0], True, 1, 0.0, False, False, False), kwargs = {})J0
+pkg.torch.onnx.name_scopes['', 'rnn', 'gru']J∆
+pkg.torch.onnx.stack_traceßFile "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\models\rnn_model.py", line 222, in forward
+    x, h = self.rnn(x.unsqueeze(0), h_in)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\torch\nn\modules\rnn.py", line 1449, in forward
+    result = _VF.gru(
+†
+val_39val_40node_Transpose_39"	Transpose*
+perm@ @@@†Jf
+	namespaceY: rsl_rl.models.rnn_model._OnnxRNNModel/rnn: torch.nn.modules.rnn.GRU/gru: aten.gru.inputJy
+pkg.torch.onnx.class_hierarchyW['rsl_rl.models.rnn_model._OnnxRNNModel', 'torch.nn.modules.rnn.GRU', 'aten.gru.input']J˛
+pkg.torch.onnx.fx_node„%gru : [num_users=2] = call_function[target=torch.ops.aten.gru.input](args = (%unsqueeze, %h_in, [%p_rnn_weight_ih_l0, %p_rnn_weight_hh_l0, %p_rnn_bias_ih_l0, %p_rnn_bias_hh_l0], True, 1, 0.0, False, False, False), kwargs = {})J0
+pkg.torch.onnx.name_scopes['', 'rnn', 'gru']J∆
+pkg.torch.onnx.stack_traceßFile "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\models\rnn_model.py", line 222, in forward
+    x, h = self.rnn(x.unsqueeze(0), h_in)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\torch\nn\modules\rnn.py", line 1449, in forward
+    result = _VF.gru(
+†
+val_40
+val_52getitemnode_gru__0"Reshape*
+	allowzero †Jf
+	namespaceY: rsl_rl.models.rnn_model._OnnxRNNModel/rnn: torch.nn.modules.rnn.GRU/gru: aten.gru.inputJy
+pkg.torch.onnx.class_hierarchyW['rsl_rl.models.rnn_model._OnnxRNNModel', 'torch.nn.modules.rnn.GRU', 'aten.gru.input']J˛
+pkg.torch.onnx.fx_node„%gru : [num_users=2] = call_function[target=torch.ops.aten.gru.input](args = (%unsqueeze, %h_in, [%p_rnn_weight_ih_l0, %p_rnn_weight_hh_l0, %p_rnn_bias_ih_l0, %p_rnn_bias_hh_l0], True, 1, 0.0, False, False, False), kwargs = {})J0
+pkg.torch.onnx.name_scopes['', 'rnn', 'gru']J∆
+pkg.torch.onnx.stack_traceßFile "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\models\rnn_model.py", line 222, in forward
+    x, h = self.rnn(x.unsqueeze(0), h_in)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\torch\nn\modules\rnn.py", line 1449, in forward
+    result = _VF.gru(
+≈
+getitem
+val_1squeezenode_squeeze"SqueezeJN
+	namespaceA: rsl_rl.models.rnn_model._OnnxRNNModel/squeeze: aten.squeeze.dimJ_
+pkg.torch.onnx.class_hierarchy=['rsl_rl.models.rnn_model._OnnxRNNModel', 'aten.squeeze.dim']Jà
+pkg.torch.onnx.fx_noden%squeeze : [num_users=1] = call_function[target=torch.ops.aten.squeeze.dim](args = (%getitem, 0), kwargs = {})J-
+pkg.torch.onnx.name_scopes['', 'squeeze']Jß
+pkg.torch.onnx.stack_traceàFile "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\models\rnn_model.py", line 223, in forward
+    x = x.squeeze(0)
+Ú
+squeeze
+mlp.0.weight
+
+mlp.0.biaslinearnode_linear"Gemm*
+transA †*
+transB†*
+alpha  Ä?†*
+beta  Ä?†Jì
+	namespaceÖ: rsl_rl.models.rnn_model._OnnxRNNModel/mlp: rsl_rl.modules.mlp.MLP/mlp.0: torch.nn.modules.linear.Linear/linear: aten.linear.defaultJû
+pkg.torch.onnx.class_hierarchy|['rsl_rl.models.rnn_model._OnnxRNNModel', 'rsl_rl.modules.mlp.MLP', 'torch.nn.modules.linear.Linear', 'aten.linear.default']J®
+pkg.torch.onnx.fx_nodeç%linear : [num_users=1] = call_function[target=torch.ops.aten.linear.default](args = (%squeeze, %p_mlp_0_weight, %p_mlp_0_bias), kwargs = {})J<
+pkg.torch.onnx.name_scopes['', 'mlp', 'mlp.0', 'linear']J“
+pkg.torch.onnx.stack_trace≥File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\models\rnn_model.py", line 224, in forward
+    out = self.mlp(x)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\modules\mlp.py", line 94, in forward
+    x = layer(x)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\torch\nn\modules\linear.py", line 134, in forward
+    return F.linear(input, self.weight, self.bias)
+˛
+linearval_57node_Elu_56"Elu*
+alpha  Ä?†Jé
+	namespaceÄ: rsl_rl.models.rnn_model._OnnxRNNModel/mlp: rsl_rl.modules.mlp.MLP/mlp.1: torch.nn.modules.activation.ELU/elu: aten.elu.defaultJú
+pkg.torch.onnx.class_hierarchyz['rsl_rl.models.rnn_model._OnnxRNNModel', 'rsl_rl.modules.mlp.MLP', 'torch.nn.modules.activation.ELU', 'aten.elu.default']JÖ
+pkg.torch.onnx.fx_nodek%elu : [num_users=1] = call_function[target=torch.ops.aten.elu.default](args = (%linear, 1.0), kwargs = {})J9
+pkg.torch.onnx.name_scopes['', 'mlp', 'mlp.1', 'elu']J’
+pkg.torch.onnx.stack_trace∂File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\models\rnn_model.py", line 224, in forward
+    out = self.mlp(x)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\modules\mlp.py", line 94, in forward
+    x = layer(x)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\torch\nn\modules\activation.py", line 619, in forward
+    return F.elu(input, self.alpha, self.inplace)
+˜
+val_57
+mlp.2.weight
+
+mlp.2.biaslinear_1node_linear_1"Gemm*
+transA †*
+transB†*
+alpha  Ä?†*
+beta  Ä?†Jï
+	namespaceá: rsl_rl.models.rnn_model._OnnxRNNModel/mlp: rsl_rl.modules.mlp.MLP/mlp.2: torch.nn.modules.linear.Linear/linear_1: aten.linear.defaultJû
+pkg.torch.onnx.class_hierarchy|['rsl_rl.models.rnn_model._OnnxRNNModel', 'rsl_rl.modules.mlp.MLP', 'torch.nn.modules.linear.Linear', 'aten.linear.default']J¶
+pkg.torch.onnx.fx_nodeã%linear_1 : [num_users=1] = call_function[target=torch.ops.aten.linear.default](args = (%elu, %p_mlp_2_weight, %p_mlp_2_bias), kwargs = {})J>
+pkg.torch.onnx.name_scopes ['', 'mlp', 'mlp.2', 'linear_1']J“
+pkg.torch.onnx.stack_trace≥File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\models\rnn_model.py", line 224, in forward
+    out = self.mlp(x)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\modules\mlp.py", line 94, in forward
+    x = layer(x)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\torch\nn\modules\linear.py", line 134, in forward
+    return F.linear(input, self.weight, self.bias)
+à
+linear_1val_61node_Elu_60"Elu*
+alpha  Ä?†Jê
+	namespaceÇ: rsl_rl.models.rnn_model._OnnxRNNModel/mlp: rsl_rl.modules.mlp.MLP/mlp.3: torch.nn.modules.activation.ELU/elu_1: aten.elu.defaultJú
+pkg.torch.onnx.class_hierarchyz['rsl_rl.models.rnn_model._OnnxRNNModel', 'rsl_rl.modules.mlp.MLP', 'torch.nn.modules.activation.ELU', 'aten.elu.default']Jâ
+pkg.torch.onnx.fx_nodeo%elu_1 : [num_users=1] = call_function[target=torch.ops.aten.elu.default](args = (%linear_1, 1.0), kwargs = {})J;
+pkg.torch.onnx.name_scopes['', 'mlp', 'mlp.3', 'elu_1']J’
+pkg.torch.onnx.stack_trace∂File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\models\rnn_model.py", line 224, in forward
+    out = self.mlp(x)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\modules\mlp.py", line 94, in forward
+    x = layer(x)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\torch\nn\modules\activation.py", line 619, in forward
+    return F.elu(input, self.alpha, self.inplace)
+¯
+val_61
+mlp.4.weight
+
+mlp.4.biasactionsnode_linear_2"Gemm*
+transA †*
+transB†*
+alpha  Ä?†*
+beta  Ä?†Jï
+	namespaceá: rsl_rl.models.rnn_model._OnnxRNNModel/mlp: rsl_rl.modules.mlp.MLP/mlp.4: torch.nn.modules.linear.Linear/linear_2: aten.linear.defaultJû
+pkg.torch.onnx.class_hierarchy|['rsl_rl.models.rnn_model._OnnxRNNModel', 'rsl_rl.modules.mlp.MLP', 'torch.nn.modules.linear.Linear', 'aten.linear.default']J®
+pkg.torch.onnx.fx_nodeç%linear_2 : [num_users=1] = call_function[target=torch.ops.aten.linear.default](args = (%elu_1, %p_mlp_4_weight, %p_mlp_4_bias), kwargs = {})J>
+pkg.torch.onnx.name_scopes ['', 'mlp', 'mlp.4', 'linear_2']J“
+pkg.torch.onnx.stack_trace≥File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\models\rnn_model.py", line 224, in forward
+    out = self.mlp(x)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\rsl_rl\modules\mlp.py", line 94, in forward
+    x = layer(x)
+  File "C:\Users\COM\Documents\RLForHexapod\.venv\Lib\site-packages\torch\nn\modules\linear.py", line 134, in forward
+    return F.linear(input, self.weight, self.bias)
+main_graph*YÄèBrnn.weight_ih_l0j
+locationpolicy.onnx.dataj
+offset0j
+length832512p*^ÄÄBrnn.weight_hh_l0j
+locationpolicy.onnx.dataj
+offset832512j
+length786432p*[ÄÄBmlp.0.weightj
+locationpolicy.onnx.dataj
+offset1618944j
+length262144p*TÄB
+mlp.0.biasj
+locationpolicy.onnx.dataj
+offset1881088j
+length1024p*[ÄÄBmlp.2.weightj
+locationpolicy.onnx.dataj
+offset1882112j
+length131072p*SÄB
+mlp.2.biasj
+locationpolicy.onnx.dataj
+offset2013184j
+length512p*XÄBmlp.4.weightj
+locationpolicy.onnx.dataj
+offset2013696j
+length9216p*ZB
+mlp.4.biasJHB!•=IÑ=∞òÖΩ0xIπôë=’wN=4±=ÁBæ=j9=\jVæ=õÛ=Ø‚"Ω˝‡G=6`<:,éΩ∆éjΩSÙ0>⁄ìæ*`èBobs_normalizer._meanj
+locationpolicy.onnx.dataj
+offset2022912j
+length1084p*OèBaddj
+locationpolicy.onnx.dataj
+offset2023996j
+length1084p*Bval_7J       *Bval_11J       *RÄBval_38j
+locationpolicy.onnx.dataj
+offset2025080j
+length6144p*&Bval_52J                     *Bval_1J        *Bval_2J       *Bval_3J       Zæ
+obs
+	
+
+è"=
+/pkg.torch.export.graph_signature.InputSpec.kind
+USER_INPUT"=
+5pkg.torch.export.graph_signature.InputSpec.persistentNone"(
+!pkg.torch.onnx.original_node_nameobsZƒ
+h_in
+
+
+
+Ä"=
+/pkg.torch.export.graph_signature.InputSpec.kind
+USER_INPUT"=
+5pkg.torch.export.graph_signature.InputSpec.persistentNone")
+!pkg.torch.onnx.original_node_nameh_inbâ
+actions
+
+
+"?
+0pkg.torch.export.graph_signature.OutputSpec.kindUSER_OUTPUT"-
+!pkg.torch.onnx.original_node_namelinear_2bç
+h_out
+
+
+
+Ä"?
+0pkg.torch.export.graph_signature.OutputSpec.kindUSER_OUTPUT".
+!pkg.torch.onnx.original_node_name	getitem_1j⁄
+rnn.weight_ih_l0
+
+
+Ä
+è"<
+/pkg.torch.export.graph_signature.InputSpec.kind	PARAMETER"=
+5pkg.torch.export.graph_signature.InputSpec.persistentNone"7
+!pkg.torch.onnx.original_node_namep_rnn_weight_ih_l0j⁄
+rnn.weight_hh_l0
+
+
+Ä
+Ä"<
+/pkg.torch.export.graph_signature.InputSpec.kind	PARAMETER"=
+5pkg.torch.export.graph_signature.InputSpec.persistentNone"7
+!pkg.torch.onnx.original_node_namep_rnn_weight_hh_l0j“
+mlp.0.weight
+
+
+Ä
+Ä"<
+/pkg.torch.export.graph_signature.InputSpec.kind	PARAMETER"=
+5pkg.torch.export.graph_signature.InputSpec.persistentNone"3
+!pkg.torch.onnx.original_node_namep_mlp_0_weightj…
+
+mlp.0.bias
+	
+Ä"<
+/pkg.torch.export.graph_signature.InputSpec.kind	PARAMETER"=
+5pkg.torch.export.graph_signature.InputSpec.persistentNone"1
+!pkg.torch.onnx.original_node_namep_mlp_0_biasj“
+mlp.2.weight
+
+
+Ä
+Ä"<
+/pkg.torch.export.graph_signature.InputSpec.kind	PARAMETER"=
+5pkg.torch.export.graph_signature.InputSpec.persistentNone"3
+!pkg.torch.onnx.original_node_namep_mlp_2_weightj…
+
+mlp.2.bias
+	
+Ä"<
+/pkg.torch.export.graph_signature.InputSpec.kind	PARAMETER"=
+5pkg.torch.export.graph_signature.InputSpec.persistentNone"1
+!pkg.torch.onnx.original_node_namep_mlp_2_biasj—
+mlp.4.weight
+	
+
+Ä"<
+/pkg.torch.export.graph_signature.InputSpec.kind	PARAMETER"=
+5pkg.torch.export.graph_signature.InputSpec.persistentNone"3
+!pkg.torch.onnx.original_node_namep_mlp_4_weightj»
+
+mlp.4.bias
+
+
+"<
+/pkg.torch.export.graph_signature.InputSpec.kind	PARAMETER"=
+5pkg.torch.export.graph_signature.InputSpec.persistentNone"1
+!pkg.torch.onnx.original_node_namep_mlp_4_biasjﬁ
+obs_normalizer._mean
+	
+
+è"9
+/pkg.torch.export.graph_signature.InputSpec.kindBUFFER"=
+5pkg.torch.export.graph_signature.InputSpec.persistentTrue";
+!pkg.torch.onnx.original_node_nameb_obs_normalizer__meanj`
+add
+	
+
+è"H
+$pkg.onnxscript.optimizer.folded_from ['obs_normalizer._std', 'val_0']jW
+val_7
+
+
+"B
+$pkg.onnxscript.optimizer.folded_from['h_in', 'val_2', 'val_6']jY
+val_11
+
+
+"C
+$pkg.onnxscript.optimizer.folded_from['h_in', 'val_10', 'val_2']j¨
+val_38
+	
+
+Ä"ê
+$pkg.onnxscript.optimizer.folded_fromÁ['h_in', 'rnn.bias_hh_l0', 'rnn.bias_ih_l0', 'val_1', 'val_10', 'val_2', 'val_23', 'val_24', 'val_25', 'val_26', 'val_27', 'val_28', 'val_29', 'val_30', 'val_31', 'val_32', 'val_33', 'val_34', 'val_35', 'val_36', 'val_37', 'val_6']j 
+val_52
+
+
+"≥
+$pkg.onnxscript.optimizer.folded_fromä['val_1', 'val_3', 'val_40', 'val_41', 'val_42', 'val_43', 'val_44', 'val_45', 'val_46', 'val_47', 'val_48', 'val_49', 'val_50', 'val_51']j
+val_1
+
+
+jE
+val_2
+
+
+"0
+$pkg.onnxscript.optimizer.folded_from['h_in']j
+val_3
+
+
+j
+sub
+	
+
+èj
+div
+	
+
+èj 
+	unsqueeze
+
+
+
+èj
+val_4
+
+
+
+Äj
+val_5
+
+
+Ä
+èj
+val_8
+
+
+Ä
+èj
+val_12
+
+
+Ä
+èj
+val_13
+
+
+Ä
+Äj
+val_15
+
+
+Ä
+Äj
+val_18
+
+
+Ä
+Äj
+val_19
+
+
+Ä
+èj
+val_20
+
+
+Ä
+Äj
+val_21
+
+
+Ä
+èj
+val_22
+
+
+Ä
+Äj!
+val_39
+
+
+
+
+Äj!
+val_40
+
+
+
+
+Äj
+getitem
+
+
+
+Äj
+squeeze
+	
+
+Äj
+linear
+	
+
+Äj
+val_57
+	
+
+Äj
+linear_1
+	
+
+Äj
+val_61
+	
+
+ÄÇ¬
+0pkg.torch.export.ExportedProgram.graph_signatureç
+# inputs
+p_rnn_weight_ih_l0: PARAMETER target='rnn.weight_ih_l0'
+p_rnn_weight_hh_l0: PARAMETER target='rnn.weight_hh_l0'
+p_rnn_bias_ih_l0: PARAMETER target='rnn.bias_ih_l0'
+p_rnn_bias_hh_l0: PARAMETER target='rnn.bias_hh_l0'
+p_mlp_0_weight: PARAMETER target='mlp.0.weight'
+p_mlp_0_bias: PARAMETER target='mlp.0.bias'
+p_mlp_2_weight: PARAMETER target='mlp.2.weight'
+p_mlp_2_bias: PARAMETER target='mlp.2.bias'
+p_mlp_4_weight: PARAMETER target='mlp.4.weight'
+p_mlp_4_bias: PARAMETER target='mlp.4.bias'
+b_obs_normalizer__mean: BUFFER target='obs_normalizer._mean' persistent=True
+b_obs_normalizer__var: BUFFER target='obs_normalizer._var' persistent=True
+b_obs_normalizer__std: BUFFER target='obs_normalizer._std' persistent=True
+b_obs_normalizer_count: BUFFER target='obs_normalizer.count' persistent=True
+obs: USER_INPUT
+h_in: USER_INPUT
+
+# outputs
+linear_2: USER_OUTPUT
+getitem_1: USER_OUTPUT
+: USER_OUTPUT
+Ç8
+2pkg.torch.export.ExportedProgram.range_constraints{}B
+ 
