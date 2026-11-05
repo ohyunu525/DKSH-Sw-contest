@@ -114,5 +114,12 @@
       "stair progress at timeout"
     ],
     "selection": "Accept only if ascent time improves without a meaningful success-rate or fall-rate regression; count failed and timed-out episodes as well as successes"
-  }
+  },
+  "user_feedback": {
+    "source": "user observation, not independently measured",
+    "collision_part": "tibia-femur joint (knee)",
+    "comparison_with_original": "same collision also occurs in original model_2650.pt",
+    "first_wsp_result": "transition delay reduced and stair ascent appears faster"
+  },
+  "current_diagnostic_direction": "Preserve first WSP as the faster candidate. Diagnose knee/riser clearance and contact before choosing another weight edit; no collision correction validated."
 }

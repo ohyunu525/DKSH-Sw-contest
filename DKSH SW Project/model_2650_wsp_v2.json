@@ -1,0 +1,152 @@
+{
+  "status": "experimental_candidate_not_validated_in_simulation",
+  "objective": "Partial rollback of the previous GRU edit, to test whether that edit contributed to the user-reported stair collisions",
+  "performance_claim": null,
+  "source": "C:\\Users\\5252x\\DKSH-Sw-contest\\DKSH SW Project\\model_2650.pt",
+  "source_sha256": "8dc578547812f48511a8a5d60f54594b3ba108700b87b427a62042ca355bdbce",
+  "output": "C:\\Users\\5252x\\DKSH-Sw-contest\\DKSH SW Project\\model_2650_wsp_v2.pt",
+  "output_sha256": "2ac12bea4646320654de67e52a0b1f3f5cf0dedf558b4964c720d63cd363e12a",
+  "torch_version": "2.2.1+cpu",
+  "environment_reference_commit": "ed53031ea774e167982bc9563a28435daefc619b",
+  "environment_contract": "Hexapod-Stair-Student-A: 271 observations, GRU256, ELU MLP256/128, 18 actions, policy50Hz",
+  "environment_provenance_limit": "Architecture matches the current source; checkpoint has no training-run metadata to prove its exact training commit",
+  "source_reference": "https://github.com/qorhvma/RLForHexapod/blob/ed53031ea774e167982bc9563a28435daefc619b/src/RLforHexapod/tasks/walk/config/hexapod/agents/rsl_rl_distillation_cfg.py",
+  "patch": {
+    "group": "student_state_dict",
+    "tensor": "rnn.rnn.bias_ih_l0",
+    "slice": [
+      256,
+      512
+    ],
+    "operation": "subtract log(candidate_odds) from update-gate input bias",
+    "delta": -0.02955880224154443,
+    "candidate_odds": 1.03,
+    "changed_parameter_count": 256,
+    "interpretation": "At identical x,h, (1-z)/z is multiplied by candidate_odds; this is not a gait speed multiplier"
+  },
+  "preserved": [
+    "original file",
+    "all other student tensors",
+    "normalization",
+    "teacher",
+    "action output head",
+    "exploration std",
+    "optimizer",
+    "iteration",
+    "infos"
+  ],
+  "optimizer_note": "Retained verbatim for checkpoint compatibility; no optimizer step was taken. This is an inference experiment. Further distillation toward the unchanged teacher can undo the edit.",
+  "checks": {
+    "kind": "synthetic network checks, not simulation or locomotion evaluation",
+    "seed": 2650,
+    "fixed_state_candidate_to_retention_odds_min": 1.029999974834627,
+    "fixed_state_candidate_to_retention_odds_max": 1.0300000055310188,
+    "update_gate_absolute_change_bound": 0.007389566051870216,
+    "update_gate_measured_max_change": 0.0073895529247609,
+    "probes": {
+      "zero_normalized_input": {
+        "predictions": 4096,
+        "raw_action_delta_rms": 0.002521731425076723,
+        "clipped_action_delta_rms": 0.002444489160552621,
+        "raw_action_delta_max": 0.009572446346282959,
+        "original_action_clip_fraction": 0.1120876744389534,
+        "candidate_action_clip_fraction": 0.1121961772441864,
+        "candidate_final_hidden_abs_max": 0.9994547963142395,
+        "finite": true,
+        "persistent_state_and_reset_check": "passed"
+      },
+      "correlated_normalized_noise": {
+        "predictions": 4096,
+        "raw_action_delta_rms": 0.007499282713979483,
+        "clipped_action_delta_rms": 0.00497385673224926,
+        "raw_action_delta_max": 0.05683541297912598,
+        "original_action_clip_fraction": 0.5103217363357544,
+        "candidate_action_clip_fraction": 0.5106472373008728,
+        "candidate_final_hidden_abs_max": 0.9999990463256836,
+        "finite": true,
+        "persistent_state_and_reset_check": "passed"
+      },
+      "small_correlated_normalized_noise": {
+        "predictions": 4096,
+        "raw_action_delta_rms": 0.005534563213586807,
+        "clipped_action_delta_rms": 0.004468953236937523,
+        "raw_action_delta_max": 0.04833778738975525,
+        "original_action_clip_fraction": 0.3021104633808136,
+        "candidate_action_clip_fraction": 0.3022189736366272,
+        "candidate_final_hidden_abs_max": 0.9998935461044312,
+        "finite": true,
+        "persistent_state_and_reset_check": "passed"
+      },
+      "normalized_step": {
+        "predictions": 4096,
+        "raw_action_delta_rms": 0.002265098737552762,
+        "clipped_action_delta_rms": 0.0021514648105949163,
+        "raw_action_delta_max": 0.011617422103881836,
+        "original_action_clip_fraction": 0.1689453125,
+        "candidate_action_clip_fraction": 0.1689453125,
+        "candidate_final_hidden_abs_max": 0.9998831748962402,
+        "finite": true,
+        "persistent_state_and_reset_check": "passed"
+      }
+    }
+  },
+  "serialization_roundtrip": "passed",
+  "original_sha256_unchanged": true,
+  "limitations": [
+    "No Isaac Lab/Newton runtime was available locally; no physical rollout was run.",
+    "The policy needs memory to infer its phase; reduced retention may worsen phase tracking, stability or ascent speed.",
+    "Synthetic finite outputs do not demonstrate robot stability, success rate or faster climbing.",
+    "No best candidate has been selected from simulation results.",
+    "If the original checkpoint already has the same collisions, partial rollback is not a targeted repair of that underlying behavior."
+  ],
+  "required_comparison": {
+    "task": "Hexapod-Stair-Student-A",
+    "models": [
+      "C:\\Users\\5252x\\DKSH-Sw-contest\\DKSH SW Project\\model_2650.pt",
+      "C:\\Users\\5252x\\DKSH-Sw-contest\\DKSH SW Project\\model_2650_wsp.pt",
+      "C:\\Users\\5252x\\DKSH-Sw-contest\\DKSH SW Project\\model_2650_wsp_v2.pt"
+    ],
+    "controls": "Identical environment version, robot asset, seeds, initial poses, action clipping and normalization; deterministic inference; reset GRU between episodes",
+    "initial_state": "Use phase 0 only for full-ascent timing: stair_reset buffer_ratio=0, x_ranges=((-0.1,0.1),)",
+    "metrics": [
+      "stair success rate",
+      "time to top",
+      "time to settled success",
+      "failures/falls",
+      "stair progress at timeout",
+      "stair-face collisions and contacted body part",
+      "backward displacement after impact"
+    ],
+    "selection": "Compare identical resets and seeds. Accept only after observing fewer collisions and no meaningful loss of success rate; also record total ascent time and timeouts. No improvement has yet been measured."
+  },
+  "user_feedback": {
+    "source": "user observation, not independently measured",
+    "collision_part": "tibia-femur joint (knee)",
+    "comparison_with_original": "same collision also occurs in original model_2650.pt",
+    "first_wsp_result": "transition delay reduced and stair ascent appears faster"
+  },
+  "revision": {
+    "kind": "partial_rollback_comparison_candidate",
+    "previous_checkpoint": "C:\\Users\\5252x\\DKSH-Sw-contest\\DKSH SW Project\\model_2650_wsp.pt",
+    "previous_sha256": "fd26b2c97debd3b52dd371e45ef890419ccc5fdfb293bd3e7e86ae50bb9beef6",
+    "previous_bias_delta": -0.09531017980432493,
+    "new_bias_delta": -0.02955880224154443,
+    "previous_logit_edit_retained_fraction": 0.3101326878433097,
+    "changed_tensors_from_previous": [
+      "rnn.rnn.bias_ih_l0"
+    ],
+    "changed_values_from_previous": 256,
+    "all_other_checkpoint_values_unchanged": true,
+    "interpretation": "Reduces the previous update-gate logit edit to approximately 31%. This is not a speed percentage, collision detector or clearance correction. Causality has not been established.",
+    "assessment_after_user_feedback": "Partial rollback does not target the reported pre-existing knee collision; no longer the preferred collision-repair direction."
+  },
+  "reproduce_weights": [
+    ".venv-unity-rl/Scripts/python.exe",
+    "outputs/model_2650_wsp/rewrite_and_verify.py",
+    "--candidate-odds",
+    "1.03",
+    "--output",
+    "DKSH SW Project/model_2650_wsp_v2.pt"
+  ],
+  "current_diagnostic_direction": "Preserve first WSP as the faster candidate. Diagnose knee/riser clearance and contact before choosing another weight edit; no collision correction validated."
+}
