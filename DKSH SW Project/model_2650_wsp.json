@@ -1,0 +1,118 @@
+{
+  "status": "experimental_candidate_not_validated_in_simulation",
+  "objective": "Explore reduced recurrent retention as a possible way to reduce stair phase-transition delay",
+  "performance_claim": null,
+  "source": "C:\\Users\\5252x\\DKSH-Sw-contest\\DKSH SW Project\\model_2650.pt",
+  "source_sha256": "8dc578547812f48511a8a5d60f54594b3ba108700b87b427a62042ca355bdbce",
+  "output": "C:\\Users\\5252x\\DKSH-Sw-contest\\DKSH SW Project\\model_2650_wsp.pt",
+  "output_sha256": "fd26b2c97debd3b52dd371e45ef890419ccc5fdfb293bd3e7e86ae50bb9beef6",
+  "torch_version": "2.2.1+cpu",
+  "environment_reference_commit": "ed53031ea774e167982bc9563a28435daefc619b",
+  "environment_contract": "Hexapod-Stair-Student-A: 271 observations, GRU256, ELU MLP256/128, 18 actions, policy50Hz",
+  "environment_provenance_limit": "Architecture matches the current source; checkpoint has no training-run metadata to prove its exact training commit",
+  "source_reference": "https://github.com/qorhvma/RLForHexapod/blob/ed53031ea774e167982bc9563a28435daefc619b/src/RLforHexapod/tasks/walk/config/hexapod/agents/rsl_rl_distillation_cfg.py",
+  "patch": {
+    "group": "student_state_dict",
+    "tensor": "rnn.rnn.bias_ih_l0",
+    "slice": [
+      256,
+      512
+    ],
+    "operation": "subtract log(candidate_odds) from update-gate input bias",
+    "delta": -0.09531017980432493,
+    "candidate_odds": 1.1,
+    "changed_parameter_count": 256,
+    "interpretation": "At identical x,h, (1-z)/z is multiplied by candidate_odds; this is not a gait speed multiplier"
+  },
+  "preserved": [
+    "original file",
+    "all other student tensors",
+    "normalization",
+    "teacher",
+    "action output head",
+    "exploration std",
+    "optimizer",
+    "iteration",
+    "infos"
+  ],
+  "optimizer_note": "Retained verbatim for checkpoint compatibility; no optimizer step was taken. This is an inference experiment. Further distillation toward the unchanged teacher can undo the edit.",
+  "checks": {
+    "kind": "synthetic network checks, not simulation or locomotion evaluation",
+    "seed": 2650,
+    "fixed_state_candidate_to_retention_odds_min": 1.0999999689499385,
+    "fixed_state_candidate_to_retention_odds_max": 1.1000000181237701,
+    "update_gate_absolute_change_bound": 0.023823036596969077,
+    "update_gate_measured_max_change": 0.023823037091331045,
+    "probes": {
+      "zero_normalized_input": {
+        "predictions": 4096,
+        "raw_action_delta_rms": 0.008003204129636288,
+        "clipped_action_delta_rms": 0.007758308667689562,
+        "raw_action_delta_max": 0.030431926250457764,
+        "original_action_clip_fraction": 0.1120876744389534,
+        "candidate_action_clip_fraction": 0.1120876744389534,
+        "candidate_final_hidden_abs_max": 0.9994546175003052,
+        "finite": true,
+        "persistent_state_and_reset_check": "passed"
+      },
+      "correlated_normalized_noise": {
+        "predictions": 4096,
+        "raw_action_delta_rms": 0.02398356981575489,
+        "clipped_action_delta_rms": 0.015880752354860306,
+        "raw_action_delta_max": 0.188055157661438,
+        "original_action_clip_fraction": 0.5103217363357544,
+        "candidate_action_clip_fraction": 0.5107693076133728,
+        "candidate_final_hidden_abs_max": 0.9999991655349731,
+        "finite": true,
+        "persistent_state_and_reset_check": "passed"
+      },
+      "small_correlated_normalized_noise": {
+        "predictions": 4096,
+        "raw_action_delta_rms": 0.017801642417907715,
+        "clipped_action_delta_rms": 0.014384524896740913,
+        "raw_action_delta_max": 0.15543416142463684,
+        "original_action_clip_fraction": 0.3021104633808136,
+        "candidate_action_clip_fraction": 0.3029378354549408,
+        "candidate_final_hidden_abs_max": 0.9998952150344849,
+        "finite": true,
+        "persistent_state_and_reset_check": "passed"
+      },
+      "normalized_step": {
+        "predictions": 4096,
+        "raw_action_delta_rms": 0.007330394349992275,
+        "clipped_action_delta_rms": 0.006967479363083839,
+        "raw_action_delta_max": 0.03738522529602051,
+        "original_action_clip_fraction": 0.1689453125,
+        "candidate_action_clip_fraction": 0.1687282919883728,
+        "candidate_final_hidden_abs_max": 0.999882161617279,
+        "finite": true,
+        "persistent_state_and_reset_check": "passed"
+      }
+    }
+  },
+  "serialization_roundtrip": "passed",
+  "original_sha256_unchanged": true,
+  "limitations": [
+    "No Isaac Lab/Newton runtime was available locally; no physical rollout was run.",
+    "The policy needs memory to infer its phase; reduced retention may worsen phase tracking, stability or ascent speed.",
+    "Synthetic finite outputs do not demonstrate robot stability, success rate or faster climbing.",
+    "No best candidate has been selected from simulation results."
+  ],
+  "required_comparison": {
+    "task": "Hexapod-Stair-Student-A",
+    "models": [
+      "C:\\Users\\5252x\\DKSH-Sw-contest\\DKSH SW Project\\model_2650.pt",
+      "C:\\Users\\5252x\\DKSH-Sw-contest\\DKSH SW Project\\model_2650_wsp.pt"
+    ],
+    "controls": "Identical environment version, robot asset, seeds, initial poses, action clipping and normalization; deterministic inference; reset GRU between episodes",
+    "initial_state": "Use phase 0 only for full-ascent timing: stair_reset buffer_ratio=0, x_ranges=((-0.1,0.1),)",
+    "metrics": [
+      "stair success rate",
+      "time to top",
+      "time to settled success",
+      "failures/falls",
+      "stair progress at timeout"
+    ],
+    "selection": "Accept only if ascent time improves without a meaningful success-rate or fall-rate regression; count failed and timed-out episodes as well as successes"
+  }
+}
