@@ -219,7 +219,7 @@ MPPI Omni는 횡이동을 포함하는 현재 구성이다. 실제 로봇이 전
 | 목표 허용 오차 | 위치 0.20m, 방향 0.30rad | 실물 결과 미확정 | 운용 목적과 위치 추정 오차를 기준으로 검증 |
 | footprint | 0.50m × 0.46m 사각형 | 실제 다리 움직임 미반영 | 보행 중 다리의 외곽 범위와 불확실성 반영 |
 
-비교 기준은 [현재 Nav2 프로필](ros2/config/nav2_low_resource.yaml)과 [CAD6 Velocity 설정](isaaclab_project/source/dksh_isaaclab/dksh_isaaclab/tasks/direct/spider_navigation/mg90s_cad6.py)이다. 실제 배포 정책의 학습 프로필과 메타데이터가 다르면 그 값을 기준으로 다시 비교한다. velocity smoother, MPPI와 구동 제어기가 같은 속도·가속도 한계를 사용하도록 맞춘다. 진행 판정 거리보다 위치 추정 잡음이 커서 허위 진행이 발생하는 상황도 시험한다.
+비교 기준은 [현재 Nav2 프로필](ros2/config/nav2_low_resource.yaml)과 [기존 CAD6 Velocity 정책 계약](isaaclab_project/policies/mg90s_cad6_velocity_l1v1/README.md)이다. 실제 배포 정책의 학습 프로필과 메타데이터가 다르면 그 값을 기준으로 다시 비교한다. velocity smoother, MPPI와 구동 제어기가 같은 속도·가속도 한계를 사용하도록 맞춘다. 진행 판정 거리보다 위치 추정 잡음이 커서 허위 진행이 발생하는 상황도 시험한다.
 
 Nav2 복구 동작인 회전과 후진의 속도, 이동 거리와 시간 제한도 같은 저속 보행 조건에 맞춘다. 해당 동작을 실물에서 검증하기 전에는 운용 Behavior Tree에서 비활성화한다. 목표 이동뿐 아니라 복구 동작도 최종 제어 상태 검사를 통과하도록 하고, 취소 후 다른 이동 명령 소스로 전환되지 않는지 확인한다.
 

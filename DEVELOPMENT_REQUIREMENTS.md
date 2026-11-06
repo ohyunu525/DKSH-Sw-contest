@@ -145,7 +145,7 @@ NVIDIA의 Isaac Sim 4.5 공식 최소 요구사항은 RTX 3070, 8GB VRAM, RAM 32
 ## 4. 새 컴퓨터 공통 준비
 
 1. Git으로 저장소를 clone한다.
-2. 저장소 루트에서 `git submodule update --init --recursive`를 실행한다.
+2. 학습 장비는 [RLForHexapod 학습 안내](README.md#rlforhexapod-학습)에 따라 Python 환경을 준비한다.
 3. Unity Hub에서 정확히 `6000.5.3f1`을 설치하고 `DKSH SW Project`를 연다.
 4. Unity가 `Packages/manifest.json`과 `packages-lock.json`의 패키지를 복원하고 컴파일을 마칠 때까지
    기다린다.
@@ -153,32 +153,10 @@ NVIDIA의 Isaac Sim 4.5 공식 최소 요구사항은 RTX 3070, 8GB VRAM, RAM 32
    복사하지 않는다.
 6. Unity asset을 추가할 때 `.meta` 파일도 함께 Git에 저장한다.
 
-Windows의 긴 경로 문제로 submodule checkout이 실패하는 컴퓨터에서는 Git의 long path 지원을
-활성화한 뒤 다시 clone한다. 개인 경로나 드라이버 경로는 프로젝트 파일에 고정하지 않고 실행 인자로
-전달한다.
+## 5. A 등급 컴퓨터 학습 환경
 
-## 5. A 등급 컴퓨터 설치 및 검증
-
-Isaac Sim standalone 4.5.0을 설치한 뒤 기본 경로를 사용하거나 실제 설치 경로를 전달한다.
-
-```powershell
-git submodule update --init --recursive
-.\setup_isaaclab.ps1
-.\run_isaaclab.ps1 -Mode isaac-smoke -NumEnvs 4
-.\run_isaaclab.ps1 -Mode smoke -RobotModel cad6 -NumEnvs 4 -Steps 64
-```
-
-기본 경로가 아닌 경우:
-
-```powershell
-.\setup_isaaclab.ps1 -IsaacSimPath "D:\isaac-sim-standalone-4.5.0-windows-x86_64"
-```
-
-스모크 테스트가 통과한 뒤에만 학습 환경 수를 증가시킨다.
-
-```powershell
-.\run_isaaclab.ps1 -Mode train -RobotModel cad6 -Environment rough -NumEnvs 8 -MaxIterations 1000
-```
+[RLForHexapod 학습 안내](README.md#rlforhexapod-학습)의 설치 및 작업 목록 확인 명령을 사용한다.
+기존 4.5 장비 사양은 참고용이며, 6.2 구동 여부는 학습 장비에서 별도로 확인한다.
 
 ## 6. B 등급 컴퓨터 ROS2 검증
 
