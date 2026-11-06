@@ -13,3 +13,9 @@ isaaclab_project/assets/spiderbot_variants/onshape_20260928/config.yaml
 IsaacLab/_isaac_sim
 .vscode/
 .venv/
+
+# Generated local conversion metadata and Unity profiling data
+/RLForHexapod/src/RLforHexapod/assets/robot/config.yaml
+/RLForHexapod/src/RLforHexapod/output/config.yaml
+/DKSH SW Project/Assets/ML-Agents/Timers/
+/DKSH SW Project/Assets/ML-Agents/Timers.meta

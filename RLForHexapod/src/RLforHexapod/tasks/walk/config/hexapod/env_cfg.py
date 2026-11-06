@@ -295,7 +295,6 @@ class HexapodStairEnvCfg(HexapodEnvCfg):
 
 
 # Student-cfg  ====================================================
-# 관측 시험 계획: docs/student_observation_test.md
 
 @configclass
 class StudentAObservationsCfg(StairsObservationsCfg):

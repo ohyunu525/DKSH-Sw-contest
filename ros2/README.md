@@ -2,11 +2,9 @@
 
 This directory is the replaceable ROS2 navigation side of the project. Unity remains the sensor/physics simulator. The image includes the Unity bridge endpoint, the ROS2 frontier candidate, the required Nav2 runtime servers and `slam_toolbox`.
 
-Machine roles and the rule separating the RTX 3070 Isaac workstation, the 16 GB Unity/ROS integration machine and lower-spec development machines are defined in [`DEVELOPMENT_REQUIREMENTS.md`](../DEVELOPMENT_REQUIREMENTS.md).
+## Runtime profile
 
-## Hardware profile
-
-The current development machine has a 14-core/18-thread Intel Core Ultra 5 125H, 16 GB shared system memory, Intel Arc integrated graphics and about 35 GB free on `C:` at setup time. The stack therefore uses a headless `ros-base` image and deliberately excludes Gazebo, desktop metapackages and CUDA. `slam_toolbox` brings some RViz support libraries as binary dependencies, but no RViz process is launched.
+The stack uses a headless ROS image with the Unity bridge, SLAM and navigation packages.
 
 The container is capped at:
 
@@ -16,16 +14,6 @@ The container is capped at:
 - 1024 processes
 
 The build helper refuses a new image build when less than 25 GB remains on `C:`. It never prunes unrelated Docker data.
-
-Measured after the first complete build on this machine:
-
-- pre-LiDAR project image: 686,709,619 bytes (about 655 MiB); the current image also includes PCL,
-  `pointcloud_to_laserscan`, and the pinned Unitree L2 SDK2 driver, so remeasure after rebuilding
-- endpoint-only idle: about 106.5 MiB RAM and 0.29% Docker CPU
-- all SLAM/Nav2 lifecycle nodes active against a synthetic 6 m map: about 307.3 MiB RAM and 32% Docker CPU (roughly 0.32 of one logical core)
-- `C:` free after the build: about 29.3 GB
-
-These are configuration smoke-test snapshots, not worst-case figures with a growing live SLAM map. Keep Isaac Lab stopped while Unity and Nav2 are running.
 
 ## Pinned components
 
@@ -153,5 +141,3 @@ ros2 launch frontier_exploration_ros2 frontier_explorer.launch.py \
   params_file:=/opt/dksh/config/frontier_low_resource.yaml \
   use_sim_time:=true
 ```
-
-Do not run Unity, Isaac Sim/Isaac Lab training and this full navigation stack simultaneously on this machine. Unity plus the headless ROS2 stack is the supported local combination; reinforcement-learning training remains a separate workload.

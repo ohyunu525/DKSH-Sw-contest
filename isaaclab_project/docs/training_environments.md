@@ -139,8 +139,7 @@ python .\isaaclab_project\scripts\l2_pointcloud_features.py .\points.json
 2026-10-10 로컬 검증: Python 단위 테스트 103개 중 102개 통과, CUDA 비교 1개는 NVIDIA GPU가
 없어 생략했습니다. Unity 6000.5.3f1에서 C# 컴파일과 L2 음각 광선·수평 장애물 검출·양자화·씬
 설정 검증 및 기존 Frontier 검증을 통과했습니다. UDP/UART Compose 설정과 PowerShell 문법도
-검사했습니다. 이 PC는 RAM 16 GB·Intel Arc 내장 GPU이며 Docker daemon이 실행 중이지 않고
-C: 여유 공간이 이미지 빌드 기준 25 GB 미만이어서 이미지 빌드는 수행하지 않았습니다.
+검사했습니다.
 Isaac Sim 4환경 smoke/evaluate, Jazzy 이미지 빌드 및 실제 L2 점군 수신은 별도 장비에서 검증해야 합니다.
 
 ## 스모크 검사와 Python 실행

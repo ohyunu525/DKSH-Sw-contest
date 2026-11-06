@@ -16,7 +16,6 @@
 `Isaac-DKSH-MG90S-Walk-Direct-v0`는 기존 primitive 8족 기하를 사용하는 별도 실험이다.
 CAD 6족/8족, 기존 MG996R 환경 및 이전 체크포인트는 그대로 보관한다.
 실물 공급 전압·총중량·링크 질량 배분은 아직 확인되지 않았다.
-`DEVELOPMENT_REQUIREMENTS.md`는 개발 PC 사양과 운영 기준을 정하며, 이 실물 값들은 명시하지 않는다.
 
 - 공급 전압 가정: 4.8 V.
 - 사용자가 제공한 1.8 kgf·cm → 정지 토크 0.1765197 N·m.
@@ -60,7 +59,6 @@ CAD 6족/8족, 기존 MG996R 환경 및 이전 체크포인트는 그대로 보�
 # 4개 환경에서 정지 20초 + 기준 보행 20초, 토크/낙상/변위 검사
 .\run_mg90s.ps1 -Mode check -NumEnvs 4
 
-# DEVELOPMENT_REQUIREMENTS.md에 따라 앞 단계 통과 후 순차 검사
 .\IsaacLab\isaaclab.bat -p .\isaaclab_project\scripts\check_mg90s.py --headless --num_envs=8 --output=logs/mg90s_preflight_8.json
 .\IsaacLab\isaaclab.bat -p .\isaaclab_project\scripts\check_mg90s.py --headless --num_envs=16 --output=logs/mg90s_preflight_16.json
 

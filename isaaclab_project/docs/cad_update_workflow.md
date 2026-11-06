@@ -1,11 +1,6 @@
 # Onshape CAD 갱신 및 학습 전환 절차
 
-최신 설계의 단일 출처는 [HEXAPOD Onshape 최종 조립](https://cad.onshape.com/documents/f646c0fde8bd91cfa43cbae7/w/279609403375cff4404c6eae/e/76a6985095c8e8f19d67aec6)이다.
-문서는 현재 링크 공유 읽기 전용이며 설계가 진행 중이다. 2026-09-30 관찰 기준으로
-최종 조립은 body 1개, coxa/femur/tibia 각 6개로 총 19개 인스턴스이며,
-`dof_L1_*`부터 `dof_L6_*`까지 이름이 붙은 Revolute Mate 18개가 있다.
-다만 Mate Limits, 정확한 축 중심, 최종 질량 명세는 아직 확정되지 않았으므로 현재
-상태에서 자동 URDF 변환이나 실물 기준 장시간 학습을 시작하지 않는다.
+이 문서는 저장소에 포함된 예비 CAD 내보내기 자산의 관절 규약과 검증 기준을 설명합니다.
 
 ## 확정한 관절 영점과 회전 방향
 
