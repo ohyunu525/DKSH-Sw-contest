@@ -54,22 +54,10 @@ Unity 프리팹:
   활성화되지 않아 **Editor에서 임포트/Play 검증은 수행하지 못했습니다**.
   재저장용 C# 에디터 스크립트와 구조 검증 스크립트가 함께 제공됩니다.
 
-## Isaac Lab 실행
+## 모델 개조와 학습
 
-저장소 루트에서:
-
-```powershell
-.\run_isaaclab.ps1 -Mode smoke -RobotModel cad8 -NumEnvs 1 -Steps 100
-.\run_isaaclab.ps1 -Mode smoke -RobotModel cad6 -NumEnvs 1 -Steps 100
-
-.\run_isaaclab.ps1 -Mode train -RobotModel cad8 -NumEnvs 32 -MaxIterations 1000
-.\run_isaaclab.ps1 -Mode train -RobotModel cad6 -NumEnvs 32 -MaxIterations 1000
-```
-
-학습 로그는 각각 `logs/rsl_rl/dksh_spider_cad8_navigation`과
-`logs/rsl_rl/dksh_spider_cad6_navigation`에 저장됩니다. 두 모델은 따로 학습합니다.
-기존 `balance_baseline.pt`는 박스 로봇용이라 이 CAD 모델에 자동 적용하지 않습니다.
-새 학습이 끝나면 같은 `-RobotModel`을 지정해 `play` 또는 `evaluate`합니다.
+[CAD 개조 안내](../../docs/cad_update_workflow.md)에서 Onshape 설계, 편집할 파일, 현재
+RLForHexapod 학습 환경으로 변환하는 방법을 확인할 수 있습니다.
 
 ## 재생성
 

@@ -23,6 +23,12 @@ SLAM/Nav2 launch를 실행합니다. ROS 측은 Jazzy, SLAM Toolbox, SmacPlanner
 MPPI Omni, velocity smoother, collision monitor와 검증된 Frontier 후보 v1.6.1을 사용합니다.
 [ROS2/Nav2 실행 안내](ros2/README.md)에서 연결 설정과 실행 명령을 확인할 수 있습니다.
 
+## CAD 설계와 개조
+
+[HEXAPOD Onshape 조립 모델](https://cad.onshape.com/documents/f646c0fde8bd91cfa43cbae7/w/279609403375cff4404c6eae/e/76a6985095c8e8f19d67aec6)에서 로봇의 부품과 관절 구성을 확인할 수 있습니다.
+저장소에는 URDF, STL 메시와 Unity 프리팹도 포함되어 있습니다. 사용할 파일과 좌표계,
+수정한 모델을 시뮬레이션에 반영하는 방법은 [CAD 개조 안내](isaaclab_project/docs/cad_update_workflow.md)를 참고하세요.
+
 ## RLForHexapod 학습
 
 학습 코드는 [RLForHexapod 원격 main의 dcbad6d](https://github.com/qorhvma/RLForHexapod/tree/dcbad6dc015cbe72d0a362a417b83a0c70713ecf)에서 가져왔습니다.

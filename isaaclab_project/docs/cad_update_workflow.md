@@ -1,6 +1,16 @@
-# Onshape CAD 갱신 및 학습 전환 절차
+# Spiderbot CAD 개조 안내
 
-이 문서는 저장소에 포함된 예비 CAD 내보내기 자산의 관절 규약과 검증 기준을 설명합니다.
+[HEXAPOD Onshape 조립 모델](https://cad.onshape.com/documents/f646c0fde8bd91cfa43cbae7/w/279609403375cff4404c6eae/e/76a6985095c8e8f19d67aec6)에서 조립과 부품 형상을 살펴볼 수 있습니다.
+Onshape에서 복사 또는 내보내기 메뉴가 제공되면, 복사본에서 개조하거나 STEP으로
+내보내 다른 CAD 도구에서 편집할 수 있습니다.
+
+GitHub에서 바로 받을 수 있는 파일도 있습니다.
+
+- [RLForHexapod URDF](../../RLForHexapod/src/RLforHexapod/assets/urdf/robot.urdf)와
+  [STL 메시](../../RLForHexapod/src/RLforHexapod/assets/assets)는 현재 학습 프로젝트의 로봇 자산입니다.
+- [이전 Onshape 내보내기](../assets/spiderbot_variants/onshape_20260928)는 예비 6족 조립의 URDF와 메시입니다.
+- [Unity 프리팹과 6족·8족 예비 모델](../assets/spiderbot_variants/README.md)은 Unity에서 모델을 바꾸거나
+  시뮬레이션용 자산을 재생성할 때 사용할 수 있습니다.
 
 ## 확정한 관절 영점과 회전 방향
 
@@ -24,59 +34,17 @@ femur와 tibia 축은 각 다리의 로컬 좌표에서 `(0, -1, 0)`으로 재�
 Mate의 Limits는 비활성화되어 있으므로, 실제 조립 후 간섭이 발견되면 좌우 한계를
 더 좁히되 180도보다 넓히지는 않는다.
 
-다음 명령으로 18개 Mate 이름, 영점, 축 방향 계약을 검사한다.
+## 개조한 모델을 학습 환경에 반영하기
+
+1. URDF와 메시를 함께 수정합니다. 메시 경로는 URDF 파일을 기준으로 유지합니다.
+2. 관절 이름·축·영점·한계와 링크 질량·관성을 확인합니다. 관절 이름을 변경했다면
+   [학습 환경 설정](../../RLForHexapod/src/RLforHexapod/tasks/walk/config/hexapod/env_cfg.py)도 맞춰야 합니다.
+3. [학습 환경 설치](../../README.md#rlforhexapod-학습) 후 저장소 루트에서 다음 명령으로 USD를 생성합니다.
 
 ```powershell
-python isaaclab_project/scripts/onshape_joint_frames.py
+cd RLForHexapod
+uv run --locked --extra isaacsim python scripts/convert_urdf.py
 ```
 
-## 2026-09-28 Onshape URDF 내보내기
-
-`assets/spiderbot_variants/onshape_20260928/`에는 제공받은 Onshape-to-Robot
-내보내기 원본 URDF/STL과 Isaac Lab 변환 USD가 있다. 원본은 18개 Revolute joint,
-25개 링크(고정 발 프레임 6개 포함), 총 질량 1.7923392 kg를 포함한다. 고정 프레임을
-병합한 USD는 19강체다. 원본 URDF의 `±pi`, effort/velocity `10`은 exporter 기본값이므로
-학습용 `robot.training.urdf`에서 프로젝트 관절 이름, `±90도` 한계, MG90S/RC920DMG의
-보수적 한계로 정규화했다.
-
-원본 coxa와 tibia Mate 축 부호는 프로젝트 규약과 반대였으므로 정규화 단계에서만
-반전했다. CAD 변환 원점·링크 질량·관성·메시는 그대로 보존된다. 재생성은 다음과 같다.
-
-```powershell
-python isaaclab_project/scripts/normalize_onshape_urdf.py <raw-urdf> <training-urdf>
-.\IsaacLab\isaaclab.bat -p .\IsaacLab\scripts\tools\convert_urdf.py --headless <training-urdf> <output-usd> --merge-joints --joint-stiffness 3.0 --joint-damping 0.06
-```
-
-이 내보내기로 관절 중심·축과 링크 질량/관성은 학습용으로 확보됐다. 그러나 모터가
-질량값에 포함됐는지, 실제 간섭 한계, 최종 서보 배치, L2 장착 위치는 CAD 내보내기에
-명시되지 않았으므로 자산 상태는 여전히 `current_onshape_provisional`이다.
-
-## CAD 담당자가 확정할 항목
-
-1. Onshape에서 조립 리비전을 `released_for_simulation` 상태로 동결한다.
-2. 전체 조립을 부품 병합 없이 STEP으로 내보낸다.
-3. body-coxa, coxa-femur, femur-tibia의 축·중심·영점 자세·허용 각도를 기록한다.
-4. 몸체와 각 링크의 질량·무게중심을 내보내고, 값에 모터가 포함됐는지 표시한다.
-5. 다리당 MG90S 1개와 RC920DMG 2개, 전체 RC920DMG 12개 배치를 CAD에서 확인한다.
-   RC920DMG의 실제 공급 전압에서 속도·정지 토크·전류를 데이터시트 또는 벤치 측정으로 남긴다.
-6. L2 장착 위치·방향과 장착물을 포함한 질량을 확정한다.
-
-## 저장소 반영 순서
-
-1. STEP, 관절 명세, 질량 명세를 별도 CAD 입력 디렉터리에 넣고 SHA-256을 계산한다.
-2. `assets/spiderbot_variants/cad_source.json`의 `release_evidence`와 lifecycle을 갱신한다.
-3. 기존 `completeLEG.fbx` 추정 모델을 덮어쓰지 말고 새 리비전 자산을 생성한다.
-4. URDF/USD에서 18관절의 축·영점·한계, 링크 질량 합계, 관성 양의 정부호를 검증한다.
-5. 정적 자세와 무동작 중력 테스트, 4→8→16 환경 사전 검사를 수행한다.
-6. 새 CAD/서보/라이다 manifest 해시로 처음부터 정책을 학습하고 별도 이름으로 보관한다.
-
-준비 상태는 다음 명령으로 확인한다.
-
-```powershell
-python isaaclab_project/scripts/cad_readiness.py --json
-```
-
-준비되지 않은 CAD로 장시간 학습은 실패한다. 기구 확정 전 비교 실험만 필요하면
-`run_mg90s.ps1`에 `-AllowProvisionalCad`를 명시할 수 있으며, 이 사실은 학습
-메타데이터에 남는다. 기존 정책은 최신 설계 검증용이 아니라 소프트웨어 파이프라인과
-혼합 서보 가정의 예비 결과로만 유지한다.
+변환 뒤 소수의 환경에서 관절 움직임과 접촉을 확인하세요. 로봇 형상이나 관측·행동이 달라졌다면
+기존 정책의 호환성을 확인한 뒤 재학습하세요.
