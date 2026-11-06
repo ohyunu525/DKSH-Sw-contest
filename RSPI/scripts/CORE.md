@@ -6,7 +6,6 @@
 관측에는 LiDAR·카메라·목표 위치가 들어 있지 않습니다. LiDAR는 ROS2 SLAM/Nav2가 `/cmd_vel`을
 생성하는 상위 계층에서 사용하고, 보행 정책은 그 속도 명령을 `command` 관측으로 받는 구조입니다.
 검증된 선택 정책과 ONNX 파일은 `isaaclab_project/policies/mg90s_cad6_velocity_l1v1`에 있습니다.
-기본 상위 센서는 Unitree L2이며 새 보행 학습 로그는 `dksh_mg90s_cad6_velocity_l2v1`에 저장합니다.
 보관된 L1 정책의 평가 기록은 L2 실기 전체 시스템의 검증 결과로 간주하지 않습니다.
 
 ## 먼저 가상 입력 확인
@@ -21,13 +20,7 @@ python3 CORE.py --state sample_state.json --log core_log.jsonl
 
 ## 학습 모델 연결
 
-6족 Velocity 학습이 완료된 체크포인트를 Isaac Lab의 `play.py`로 열면 해당 학습 폴더의 `exported/policy.onnx`가 생성됩니다. 예를 들어 저장소 루트의 Windows PowerShell에서:
-
-```powershell
-.\run_mg90s.ps1 -Mode play -SpeedProfile velocity -NumEnvs 1 -Checkpoint '.\logs\rsl_rl\dksh_mg90s_cad6_velocity_l2v1\<run>\model_2001.pt'
-```
-
-위 경로는 예시입니다. 실제로 완료된 실행 폴더의 체크포인트를 사용하세요. `policy.onnx`와 같은 실행 폴더의 `run_metadata.json`을 Pi의 같은 디렉터리로 복사합니다. 이 ONNX에는 학습 때 사용한 관측 정규화가 포함됩니다.
+보관된 68관측 Velocity 정책의 ONNX와 메타데이터를 같은 디렉터리에 복사합니다. 파일과 정책 계약은 [기존 배포 정책](../../isaaclab_project/policies/mg90s_cad6_velocity_l1v1/README.md)을 참고하세요.
 
 Pi에서:
 
